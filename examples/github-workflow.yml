@@ -38,4 +38,12 @@ jobs:
         with:
           service: checkout-api
           image: registry.example.com/checkout-api:${{ github.sha }}
-      - run: echo "Release ${{ steps.alror.outputs.deployment-id }} ended as ${{ steps.alror.outputs.status }}"
+          # This push job writes the receipt to the Actions summary.
+          # To also comment on a PR, set pull-request to its number and grant
+          # pull-requests: write above. PR-event jobs detect the number automatically.
+      - name: Release outcome
+        if: always()
+        env:
+          DEPLOYMENT_ID: ${{ steps.alror.outputs.deployment-id }}
+          DEPLOYMENT_STATUS: ${{ steps.alror.outputs.status }}
+        run: echo "Release $DEPLOYMENT_ID ended as $DEPLOYMENT_STATUS"

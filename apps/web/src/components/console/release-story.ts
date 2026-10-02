@@ -106,15 +106,21 @@ export function failingResult(events: DeployEvent[]): { e: DeployEvent; r: Metri
 /** Plain-English headline for the deployment page. */
 export function headline(d: Deployment, events: DeployEvent[], tree: RolloutTree, limits: Record<string, number>, now: number): string {
   const stages = tree.stages;
-  const passed = stages.filter((s) => s.state === "pass").length;
+  const verificationStages = stages.filter((s) => s.weight < 100);
+  const passed = verificationStages.filter((s) => s.state === "pass").length;
+  const warnings = verificationStages.filter((s) => s.state === "warning").length;
   const took = span((d.status === "rolling" || d.status === "pending" ? now : Date.parse(d.updated_at)) - Date.parse(d.created_at));
   switch (d.status) {
-    case "promoted":
-      return `Promoted to 100% of traffic after ${passed} of ${stages.length} stages passed verification, ${took} after it started.`;
+    case "promoted": {
+      const verification = verificationStages.length
+        ? `${passed} of ${verificationStages.length} canary stages have passing verification recorded`
+        : "no canary verification stages are recorded";
+      return `Promoted to 100% of traffic ${took} after it started; ${verification}${warnings ? `, with ${warnings} continued despite warnings` : ""}.`;
+    }
     case "rolling": {
       const active = stages.find((s) => s.state === "active");
       const idx = active ? active.index + 1 : d.step_index + 1;
-      const left = active?.remainingMs !== undefined ? (active.remainingMs > 0 ? ` Next verdict in about ${span(active.remainingMs)}.` : " Waiting for the verdict.") : "";
+      const left = active?.remainingMs !== undefined ? (active.remainingMs > 0 ? ` Estimated bake time remaining: ${span(active.remainingMs)}.` : " Waiting for the verdict.") : "";
       return `Rolling out: the canary serves ${tree.liveWeight}% of traffic at stage ${idx} of ${stages.length}.${left}`;
     }
     case "rolled_back": {
@@ -125,11 +131,11 @@ export function headline(d: Deployment, events: DeployEvent[], tree: RolloutTree
         return `Rolled back at ${f.e.weight ?? d.weight}% because ${metricLabel(f.r.metric).toLowerCase()} ${dir} ${Math.abs(Math.round(f.r.delta * 100))}% vs baseline${lim !== undefined ? ` (limit ${Math.round(lim * 100)}%)` : ""}. Traffic went back to the stable version.`;
       }
       const rb = [...events].reverse().find((e) => e.kind === "rolled_back");
-      return `Rolled back manually${rb?.weight ? ` at ${rb.weight}%` : ""}${d.reason ? `: ${d.reason}` : ""}. Traffic went back to the stable version.`;
+      return `Rolled back${tree.outcome === "manual_rollback" ? " manually" : ""}${rb?.weight ? ` at ${rb.weight}%` : ""}${d.reason ? `: ${d.reason}` : ""}. Traffic went back to the stable version.`;
     }
     case "failed": {
       const err = [...events].reverse().find((e) => e.kind === "error");
-      return `Failed${err?.weight ? ` at ${err.weight}%` : ""}: ${err?.message ?? d.reason ?? "the rollout stopped with an error"}. Traffic went back to the stable version.`;
+      return `Failed${err?.weight ? ` at ${err.weight}%` : ""}: ${err?.message ?? d.reason ?? "the rollout stopped with an error"}. Rollback was attempted; traffic restoration is unconfirmed.`;
     }
     default:
       return "Waiting to start: the rollout has not shifted any traffic yet.";

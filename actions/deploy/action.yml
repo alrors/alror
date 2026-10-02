@@ -21,6 +21,15 @@ inputs:
   shadow:
     description: Shadow mode, which recommends rollbacks but never acts.
     default: "false"
+  comment:
+    description: Keep a deployment receipt comment on the pull request, when one is available.
+    default: "true"
+  pull-request:
+    description: Optional PR number for push or workflow_dispatch runs. Defaults to the event PR.
+    default: ""
+  token:
+    description: Token used to post the deployment comment (requires pull-requests write).
+    default: ${{ github.token }}
   version:
     description: Alror version to install (a git tag, or "latest").
     default: latest
@@ -33,8 +42,17 @@ outputs:
     description: promoted, rolled_back or failed.
     value: ${{ steps.deploy.outputs.status }}
   weight:
-    description: Canary traffic when the run ended.
+    description: Last rollout stage reached; after rollback this is not the current traffic weight.
     value: ${{ steps.deploy.outputs.weight }}
+  risk:
+    description: Release risk score from 0 to 100.
+    value: ${{ steps.deploy.outputs.risk }}
+  reason:
+    description: Rollback or failure reason, when available.
+    value: ${{ steps.deploy.outputs.reason }}
+  duration:
+    description: Elapsed rollout time, e.g. 2m15s.
+    value: ${{ steps.deploy.outputs.duration }}
 
 runs:
   using: composite
@@ -46,7 +64,9 @@ runs:
 
     - name: Install alror
       shell: bash
-      run: go install github.com/alrors/alror/cmd/alror@${{ inputs.version }}
+      env:
+        ALROR_VERSION: ${{ inputs.version }}
+      run: go install "github.com/alrors/alror/cmd/alror@$ALROR_VERSION"
 
     - name: Deploy
       id: deploy
@@ -54,8 +74,15 @@ runs:
       working-directory: ${{ inputs.working-directory }}
       env:
         NO_COLOR: "1"
+        GITHUB_TOKEN: ${{ inputs.token }}
+        ALROR_GITHUB_COMMENT: ${{ inputs.comment }}
+        ALROR_GITHUB_PR: ${{ inputs.pull-request }}
+        ALROR_SERVICE: ${{ inputs.service }}
+        ALROR_IMAGE: ${{ inputs.image }}
+        ALROR_REF: ${{ inputs.ref }}
+        ALROR_SHADOW: ${{ inputs.shadow }}
       run: |
-        args=(deploy -s "${{ inputs.service }}" -i "${{ inputs.image }}" --ref "${{ inputs.ref }}")
-        if [ "${{ inputs.shadow }}" = "true" ]; then args+=(--shadow); fi
+        args=(deploy -s "$ALROR_SERVICE" -i "$ALROR_IMAGE" --ref "$ALROR_REF")
+        if [ "$ALROR_SHADOW" = "true" ]; then args+=(--shadow); fi
         # Exit code 2 means "rolled back": fail the job so the bad release is visible.
         alror "${args[@]}"

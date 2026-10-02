@@ -3,7 +3,7 @@
 
 import type { DeployEvent, Deployment, MetricResult } from "./types";
 
-export type NodeState = "pass" | "fail" | "active" | "pending" | "skipped";
+export type NodeState = "pass" | "warning" | "fail" | "active" | "pending" | "skipped";
 
 export type Leaf =
   | { kind: "shift"; from: number; to: number; at: string }
@@ -18,10 +18,10 @@ export type StageNode = {
   bakeNs: number;
   startedAt?: string;
   endedAt?: string;
-  /** Milliseconds of bake left, for the active stage. */
+  /** Estimated milliseconds of planned bake left for the active stage. */
   remainingMs?: number;
   children: Leaf[];
-  /** Finished passing stages start collapsed; active and failed ones open. */
+  /** Finished passing stages start collapsed; active, warning and failed ones open. */
   open: boolean;
 };
 
@@ -46,7 +46,8 @@ export function buildRolloutTree(d: Deployment, events: DeployEvent[], now = Dat
   const at = (w: number | undefined) => (w !== undefined ? byWeight.get(w) : undefined);
   let current: StageNode | undefined;
   let lastWeight = 0;
-  let outcome: RolloutTree["outcome"] = d.status === "rolling" ? "rolling" : "pending";
+  let outcome: RolloutTree["outcome"] = d.status;
+  let sawPromotion = false;
 
   for (const e of events) {
     switch (e.kind) {
@@ -70,11 +71,14 @@ export function buildRolloutTree(d: Deployment, events: DeployEvent[], now = Dat
         } else {
           // Shadow mode: the engine logs a recommendation and keeps going.
           s.children.push({ kind: "note", tone: "warn", text: e.message, at: e.at });
-          s.state = "pass";
+          s.state = "warning";
+          s.endedAt ??= e.at;
         }
         break;
       }
       case "promoted": {
+        sawPromotion = true;
+        outcome = "promoted";
         const s = at(100) ?? stages[stages.length - 1];
         if (!s) break;
         s.startedAt = s.endedAt = e.at;
@@ -86,12 +90,12 @@ export function buildRolloutTree(d: Deployment, events: DeployEvent[], now = Dat
         break;
       }
       case "rolled_back": {
-        if (outcome === "promoted" || !e.weight) {
+        if (sawPromotion || !e.weight) {
           // Manual rollback, possibly after promotion: hang it off the last reached stage.
-          const s = outcome === "promoted" ? stages[stages.length - 1] : current ?? stages[0];
+          const s = sawPromotion ? stages[stages.length - 1] : current ?? stages[0];
           if (s) {
             s.children.push({ kind: "note", tone: "bad", text: `rolled back · ${e.message.replace(/^Manual rollback · /, "manual: ")}`, at: e.at });
-            if (outcome !== "promoted") s.state = "fail";
+            if (!sawPromotion) s.state = "fail";
           }
           outcome = "manual_rollback";
         } else {
@@ -112,13 +116,17 @@ export function buildRolloutTree(d: Deployment, events: DeployEvent[], now = Dat
           s.startedAt ??= e.at;
           s.endedAt = e.at;
           s.children.push({ kind: "note", tone: "bad", text: e.message, at: e.at });
-          s.children.push({ kind: "note", tone: "bad", text: "aborted · traffic returned to stable", at: e.at });
+          s.children.push({ kind: "note", tone: "bad", text: "Rollout stopped. Rollback was attempted; traffic restoration is unconfirmed.", at: e.at });
         }
         outcome = "failed";
         break;
       }
     }
   }
+
+  // The deployment snapshot remains authoritative when terminal events are missing.
+  // Preserve manual classification only when a rollback event supports it.
+  if (outcome !== "manual_rollback" || d.status !== "rolled_back") outcome = d.status;
 
   const halted = outcome === "rolled_back" || outcome === "failed" || (outcome === "manual_rollback" && d.status !== "promoted" && !stages.every((s) => s.state === "pass"));
   const failedAt = stages.findIndex((s) => s.state === "fail");
@@ -127,13 +135,15 @@ export function buildRolloutTree(d: Deployment, events: DeployEvent[], now = Dat
     if (s.state === "active") {
       if (d.status === "rolling") {
         const elapsed = s.startedAt ? now - Date.parse(s.startedAt) : 0;
-        s.remainingMs = Math.max(0, s.bakeNs / 1e6 - elapsed);
+        if (Number.isFinite(elapsed) && Number.isFinite(s.bakeNs)) {
+          s.remainingMs = Math.max(0, s.bakeNs / 1e6 - Math.max(0, elapsed));
+        }
         s.children.push({ kind: "note", tone: "info", text: "verifying canary against baseline" });
       } else {
         s.state = "pending"; // interrupted without a verdict
       }
     }
-    s.open = s.state === "fail" || s.state === "active" || s.children.some((c) => c.kind === "note" && c.tone === "bad");
+    s.open = s.state === "fail" || s.state === "warning" || s.state === "active" || s.children.some((c) => c.kind === "note" && c.tone === "bad");
   }
 
   const liveWeight = d.status === "promoted" ? 100 : d.status === "rolling" ? d.weight : 0;

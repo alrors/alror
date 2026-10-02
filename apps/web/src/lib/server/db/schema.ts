@@ -2,6 +2,7 @@
 // Generate SQL migrations with `npm run db:generate` and apply them with `npm run db:migrate`.
 
 import { sql } from "drizzle-orm";
+import type { GatePolicy, GateMode } from "../github/types";
 import {
   bigserial,
   boolean,
@@ -374,3 +375,53 @@ export const pluginVotes = pgTable(
   },
   (t) => [primaryKey({ columns: [t.orgId, t.pluginId, t.userId] }), index("plugin_votes_plugin_idx").on(t.pluginId)],
 );
+
+/** Each repository is explicitly enrolled to one Alror organization by an operator. */
+export const githubRepositories = pgTable("github_repositories", {
+  id: text("id").primaryKey(),
+  orgId: uuid("org_id").notNull().references(() => orgs.id, { onDelete: "cascade" }),
+  installationId: text("installation_id").notNull(),
+  fullName: text("full_name").notNull(),
+  enabled: boolean("enabled").notNull().default(true),
+  policy: jsonb("policy").$type<GatePolicy>().notNull(),
+  policyVersion: integer("policy_version").notNull().default(1),
+  enrolledBy: text("enrolled_by").notNull(),
+  createdAt: createdAt(),
+  updatedAt: ts("updated_at").notNull().defaultNow(),
+}, (t) => [index("github_repositories_org_idx").on(t.orgId), index("github_repositories_installation_idx").on(t.installationId)]);
+
+/** Durable inbox; independent of jobs claimed by customer deployment runners. */
+export const githubDeliveries = pgTable("github_deliveries", {
+  id: text("id").primaryKey(),
+  event: text("event").notNull(),
+  installationId: text("installation_id"),
+  repositoryId: text("repository_id"),
+  payload: jsonb("payload").$type<Record<string, unknown>>().notNull(),
+  status: text("status").notNull().default("queued"),
+  attempts: integer("attempts").notNull().default(0),
+  availableAt: ts("available_at").notNull().defaultNow(),
+  leaseToken: text("lease_token"),
+  leaseExpiresAt: ts("lease_expires_at"),
+  error: text("error"),
+  createdAt: createdAt(),
+  finishedAt: ts("finished_at"),
+}, (t) => [index("github_deliveries_claim_idx").on(t.status, t.availableAt), check("github_deliveries_status_check", sql`status in ('queued', 'processing', 'done', 'failed')`)]);
+
+export const githubDecisions = pgTable("github_decisions", {
+  id: id(),
+  orgId: uuid("org_id").notNull().references(() => orgs.id, { onDelete: "cascade" }),
+  repositoryId: text("repository_id").notNull().references(() => githubRepositories.id, { onDelete: "cascade" }),
+  pullNumber: integer("pull_number").notNull(),
+  title: text("title").notNull(),
+  url: text("url").notNull(),
+  headSha: text("head_sha").notNull(),
+  baseSha: text("base_sha").notNull(),
+  policyVersion: integer("policy_version").notNull(),
+  mode: text("mode").$type<GateMode>().notNull(),
+  outcome: text("outcome").notNull(),
+  score: integer("score").notNull(),
+  reasons: jsonb("reasons").$type<string[]>().notNull(),
+  checkId: text("check_id"),
+  commentId: text("comment_id"),
+  updatedAt: ts("updated_at").notNull().defaultNow(),
+}, (t) => [uniqueIndex("github_decisions_revision_key").on(t.repositoryId, t.pullNumber, t.headSha, t.baseSha, t.policyVersion), index("github_decisions_org_updated_idx").on(t.orgId, t.updatedAt.desc())]);

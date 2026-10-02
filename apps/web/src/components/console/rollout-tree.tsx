@@ -1,169 +1,153 @@
-import { Check, ChevronRight, X } from "lucide-react";
+import type { ReactNode } from "react";
+import { Check, ChevronDown, GitBranch, GitCommitHorizontal, GitMerge, RotateCcw, X } from "lucide-react";
 import { cn } from "@/lib/site";
 import { duration, elapsed, hm, metricUnitValue, pValue, signedPct, span } from "@/lib/console/format";
 import type { Leaf, NodeState, RolloutTree, StageNode } from "@/lib/console/rollout-tree";
+import styles from "./rollout-tree.module.css";
 
-/* Markers: 16px circles on the rail. Static; no glow or blinking. */
-function Marker({ state, size = 16 }: { state: NodeState | "root"; size?: number }) {
-  const base = "relative z-10 grid shrink-0 place-items-center rounded-full";
-  const style = { width: size, height: size };
-  switch (state) {
-    case "pass":
-      return (
-        <span className={cn(base, "bg-con-good text-black")} style={style}>
-          <Check size={size * 0.62} strokeWidth={3} />
-        </span>
-      );
-    case "fail":
-      return (
-        <span className={cn(base, "bg-con-bad text-black")} style={style}>
-          <X size={size * 0.62} strokeWidth={3} />
-        </span>
-      );
-    case "active":
-      return (
-        <span className={cn(base, "border border-con-info bg-con-bg")} style={style}>
-          <span className="h-1/2 w-1/2 rounded-full bg-con-info" />
-        </span>
-      );
-    case "root":
-      return (
-        <span className={cn(base, "border border-con-line-hover bg-con-row")} style={style}>
-          <span className="h-[40%] w-[40%] rounded-full bg-con-fg" />
-        </span>
-      );
-    default:
-      return <span className={cn(base, "border border-dashed bg-con-bg", state === "skipped" ? "border-con-line" : "border-con-fg3")} style={style} />;
-  }
-}
-
-const elbow =
-  "relative pl-5 before:absolute before:left-0 before:top-0 before:h-[13px] before:w-3.5 before:rounded-bl-[4px] before:border-b before:border-l before:border-con-line-hover before:content-[''] [&:not(:last-child)]:after:absolute [&:not(:last-child)]:after:bottom-0 [&:not(:last-child)]:after:left-0 [&:not(:last-child)]:after:top-0 [&:not(:last-child)]:after:border-l [&:not(:last-child)]:after:border-con-line-hover [&:not(:last-child)]:after:content-['']";
-
-const noteTone = {
-  good: "text-con-good",
-  bad: "text-con-bad",
-  warn: "text-con-warn",
-  info: "text-con-info",
-  muted: "text-con-fg3",
+const stateLabel: Record<NodeState, string> = {
+  pass: "Passed", warning: "Continued with warnings", fail: "Failed", active: "Verifying", pending: "Waiting", skipped: "Not reached",
 };
 
-function LeafRow({ leaf }: { leaf: Leaf }) {
-  if (leaf.kind === "shift") {
-    return (
-      <span className="text-con-fg2">
-        shifted traffic <span className="font-mono tabular-nums text-con-fg">{leaf.from}%</span> →{" "}
-        <span className="font-mono tabular-nums text-con-fg">{leaf.to}%</span>
-        <span className="ml-2 font-mono text-[12px] text-con-fg3">{hm(leaf.at)}</span>
-      </span>
-    );
-  }
-  if (leaf.kind === "note") {
-    return (
-      <span className={cn("break-words", noteTone[leaf.tone])}>
-        {leaf.tone === "bad" && "↳ "}
-        {leaf.tone === "warn" && "shadow · "}
-        {leaf.text}
-      </span>
-    );
-  }
-  const r = leaf.result;
+function Marker({ state, merge = false }: { state: NodeState | "root"; merge?: boolean }) {
   return (
-    <span className="flex flex-wrap items-center gap-x-3 gap-y-0.5 font-mono text-[12.5px] tabular-nums">
-      <span className="text-con-fg3">verify</span>
-      <span className="w-[92px] text-con-fg">{r.metric}</span>
-      <span className="text-con-fg2">
-        {metricUnitValue(r.metric, r.canary)} <span className="text-con-fg3">vs</span> {metricUnitValue(r.metric, r.baseline)}
-      </span>
-      <span className={r.pass ? "text-con-fg2" : "text-con-bad"}>{signedPct(r.delta)}</span>
-      <span className="text-con-fg3">p={pValue(r.p_value)}</span>
-      {r.pass ? <Check size={14} className="text-con-good" aria-label="pass" /> : <X size={14} className="text-con-bad" aria-label="fail" />}
-      {!r.pass && r.reason && <span className="basis-full font-sans text-[12px] text-con-bad sm:basis-auto">{r.reason}</span>}
+    <span className={styles.marker} data-state={state} aria-hidden="true">
+      {merge ? <GitMerge size={12} /> : state === "pass" ? <Check size={12} strokeWidth={2.5} /> :
+        state === "fail" ? <X size={12} strokeWidth={2.5} /> : <span className={styles.markerDot} />}
     </span>
   );
 }
 
-function stageMeta(s: StageNode): string {
-  const parts: string[] = [];
-  if (s.bakeNs) parts.push(`bake ${duration(s.bakeNs)}`);
-  if (s.state === "active" && s.remainingMs !== undefined) parts.push(s.remainingMs > 0 ? `${span(s.remainingMs)} left` : "awaiting verdict");
-  else if (s.startedAt && s.endedAt && s.startedAt !== s.endedAt)
-    parts.push(`${hm(s.startedAt)} → ${hm(s.endedAt)} (took ${elapsed(s.startedAt, s.endedAt)})`);
-  else if (s.startedAt) parts.push(hm(s.startedAt));
-  if (s.state === "pending") parts.push("pending");
-  if (s.state === "skipped") parts.push("skipped");
-  return parts.join(" · ");
-}
-
-const stateWord: Partial<Record<NodeState, { text: string; cls: string }>> = {
-  active: { text: "rolling", cls: "text-con-info" },
-  fail: { text: "failed", cls: "text-con-bad" },
-};
-
-function StageRow({ s, compact }: { s: StageNode; compact?: boolean }) {
-  const dim = s.state === "pending" || s.state === "skipped";
-  const head = (
-    <div className="flex min-w-0 flex-1 flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5">
-      <span className="flex items-baseline gap-2">
-        <span className={cn("text-[14px] font-medium", dim ? "text-con-fg3" : "text-con-fg", s.state === "skipped" && "line-through decoration-con-line-hover")}>
-          {s.label}
-        </span>
-        {stateWord[s.state] && <span className={cn("text-[13px]", stateWord[s.state]!.cls)}>{stateWord[s.state]!.text}</span>}
+/** Fixed-radius curves at the top; CSS rails fill the remaining row height. */
+function Rails({ first, merge, last, state }: { first?: boolean; merge?: boolean; last?: boolean; state: NodeState | "root" }) {
+  return (
+    <div className={styles.rails} data-state={state} aria-hidden="true">
+      <span className={styles.stableRail} />
+      <svg className={styles.curve} viewBox="0 0 72 40" fill="none">
+        <path d={first ? "M 16 0 C 16 22 48 10 48 32 L 48 40" : merge ? "M 48 0 C 48 22 16 10 16 32 L 16 40" : "M 48 0 L 48 40"} />
+      </svg>
+      {!merge && !last && <span className={styles.canaryRail} />}
+      <span className={cn(styles.markerPosition, merge && styles.onStable)}>
+        <Marker state={state} merge={merge} />
       </span>
-      <span className="font-mono text-[12.5px] tabular-nums text-con-fg3">{stageMeta(s)}</span>
     </div>
   );
+}
 
-  if (compact) {
-    return <div className="flex min-h-5 items-start">{head}</div>;
+function LeafRow({ leaf }: { leaf: Leaf }) {
+  if (leaf.kind === "shift") {
+    return <div className={styles.leafText}>Traffic shifted <strong>{leaf.from}% &rarr; {leaf.to}%</strong><time>{hm(leaf.at)}</time></div>;
   }
-  if (s.children.length === 0) {
-    return <div className="flex min-h-5 items-start pl-5">{head}</div>;
+  if (leaf.kind === "note") {
+    return <p className={styles.note} data-tone={leaf.tone}>{leaf.text}</p>;
   }
+  const r = leaf.result;
   return (
-    <details open={s.open} className="group/stage">
-      <summary className="-ml-1 flex min-h-5 cursor-pointer list-none items-start gap-1 rounded-sm pl-1 outline-none focus-visible:ring-1 focus-visible:ring-con-line-hover">
-        <ChevronRight size={14} className="mt-[3px] shrink-0 text-con-fg3 transition-transform duration-150 group-open/stage:rotate-90" />
-        {head}
+    <div className={styles.metric}>
+      <div className={styles.metricName}>
+        {r.pass ? <Check size={13} aria-label="Passed" /> : <X size={13} className={styles.bad} aria-label="Failed" />}
+        <span>{r.metric}</span>
+      </div>
+      <div className={styles.metricValues}>
+        <strong>{metricUnitValue(r.metric, r.canary)}</strong><span>vs {metricUnitValue(r.metric, r.baseline)}</span>
+        <span className={!r.pass ? styles.bad : undefined}>{signedPct(r.delta)}</span><span>p={pValue(r.p_value)}</span>
+      </div>
+      {!r.pass && r.reason && <p className={styles.metricReason}>{r.reason}</p>}
+    </div>
+  );
+}
+
+function stageMeta(s: StageNode) {
+  if (s.state === "active" && s.remainingMs !== undefined) return s.remainingMs > 0 ? "About " + span(s.remainingMs) + " remaining" : "Awaiting verdict";
+  if (s.startedAt && s.endedAt && s.startedAt !== s.endedAt) return elapsed(s.startedAt, s.endedAt) + " observed";
+  if (s.bakeNs) return duration(s.bakeNs) + " observation";
+  return s.weight >= 100 ? "Full traffic" : "No observation window";
+}
+
+function StageCard({ s, compact }: { s: StageNode; compact?: boolean }) {
+  const failedMetrics = s.children.filter((leaf) => leaf.kind === "metric" && !leaf.result.pass).length;
+  const shadow = s.children.some((leaf) => leaf.kind === "note" && leaf.tone === "warn");
+  const label = shadow && failedMetrics ? "Continued with warnings" : s.weight >= 100 && s.state === "pass" ? "Promoted" : stateLabel[s.state];
+  const heading = (
+    <>
+      <div className={styles.stageHeading}>
+        <span className={styles.stageTitle}>{s.weight >= 100 ? "Promote release" : s.weight + "% canary"}</span>
+        <span className={styles.badge} data-state={shadow && failedMetrics ? "warning" : s.state}>{label}</span>
+      </div>
+      {!compact && <div className={styles.stageMeta}><span>{stageMeta(s)}</span>{s.startedAt && <time>{hm(s.startedAt)}</time>}</div>}
+    </>
+  );
+  if (compact) return <div className={styles.compactStage}>{heading}</div>;
+  if (!s.children.length) return <div className={styles.stageCard} data-state={s.state}>{heading}</div>;
+  return (
+    <details className={styles.stageCard} data-state={s.state} open={s.open}>
+      <summary className={styles.stageSummary}>
+        <div className={styles.summaryContent}>{heading}</div>
+        <ChevronDown size={15} className={styles.chevron} aria-hidden="true" />
       </summary>
-      <ul className="mb-1 mt-2 text-[13px]">
-        {s.children.map((leaf, i) => (
-          <li key={i} className={cn(elbow, "pb-1.5 leading-[26px] last:pb-0")}>
-            <LeafRow leaf={leaf} />
-          </li>
-        ))}
-      </ul>
+      <div className={styles.stageDetails}>
+        <p className={styles.detailLabel}>Traffic & verification</p>
+        <ul className={styles.leaves}>
+          {s.children.map((leaf, i) => <li key={i} className={styles.leaf}><LeafRow leaf={leaf} /></li>)}
+        </ul>
+      </div>
     </details>
   );
 }
 
-/**
- * Vertical git-graph style rollout tree. The root is the release; each stage hangs
- * off one continuous rail, with its traffic shift and verdicts as children.
- */
-export function RolloutTreeView({ tree, root, compact, animate }: { tree: RolloutTree; root?: React.ReactNode; compact?: boolean; animate?: boolean }) {
-  const rows = tree.stages;
+export function RolloutTreeView({ tree, root, compact, animate }: { tree: RolloutTree; root?: ReactNode; compact?: boolean; animate?: boolean }) {
+  const stopped = ["rolled_back", "manual_rollback", "failed"].includes(tree.outcome);
+  const rows = tree.stages.filter((s) => !stopped || (s.state !== "skipped" && s.state !== "pending"));
+  const unreached = tree.stages.filter((s) => !rows.includes(s));
+  const returned = tree.outcome === "rolled_back" || tree.outcome === "manual_rollback";
+  const promoted = tree.outcome === "promoted";
+  const merged = rows.at(-1)?.weight === 100 && rows.at(-1)?.state === "pass";
   return (
-    <ol className={cn("relative", animate && "con-stagger")}>
-      {root && (
-        <li className={cn("relative flex gap-3", compact ? "pb-3" : "pb-5")}>
-          <span aria-hidden className="absolute bottom-0 left-[7.5px] top-4 w-px bg-con-line-hover" />
-          <Marker state="root" />
-          <div className="min-w-0 flex-1 -mt-0.5">{root}</div>
+    <div className={cn(styles.graph, compact && styles.compact)} aria-label="Rollout branch graph">
+      {!compact && <div className={styles.legend}>
+        <span><span className={styles.legendStable} />Stable</span>
+        <span><GitBranch size={13} />Canary branch</span>
+        <span className={styles.legendHint}>Expand a stage for details</span>
+      </div>}
+      <ol className={cn(styles.rows, animate && "con-stagger")}>
+        <li className={styles.root}>
+          <span className={styles.rootRail} aria-hidden="true" />
+          <span className={styles.rootMarker}><Marker state="root" /></span>
+          <div className={styles.rootContent}>
+            {root ?? <span className={styles.rootLabel}><GitCommitHorizontal size={15} />Release created</span>}
+            {!compact && <p>Branch from the stable release</p>}
+          </div>
         </li>
-      )}
-      {rows.map((s, i) => {
-        const last = i === rows.length - 1;
-        return (
-          <li key={s.index} className={cn("relative flex gap-3", !last && (compact ? "pb-2.5" : "pb-4"))}>
-            {!last && <span aria-hidden className="absolute bottom-0 left-[7.5px] top-4 w-px bg-con-line-hover" />}
-            <Marker state={s.state} />
-            <div className="min-w-0 flex-1">
-              <StageRow s={s} compact={compact} />
+        {rows.map((s, i) => {
+          const merge = s.weight >= 100 && s.state === "pass";
+          return (
+            <li className={styles.row} key={s.index} data-state={s.state}>
+              <Rails first={i === 0 && !merge} merge={merge} state={s.state} last={i === rows.length - 1 && !stopped && !promoted} />
+              <div className={styles.content}><StageCard s={s} compact={compact} /></div>
+            </li>
+          );
+        })}
+        {(stopped || promoted) && <li className={cn(styles.row, styles.outcomeRow)}>
+          {returned && !merged ? <Rails merge state="pass" last /> :
+            <><span className={cn(styles.finalRail, !promoted && !returned && styles.finalCanary)} aria-hidden="true" />
+              <span className={cn(styles.finalMarker, !promoted && !returned && styles.finalCanaryMarker)}>
+                <Marker state={tree.outcome === "failed" ? "fail" : "pass"} merge={promoted} />
+              </span></>}
+          <div className={cn(styles.content, styles.outcome)}>
+            <div className={styles.outcomeTitle}>
+              {returned ? <RotateCcw size={14} /> : promoted ? <GitMerge size={14} /> : <X size={14} />}
+              {returned ? "Returned to stable" : promoted ? "Release is live" : "Rollout stopped"}
             </div>
-          </li>
-        );
-      })}
-    </ol>
+            {!compact && <p>{returned ? "Rollback completed. This release is no longer receiving traffic." : promoted ?
+              "100% of traffic is on this release." : "Review the failure and confirm the current traffic state."}</p>}
+          </div>
+        </li>}
+      </ol>
+      {unreached.length > 0 && !compact && <div className={styles.unreached}>
+        <span>Not reached</span>
+        <div>{unreached.map((s) => <span key={s.index}>{s.weight}%{s.weight >= 100 ? " promotion" : " canary"}</span>)}</div>
+      </div>}
+      {rows.length === 0 && !stopped && <p className={styles.empty}>Waiting for the rollout plan.</p>}
+    </div>
   );
 }

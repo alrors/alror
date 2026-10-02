@@ -1,0 +1,114 @@
+.graph {
+  --rail: #404045;
+  --branch: #8d8d96;
+  --node-bg: var(--color-con-panel, #171717);
+  color: var(--color-con-fg, #ededed);
+  min-width: 0;
+}
+.legend { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 22px; color: var(--color-con-fg3, #999); font-size: 11px; }
+.legend > span { display: inline-flex; align-items: center; gap: 6px; }
+.legendStable { width: 15px; height: 2px; border-radius: 2px; background: var(--rail); }
+.legendHint { margin-left: auto; }
+.rows { padding: 0; margin: 0; list-style: none; }
+.root, .row { position: relative; min-width: 0; }
+.root { min-height: 64px; padding-bottom: 18px; }
+.rootContent { margin-left: 72px; padding-top: 13px; overflow-wrap: anywhere; }
+.rootContent > p { margin: 5px 0 0; color: var(--color-con-fg3, #888); font-size: 11px; }
+.rootLabel { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; }
+.rootRail { position: absolute; left: 15px; width: 2px; top: 24px; bottom: 0; background: var(--rail); }
+.rootMarker { position: absolute; left: 6px; top: 14px; }
+.marker { position: relative; z-index: 1; display: grid; place-items: center; width: 20px; height: 20px; border: 2px solid var(--branch); border-radius: 50%; background: var(--node-bg); color: #e0e0e4; box-shadow: 0 0 0 4px var(--node-bg); }
+.markerDot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+.marker[data-state="active"] { color: #8ab4f8; border-color: #8ab4f8; }
+.marker[data-state="fail"] { color: #f48b91; border-color: #f48b91; }
+.marker[data-state="warning"] { color: #e0bb78; border-color: #c7a15e; }
+.marker[data-state="pending"], .marker[data-state="skipped"] { border: 1.5px dashed #55555c; color: #66666d; }
+.marker[data-state="pending"] .markerDot, .marker[data-state="skipped"] .markerDot { display: none; }
+.marker[data-state="root"] { border-color: #65656c; }
+.row { padding-bottom: 14px; }
+.content { position: relative; margin-left: 72px; padding-top: 9px; min-width: 0; }
+.rails { position: absolute; inset: 0 auto 0 0; width: 72px; pointer-events: none; }
+.stableRail { position: absolute; left: 15px; top: 0; bottom: 0; width: 2px; background: var(--rail); }
+.curve { position: absolute; top: 0; left: 0; width: 72px; height: 40px; overflow: visible; color: var(--branch); }
+.curve path { stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.canaryRail { position: absolute; top: 40px; bottom: 0; left: 47px; width: 2px; background: var(--branch); }
+.rails[data-state="pending"] .curve, .rails[data-state="skipped"] .curve { color: #505057; stroke-dasharray: 3 5; }
+.rails[data-state="pending"] .canaryRail, .rails[data-state="skipped"] .canaryRail { background: repeating-linear-gradient(to bottom, #505057 0 3px, transparent 3px 8px); }
+.markerPosition { position: absolute; left: 38px; top: 22px; }
+.onStable { left: 6px; }
+.stageCard { border: 1px solid var(--color-con-line, #303033); border-radius: 10px; background: var(--color-con-bg, #111); padding: 12px 14px; transition: border-color .18s ease, background .18s ease; }
+.stageCard[data-state="active"] { border-color: #476386; }
+.stageCard[data-state="fail"] { border-color: #75454b; }
+.stageCard[data-state="pending"] { border-style: dashed; color: var(--color-con-fg3, #999); background: transparent; }
+.stageCard:has(.stageSummary):hover { border-color: #606068; }
+.stageSummary { display: flex; align-items: flex-start; gap: 12px; cursor: pointer; list-style: none; border-radius: 4px; }
+.stageSummary::-webkit-details-marker { display: none; }
+.stageSummary:focus-visible { outline: 2px solid #8ab4f8; outline-offset: 6px; }
+.summaryContent { flex: 1; min-width: 0; }
+.stageHeading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 10px; min-height: 18px; }
+.stageTitle { font-size: 13px; font-weight: 550; letter-spacing: -.015em; }
+.badge { display: inline-flex; align-items: center; gap: 5px; border-radius: 5px; padding: 2px 6px; background: #ffffff06; color: #b1b1b8; font-size: 10px; line-height: 16px; white-space: nowrap; }
+.badge[data-state="active"] { color: #a4c5ff; background: #669cff12; }
+.badge[data-state="fail"] { color: #f48b91; background: #ff667a0c; }
+.badge[data-state="warning"] { color: #e0bb78; }
+.badge[data-state="pending"] { color: #7b7b83; background: transparent; }
+.stageMeta { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 5px; color: var(--color-con-fg3, #888); font-size: 11px; font-variant-numeric: tabular-nums; }
+.stageMeta time { margin-left: auto; }
+.chevron { flex-shrink: 0; margin-top: 3px; color: #777780; transition: transform .18s ease; }
+.stageCard[open] .chevron { transform: rotate(180deg); }
+.stageDetails { padding-top: 13px; margin-top: 13px; border-top: 1px solid var(--color-con-line, #303033); }
+.detailLabel { margin: 0 0 10px; color: var(--color-con-fg3, #888); font-size: 10px; letter-spacing: .04em; text-transform: uppercase; }
+.leaves { list-style: none; padding: 0; margin: 0; }
+.leaf { position: relative; padding: 0 0 12px 23px; margin-left: 2px; min-width: 0; }
+.leaf:last-child { padding-bottom: 0; }
+.leaf::before { content: ""; position: absolute; left: 0; top: -2px; width: 14px; height: 14px; border-left: 1px solid #48484e; border-bottom: 1px solid #48484e; border-bottom-left-radius: 12px; }
+.leaf:not(:last-child)::after { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 1px; background: #48484e; }
+.leafText { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; color: var(--color-con-fg2, #bcbcbc); font-size: 11px; line-height: 20px; }
+.leafText strong { font-weight: 500; }
+.leafText time { margin-left: auto; color: var(--color-con-fg3, #888); font-size: 10px; }
+.metric { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; font-size: 11px; font-variant-numeric: tabular-nums; }
+.metricName { display: flex; align-items: center; gap: 6px; min-width: 110px; overflow-wrap: anywhere; }
+.metricValues { display: flex; flex-wrap: wrap; gap: 5px 9px; color: var(--color-con-fg3, #999); }
+.metricValues strong { color: var(--color-con-fg2, #bcbcbc); font-weight: 500; }
+.metricReason { flex-basis: 100%; margin: 3px 0 0; color: #f48b91; overflow-wrap: anywhere; }
+.note { margin: 0; color: var(--color-con-fg2, #bcbcbc); font-size: 11px; line-height: 1.7; overflow-wrap: anywhere; }
+.note[data-tone="bad"], .bad { color: #f48b91; }
+.note[data-tone="warn"] { color: #e0bb78; }
+.note[data-tone="info"] { color: #a4c5ff; }
+.outcomeRow { padding-bottom: 0; min-height: 62px; }
+.outcomeRow .stableRail { bottom: auto; height: 32px; }
+.outcome { padding-top: 23px; }
+.outcomeTitle { display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 500; }
+.outcome p { margin: 6px 0 0; color: var(--color-con-fg3, #888); font-size: 11px; line-height: 1.6; }
+.finalRail { position: absolute; left: 15px; width: 2px; height: 32px; top: 0; background: var(--rail); }
+.finalCanary { left: 47px; background: var(--branch); }
+.finalMarker { position: absolute; left: 6px; top: 22px; }
+.finalCanaryMarker { left: 38px; }
+.unreached { margin: 20px 0 0 72px; padding-top: 14px; border-top: 1px solid var(--color-con-line, #303033); color: var(--color-con-fg3, #888); font-size: 11px; }
+.unreached > div { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.unreached > div > span { border: 1px dashed #3b3b40; border-radius: 5px; padding: 4px 7px; }
+.empty { margin: 8px 0 0 72px; font-size: 12px; color: #999; }
+.compact .root { min-height: 48px; }
+.compact .row { padding-bottom: 9px; min-height: 53px; }
+.compact .content { padding-top: 22px; }
+.compact .rootContent { padding-top: 16px; }
+.compact .stageTitle { font-size: 12px; }
+.compact .stageHeading { gap: 5px; }
+.compact .badge { font-size: 9px; }
+.compact .outcome { padding-top: 23px; }
+@media (max-width: 600px) {
+  .legend { gap: 10px; margin-bottom: 15px; }
+  .legendHint { display: none !important; }
+  .rootContent, .content, .unreached, .empty { margin-left: 62px; }
+  .stageCard { padding: 11px 10px; }
+  .stageHeading { align-items: flex-start; }
+  .stageTitle { font-size: 12px; }
+  .stageMeta time { margin-left: 0; }
+  .stageSummary { gap: 6px; }
+  .leaf { padding-left: 18px; }
+  .metricName { min-width: 0; }
+  .metricValues { font-size: 10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .stageCard, .chevron { transition: none; }
+}

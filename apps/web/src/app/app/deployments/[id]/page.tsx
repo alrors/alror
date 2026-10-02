@@ -39,7 +39,8 @@ export default async function DeploymentPage({ params }: PageProps<"/app/deploym
   const verdicts = events.filter((e) => e.kind === "verdict" && e.verdict);
   const canRollBack = d.status !== "rolled_back" && d.status !== "failed";
   const steps = d.plan?.steps ?? [];
-  const passed = tree.stages.filter((s) => s.state === "pass").length;
+  const verificationStages = tree.stages.filter((s) => s.weight < 100);
+  const passed = verificationStages.filter((s) => s.state === "pass").length;
   const story = headline(d, events, tree, config.policy.maxRegression, now);
   const bad = d.status === "rolled_back" || d.status === "failed";
   const passCount = verdicts.filter((e) => e.verdict?.pass).length;
@@ -86,9 +87,9 @@ export default async function DeploymentPage({ params }: PageProps<"/app/deploym
             {d.reason && <p className="mt-1.5 break-words font-mono text-[12px] text-con-fg3">{d.reason}</p>}
             <dl className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-[12.5px]">
               <div className="flex gap-1.5">
-                <dt className="text-con-fg3">Stages passed</dt>
+                <dt className="text-con-fg3">Verification stages passed</dt>
                 <dd className="font-mono tabular-nums text-con-fg">
-                  {passed} / {steps.length}
+                  {passed} / {verificationStages.length}
                 </dd>
               </div>
               <div className="flex gap-1.5">
@@ -121,11 +122,11 @@ export default async function DeploymentPage({ params }: PageProps<"/app/deploym
         <div className="min-w-0 space-y-6">
           <Card
             title="Rollout"
-            description={`${steps.length} stages · ${d.status === "rolling" ? `canary now ${tree.liveWeight}%` : `${tree.liveWeight}% on this release`}`}
+            description={d.status === "failed" ? "Rollout stopped; current traffic is unconfirmed" : `${steps.length} stages - ${tree.liveWeight}% on this release`}
           >
             <ReleaseProgress d={d} tree={tree} now={now} />
             <div className="mt-6 border-t border-con-row pt-5">
-              <div className="mb-3 text-[13px] font-medium text-con-fg">Step by step</div>
+              <div className="mb-3 text-[13px] font-medium text-con-fg">Release graph</div>
               <RolloutTreeView
                 tree={tree}
                 animate
@@ -220,7 +221,7 @@ function SummaryCard({ d, now }: { d: Deployment; now: number }) {
           <StatusBadge status={d.status} />
         </Field>
         <Field label="Traffic">
-          <span className="font-mono tabular-nums">{d.status === "promoted" ? 100 : d.status === "rolling" ? d.weight : 0}%</span>
+          <span className="font-mono tabular-nums">{d.status === "failed" ? "Unconfirmed" : (d.status === "promoted" ? 100 : d.status === "rolling" ? d.weight : 0) + "%"}</span>
         </Field>
         <Field label="Plan">
           <span className="font-mono text-[13px] tabular-nums">

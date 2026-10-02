@@ -46,7 +46,9 @@ runs:
 
     - name: Install alror
       shell: bash
-      run: go install github.com/alrors/alror/cmd/alror@${{ inputs.version }}
+      env:
+        ALROR_VERSION: ${{ inputs.version }}
+      run: go install "github.com/alrors/alror/cmd/alror@$ALROR_VERSION"
 
     - name: Score and report
       id: check
@@ -55,8 +57,10 @@ runs:
       env:
         GITHUB_TOKEN: ${{ inputs.token }}
         NO_COLOR: "1"
+        ALROR_FAIL_ABOVE: ${{ inputs.fail-above }}
+        ALROR_COMMENT: ${{ inputs.comment }}
       run: |
-        args=(github check --fail-above "${{ inputs.fail-above }}")
-        if [ "${{ inputs.comment }}" = "true" ]; then args+=(--comment); fi
+        args=(github check --fail-above "$ALROR_FAIL_ABOVE")
+        if [ "$ALROR_COMMENT" = "true" ]; then args+=(--comment); fi
         git fetch --no-tags --depth=200 origin "${GITHUB_BASE_REF:-main}" || true
         alror "${args[@]}"

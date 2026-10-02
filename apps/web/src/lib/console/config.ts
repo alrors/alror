@@ -1,4 +1,4 @@
 // Console constants. Data comes from Postgres through src/lib/server/data.
 
-/** Local docs server started by `alror docs`. */
-export const DOCS_URL = "http://127.0.0.1:4100";
+/** Public documentation; a local docs server can be selected with NEXT_PUBLIC_ALROR_DOCS_URL. */
+export const DOCS_URL = "https://github.com/alrors/alror/tree/main/internal/docsite/content";

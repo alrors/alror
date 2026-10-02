@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import "@/components/console/overview/dashboard.css";
 import { Suspense } from "react";
 import { cookies } from "next/headers";
 import { unstable_rethrow } from "next/navigation";
@@ -27,7 +28,7 @@ export const metadata: Metadata = {
   robots: { index: false },
 };
 
-// Docs link: NEXT_PUBLIC_ALROR_DOCS_URL when set, else the local docs server.
+// Docs link: NEXT_PUBLIC_ALROR_DOCS_URL when set, else the public documentation.
 const DOCS_URL = process.env.NEXT_PUBLIC_ALROR_DOCS_URL || LOCAL_DOCS_URL;
 
 async function loadShell() {
@@ -72,7 +73,7 @@ export default async function ConsoleLayout({ children }: LayoutProps<"/app">) {
   return (
     // The shell owns the viewport: the top bar is a fixed row and only <main> scrolls,
     // so page content can never sit underneath the bar.
-    <div className="flex h-dvh max-h-dvh min-h-0 shrink-0 flex-col overflow-hidden bg-con-bg text-con-fg">
+    <div className="console-shell flex h-dvh max-h-dvh min-h-0 shrink-0 flex-col overflow-hidden bg-con-bg text-con-fg">
       <Suspense fallback={null}>
         <ShellProgress />
       </Suspense>

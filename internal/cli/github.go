@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"os"
 	"strconv"
 	"time"
 
@@ -58,17 +59,20 @@ func githubCheckCmd() *cobra.Command {
 				return err
 			}
 			plan := rollout.PlanFor(report)
-			md := gh.RiskMarkdown(report, plan, files, env.RunURL)
+			md := gh.RiskMarkdown(report, plan, files, env.RunURL, gh.RiskOptions{SHA: env.SHA, BaseRef: base, FailAbove: failAbove})
 			conclusion := gh.Conclusion(report, failAbove)
 
-			_ = env.SetOutputs(map[string]string{
+			reportWarning("write action outputs", env.SetOutputs(map[string]string{
 				"score": strconv.Itoa(report.Score), "level": string(report.Level),
 				"conclusion": conclusion, "plan": planWeights(plan),
-			})
-			_ = env.AppendSummary(md)
+			}))
+			reportWarning("write job summary", env.AppendSummary(md))
 
 			if g.json {
-				return printJSON(map[string]any{"risk": report, "plan": plan, "conclusion": conclusion, "markdown": md})
+				if err := printJSON(map[string]any{"risk": report, "plan": plan, "conclusion": conclusion, "markdown": md}); err != nil {
+					return err
+				}
+				return gateResult(conclusion)
 			}
 			ui.Reveal(renderRisk(report, files), 10*time.Millisecond)
 
@@ -94,7 +98,7 @@ func githubCheckCmd() *cobra.Command {
 			case gh.IsForbidden(err):
 				fmt.Println(ui.WarnLine("Could not create a check run (add `checks: write` to the workflow permissions). Continuing."))
 			case err != nil:
-				return err
+				reportWarning("create check run", err)
 			default:
 				fmt.Println(ui.OK("Check run posted " + ui.Fainter.Render(url)))
 			}
@@ -105,7 +109,7 @@ func githubCheckCmd() *cobra.Command {
 				case gh.IsForbidden(err):
 					fmt.Println(ui.WarnLine("Could not comment (add `pull-requests: write` to the workflow permissions)."))
 				case err != nil:
-					return err
+					reportWarning("update PR comment", err)
 				default:
 					fmt.Println(ui.OK("PR comment updated " + ui.Fainter.Render(url)))
 				}
@@ -143,17 +147,54 @@ func planWeights(p domain.Plan) string {
 
 // reportDeployToGitHub writes the receipt to the job summary and sets step
 // outputs when `alror deploy` runs inside GitHub Actions.
-func reportDeployToGitHub(d *domain.Deployment, v *domain.Verdict, elapsed time.Duration) {
+func reportDeployToGitHub(d *domain.Deployment, v *domain.Verdict, elapsed time.Duration, options gh.ReceiptOptions) {
 	if !gh.InActions() {
 		return
 	}
 	env, err := gh.FromEnv()
 	if err != nil {
+		reportWarning("read GitHub context", err)
 		return
 	}
-	_ = env.AppendSummary(gh.ReceiptMarkdown(d, v, elapsed))
-	_ = env.SetOutputs(map[string]string{
+	options.RunURL = env.RunURL
+	md := gh.ReceiptMarkdown(d, v, elapsed, options)
+	reportWarning("write job summary", env.AppendSummary(md))
+	reportWarning("write action outputs", env.SetOutputs(map[string]string{
 		"deployment-id": d.ID, "status": string(d.Status),
 		"weight": strconv.Itoa(d.Weight), "risk": strconv.Itoa(d.Risk.Score),
-	})
+		"reason": d.Reason, "duration": elapsed.Round(time.Millisecond).String(),
+	}))
+	if os.Getenv("ALROR_GITHUB_COMMENT") != "true" {
+		return
+	}
+	if raw := os.Getenv("ALROR_GITHUB_PR"); raw != "" {
+		pr, err := strconv.Atoi(raw)
+		if err != nil || pr <= 0 {
+			reportWarning("update deployment comment", fmt.Errorf("ALROR_GITHUB_PR must be a positive pull-request number"))
+			return
+		}
+		env.PR = pr
+	}
+	if env.PR == 0 {
+		return // Push runs still receive a job summary; no PR is guessed.
+	}
+	if !env.CanPost() {
+		reportWarning("update deployment comment", fmt.Errorf("missing GitHub token or repository context; receipt is available in the job summary"))
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	_, err = gh.NewClient(env).UpsertComment(ctx, env.Owner, env.Repo, env.PR, gh.DeploymentMarker(d.Service, d.Environment), md)
+	if gh.IsForbidden(err) {
+		reportWarning("update deployment comment", fmt.Errorf("add pull-requests: write to workflow permissions; receipt is available in the job summary"))
+	} else {
+		reportWarning("update deployment comment", err)
+	}
+}
+
+// Reporting failures must not replace a risk-gate or rollout exit status.
+func reportWarning(action string, err error) {
+	if err != nil {
+		fmt.Fprintln(os.Stderr, ui.WarnLine("Could not "+action+": "+err.Error()))
+	}
 }

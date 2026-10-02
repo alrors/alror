@@ -16,6 +16,7 @@ import (
 	"github.com/alrors/alror/internal/cli/ui"
 	"github.com/alrors/alror/internal/domain"
 	"github.com/alrors/alror/internal/driver"
+	gh "github.com/alrors/alror/internal/github"
 	"github.com/alrors/alror/internal/metrics"
 	"github.com/alrors/alror/internal/notify"
 	"github.com/alrors/alror/internal/risk"
@@ -144,7 +145,10 @@ func runDeploy(o deployOpts) error {
 			fmt.Fprintln(os.Stderr, ui.WarnLine("could not save the final state: "+err.Error()))
 		}
 	}
-	reportDeployToGitHub(d, obs.lastVerdict, time.Since(start))
+	reportDeployToGitHub(d, obs.lastVerdict, time.Since(start), gh.ReceiptOptions{
+		Events: obs.events, Shadow: !cfg.Policy.AutoRollback, BakeScale: cfg.Policy.BakeScale,
+		Driver: drv.Name(), Metrics: prov.Name(),
+	})
 
 	if g.json {
 		events, _ := st.Events(d.ID)
@@ -192,6 +196,7 @@ type liveObserver struct {
 	d           *domain.Deployment
 	quiet       bool
 	lastVerdict *domain.Verdict
+	events      []domain.Event
 	inProgress  bool
 	tty         bool   // live progress bars only make sense on a terminal
 	prevWeight  int    // canary traffic before the current step, for the shift animation
@@ -224,6 +229,7 @@ func (o *liveObserver) header(driverName, metricsName string, auto bool) {
 }
 
 func (o *liveObserver) Event(e domain.Event) {
+	o.events = append(o.events, e)
 	if e.Kind == domain.EventVerdict && e.Verdict != nil {
 		o.lastVerdict = e.Verdict // kept even in --json mode for the GitHub summary
 	}

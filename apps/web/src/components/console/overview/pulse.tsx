@@ -10,7 +10,7 @@ import { delta, HOUR, RANGE_SPEC, type Kpi, type OverviewRange, type PulseBucket
 import { cn } from "@/lib/site";
 import { InfoTip, PAD_X, Panel } from "./ui";
 
-export const OUTCOME_COLORS = { promoted: "#8f8f8f", bad: COLORS.bad, inFlight: COLORS.info };
+export const OUTCOME_COLORS = { promoted: "#a3a3a3", bad: COLORS.bad, inFlight: COLORS.info };
 
 function bucketLabels(b: PulseBucket, range: OverviewRange): { label: string; header: string } {
   const iso = new Date(b.start).toISOString();
@@ -116,7 +116,7 @@ const KPI_META: Record<Kpi["key"], { label: string; tip: string; goodWhen: "up" 
     href: "/app/insights",
   },
   rollbacks: {
-    label: "Rollbacks",
+    label: "Failed or rolled back",
     tip: "Releases in the range that were rolled back (automatically or by hand) or failed.",
     goodWhen: "down",
     href: "/app/deployments?status=rolled_back",

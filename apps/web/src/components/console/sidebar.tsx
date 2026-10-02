@@ -8,6 +8,8 @@ import {
   Blocks,
   BookOpen,
   ChartColumn,
+  Compass,
+  GitFork,
   LayoutDashboard,
   Menu,
   PanelLeftClose,
@@ -45,12 +47,16 @@ const groups: { label: string; items: Item[] }[] = [
   },
   {
     label: "Extend",
-    items: [{ href: "/app/marketplace", label: "Marketplace", icon: Blocks, match: (p) => p.startsWith("/app/marketplace") }],
+    items: [
+      { href: "/app/github", label: "GitHub", icon: GitFork, match: (p) => p.startsWith("/app/github") },
+      { href: "/app/marketplace", label: "Marketplace", icon: Blocks, match: (p) => p.startsWith("/app/marketplace") },
+    ],
   },
 ];
 const bottom: Item[] = [
+  { href: "/app/onboarding", label: "Getting started", icon: Compass, match: (p) => p.startsWith("/app/onboarding") },
   { href: "/app/policies", label: "Policies", icon: Settings2, match: (p) => p.startsWith("/app/policies") },
-  { href: "/app/settings", label: "Settings", icon: Settings, match: (p) => p.startsWith("/app/settings") || p.startsWith("/app/onboarding") },
+  { href: "/app/settings", label: "Settings", icon: Settings, match: (p) => p.startsWith("/app/settings") },
 ];
 
 /* ------------------------------ Sliding indicator ----------------------------- */
