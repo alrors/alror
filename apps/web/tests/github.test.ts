@@ -4,7 +4,7 @@ import { test } from "node:test";
 import { appJwt, GitHubClient } from "../src/lib/server/github/client";
 import { evaluatePull, hasBlockingReview } from "../src/lib/server/github/evaluate";
 import { evaluatePolicy, matchesPath, normalizePolicy } from "../src/lib/server/github/policy";
-import { COMMENT_MARKER } from "../src/lib/server/github/report";
+import { COMMENT_MARKER, decisionMarkdown, decisionPath } from "../src/lib/server/github/report";
 import { verifySignature } from "../src/lib/server/github/webhook";
 import { DEFAULT_POLICY, type ChangedFile, type GatePolicy, type PullSnapshot } from "../src/lib/server/github/types";
 
@@ -13,6 +13,37 @@ const pull: PullSnapshot = { number: 7, title: "Improve documentation", html_url
 const files: ChangedFile[] = [{ filename: "docs/start.md", status: "modified", additions: 3, deletions: 1 }];
 const policy: GatePolicy = { ...DEFAULT_POLICY, mode: "auto_merge", requiredChecks: [{ name: "test", appId: 55 }] };
 const evidence = [{ name: "test", appId: 55, status: "completed", conclusion: "success" }];
+
+test("decision reports link to the exact PR and distinguish missing CI policy from passing CI", () => {
+  const destination = `https://alror.com${decisionPath("12", 7)}`;
+  assert.equal(destination, "https://alror.com/app/github/repositories/12/pulls/7");
+  assert.throws(() => decisionPath("../other", 7));
+  assert.throws(() => decisionPath("12", 0));
+  const report = decisionMarkdown(pull, { outcome: "eligible", score: 0, reasons: ["Within policy limits."] }, DEFAULT_POLICY, files, destination,
+    { repository: "example/project", checks: evidence, policyVersion: 3 });
+  assert(report.includes(destination));
+  assert(report.includes("example/project #7"));
+  assert(report.includes("**Not configured**"));
+  assert(report.includes("CI is not required by this policy"));
+  assert(report.includes("Documentation-only"));
+  assert(report.includes("policy v3"));
+  assert(report.includes("automatic merge off"));
+});
+
+test("report evidence cannot mistake an untrusted check for a required success", () => {
+  const report = decisionMarkdown(pull, { outcome: "waiting", score: 0, reasons: ["Waiting for trusted CI."] }, policy, files, "https://alror.com/app/github",
+    { repository: "example/project", checks: [{ ...evidence[0], appId: 999 }], policyVersion: 1 });
+  assert(report.includes("| test | App 55 | Not reported |"));
+  assert(!report.includes("| test | App 55 | Passed |"));
+});
+
+test("report escapes repository content and does not classify renamed code as documentation-only", () => {
+  const report = decisionMarkdown({ ...pull, title: "<script> @team [click](https://bad.test)" }, { outcome: "review_required", score: 40, reasons: ["Review required."] }, policy,
+    [{ ...files[0], previous_filename: "src/auth.ts" }], "https://alror.com/app/github");
+  assert(!report.includes("<script>"));
+  assert(!report.includes("@team"));
+  assert(!report.includes("Documentation-only"));
+});
 
 test("glob matching is anchored and supports root files with **", () => {
   assert(matchesPath("README.md", "**/*.md")); assert(matchesPath("src/a/test.ts", "src/**"));

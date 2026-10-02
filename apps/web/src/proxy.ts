@@ -25,7 +25,11 @@ export async function proxy(req: NextRequest) {
     }
   }
 
-  return NextResponse.next();
+  // Always overwrite the incoming value: callers cannot choose the login target.
+  const requestHeaders = new Headers(req.headers);
+  requestHeaders.delete("x-alror-console-path");
+  if (pathname === "/app" || pathname.startsWith("/app/")) requestHeaders.set("x-alror-console-path", pathname);
+  return NextResponse.next({ request: { headers: requestHeaders } });
 }
 
 /** Asks the app (src/app/admin/api/[action]) whether this session is a platform admin; fails closed. */

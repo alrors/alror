@@ -6,9 +6,11 @@ import { githubDecisions, githubDeliveries, githubRepositories } from "../db/sch
 import { systemActor } from "../context";
 import { writeAudit } from "../data/audit";
 import { env } from "../env";
+import { publish } from "../redis";
 import { clearInstallationTokens, GitHubError, installationClient, repoPath } from "./client";
 import { appConfig, configStatus } from "./config";
 import { evaluatePull } from "./evaluate";
+import { decisionPath } from "./report";
 import { normalizePolicy } from "./policy";
 import { assertLease, claimDelivery, completeDelivery, failDelivery, heartbeatDelivery, type Delivery } from "./queue";
 import type { PullSnapshot } from "./types";
@@ -56,7 +58,7 @@ export async function processDelivery(delivery: Delivery): Promise<void> {
   for (const pullNumber of pulls) {
     await beforeEffect();
     const evaluation = await evaluatePull(client, { repositoryId: repository.id, fullName: repository.fullName, pullNumber, policy, policyVersion: repository.policyVersion,
-      appId: Number(appId), appSlug: configStatus().appSlug, detailsUrl: `${env.publicUrl()}/app/github` }, {
+      appId: Number(appId), appSlug: configStatus().appSlug, detailsUrl: `${env.publicUrl().replace(/\/$/, "")}${decisionPath(repository.id, pullNumber)}` }, {
       beforeEffect,
       audit: (action, meta) => writeAudit(ctx, action, `${repository.fullName}#${pullNumber}`, meta),
       save: async ({ pull, result, checkId, commentId }) => {
@@ -66,6 +68,7 @@ export async function processDelivery(delivery: Delivery): Promise<void> {
           outcome: pull.merged || result.reasons.some((r) => r.startsWith("Merged evaluated commit")) ? "merged" : result.outcome,
           score: result.score, reasons: result.reasons, ...(checkId ? { checkId } : {}), ...(commentId ? { commentId } : {}), updatedAt: new Date() };
         await db.insert(githubDecisions).values(values).onConflictDoUpdate({ target: [githubDecisions.repositoryId, githubDecisions.pullNumber, githubDecisions.headSha, githubDecisions.baseSha, githubDecisions.policyVersion], set: values });
+        await publish(repository.orgId, { type: "github.decision.updated", repository_id: repository.id, pull_number: pullNumber });
       },
     });
     await writeAudit(ctx, "github.pull_evaluated", `${repository.fullName}#${pullNumber}`, { head_sha: evaluation.pull.head.sha, policy_version: repository.policyVersion, outcome: evaluation.result.outcome, score: evaluation.result.score });

@@ -95,7 +95,7 @@ export default async function ConsoleLayout({ children }: LayoutProps<"/app">) {
         docsUrl={DOCS_URL}
       />
       {/* Live updates; renders the slim connection banner under the top bar when degraded. */}
-      <LiveUpdates />
+      <LiveUpdates key={session.org.id} />
       <div className="flex min-h-0 flex-1">
         <Sidebar docsUrl={DOCS_URL} rolling={rolling} initialCollapsed={collapsed} />
         <main data-scroller className="con-scroll min-h-0 min-w-0 flex-1 overflow-y-auto">

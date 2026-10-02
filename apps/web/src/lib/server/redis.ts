@@ -123,6 +123,7 @@ export const orgChannel = (orgId: string) => `org:${orgId}:events`;
 export type OrgEvent =
   | { type: "deployment.updated"; deployment: unknown }
   | { type: "deployment.event"; deployment_id: string; event: unknown }
+  | { type: "github.decision.updated"; repository_id: string; pull_number: number }
   | { type: "job.updated"; job: unknown };
 
 /** Never throws: a Redis outage must not fail the write that triggered it. */

@@ -21,6 +21,19 @@ export async function listDecisions(ctx: OrgCtx, opts: { limit?: number } = {}):
   return rows.map(({ d, repository }) => ({ id: d.id, repositoryId: d.repositoryId, repository, pullNumber: d.pullNumber, title: d.title, url: d.url, headSha: d.headSha, outcome: d.outcome, score: d.score, reasons: d.reasons, mode: d.mode, updatedAt: d.updatedAt.toISOString() }));
 }
 
+/** Resolve both repository and decision history within the active workspace. */
+export async function getPullDecision(ctx: OrgCtx, repositoryId: string, pullNumber: number) {
+  if (!Number.isSafeInteger(pullNumber) || pullNumber < 1 || !/^\d+$/.test(repositoryId)) return null;
+  const [repository] = await db.select().from(githubRepositories)
+    .where(and(eq(githubRepositories.orgId, ctx.orgId), eq(githubRepositories.id, repositoryId)));
+  if (!repository) return null;
+  const decisions = await db.select().from(githubDecisions)
+    .where(and(eq(githubDecisions.orgId, ctx.orgId), eq(githubDecisions.repositoryId, repositoryId), eq(githubDecisions.pullNumber, pullNumber)))
+    .orderBy(desc(githubDecisions.updatedAt), desc(githubDecisions.id)).limit(50);
+  if (decisions.length === 0) return null;
+  return { repository, latest: decisions[0], history: decisions.slice(1) };
+}
+
 export async function savePolicy(ctx: OrgCtx, repositoryId: string, input: GatePolicy): Promise<void> {
   requireAdmin(ctx);
   const result = (() => { try { return normalizePolicy(input); } catch (e) { throw invalid(e instanceof Error ? e.message : "Invalid repository policy."); } })();

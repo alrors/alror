@@ -34,7 +34,10 @@ export const getSession = cache(async (): Promise<SessionContext | null> => {
 /** Console guard for pages, layouts and actions: redirects to /login when signed out. */
 export async function requireSession(): Promise<SessionContext> {
   const s = await getSession();
-  if (!s) redirect("/login");
+  if (!s) {
+    const target = safeNext((await headers()).get("x-alror-console-path"));
+    redirect(target === "/app" ? "/login" : `/login?next=${encodeURIComponent(target)}`);
+  }
   return s;
 }
 

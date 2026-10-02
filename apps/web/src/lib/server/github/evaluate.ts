@@ -39,7 +39,8 @@ export async function evaluatePull(client: GitHubClient, input: {
 
   const externalId = `alror:${input.repositoryId}:${pull.number}:${pull.head.sha}:${pull.base.sha}:${input.policyVersion}`;
   const existing = checks.find((c) => c.app.id === input.appId && c.external_id === externalId);
-  const summary = decisionMarkdown(pull, result, input.policy, files, input.detailsUrl);
+  const reportContext = { repository: input.fullName, checks: evidence.filter((c) => c.appId !== input.appId), policyVersion: input.policyVersion };
+  const summary = decisionMarkdown(pull, result, input.policy, files, input.detailsUrl, reportContext);
   const status = result.outcome === "waiting" && input.policy.mode !== "observe" ? "in_progress" : "completed";
   const conclusion = input.policy.mode === "observe" ? "neutral" : result.outcome === "eligible" ? "success" : "action_required";
   await hooks.beforeEffect();
@@ -82,12 +83,12 @@ export async function evaluatePull(client: GitHubClient, input: {
     evaluation.result = { ...finalResult, outcome: finalResult.outcome === "review_required" ? "review_required" : "waiting", reasons: [...finalResult.reasons, "Automatic merge is waiting for GitHub branch protections and human review requirements."] };
     await hooks.save(evaluation);
     await hooks.beforeEffect();
-    await client.request(`${path}/issues/comments/${comment.id}`, "PATCH", { body: decisionMarkdown(fresh, evaluation.result, input.policy, files, input.detailsUrl) });
+    await client.request(`${path}/issues/comments/${comment.id}`, "PATCH", { body: decisionMarkdown(fresh, evaluation.result, input.policy, files, input.detailsUrl, { ...reportContext, checks: latestChecks.filter((c) => c.app.id !== input.appId).map((c) => ({ name: c.name, appId: c.app.id, status: c.status, conclusion: c.conclusion })) }) });
     if (finalResult.outcome !== "eligible") {
       await hooks.beforeEffect();
       await client.request(`${path}/check-runs/${check.id}`, "PATCH", { status: finalResult.outcome === "waiting" ? "in_progress" : "completed",
         ...(finalResult.outcome === "waiting" ? {} : { conclusion: "action_required" }),
-        output: { title: "Re-evaluation required", summary: decisionMarkdown(fresh, evaluation.result, input.policy, files, input.detailsUrl) } });
+        output: { title: "Re-evaluation required", summary: decisionMarkdown(fresh, evaluation.result, input.policy, files, input.detailsUrl, { ...reportContext, checks: latestChecks.filter((c) => c.app.id !== input.appId).map((c) => ({ name: c.name, appId: c.app.id, status: c.status, conclusion: c.conclusion })) }) } });
     }
     return evaluation;
   }
@@ -98,6 +99,6 @@ export async function evaluatePull(client: GitHubClient, input: {
   await hooks.save(evaluation);
   await hooks.audit("github.pull_merged", { head_sha: pull.head.sha, merge_sha: merged.sha || "", method: input.policy.mergeMethod });
   await hooks.beforeEffect();
-  await client.request(`${path}/issues/comments/${comment.id}`, "PATCH", { body: `${COMMENT_MARKER}\n### Alror · Merged\n\nMerged evaluated commit \`${pull.head.sha.slice(0, 12)}\` after configured checks and GitHub protections passed.\n\n[Open Alror](${input.detailsUrl})` });
+  await client.request(`${path}/issues/comments/${comment.id}`, "PATCH", { body: `${COMMENT_MARKER}\n### Alror · Merged\n\nMerged evaluated commit \`${pull.head.sha.slice(0, 12)}\` after configured checks and GitHub protections passed.\n\n[View this PR in Alror](${input.detailsUrl})` });
   return evaluation;
 }

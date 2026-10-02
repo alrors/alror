@@ -5,10 +5,14 @@ import { useRouter } from "next/navigation";
 import { CircleCheck, RefreshCw, WifiOff } from "lucide-react";
 import { cn } from "@/lib/site";
 
-const EVENTS = ["deployment.updated", "deployment.event", "job.updated"] as const;
+const EVENTS = ["deployment.updated", "deployment.event", "job.updated", "github.decision.updated"] as const;
 const MIN_GAP_MS = 1500;
 const BACKOFF_MIN_MS = 1000;
 const BACKOFF_MAX_MS = 30_000;
+// Redis pub/sub has no replay. Reconcile even a healthy stream so a missed
+// message, proxy buffer, or write during subscription cannot leave stale data.
+const RECONCILE_MS = 15_000;
+const HEARTBEAT_TIMEOUT_MS = 45_000;
 /** Short blips (a dev server restart, a dropped proxy connection) never show the banner. */
 const SHOW_AFTER_MS = 3000;
 const BACK_ONLINE_MS = 2600;
@@ -63,7 +67,7 @@ const PREVIEWS = ["offline", "reconnecting", "back"] as const;
 
 /**
  * Subscribes to /api/v1/stream (session cookie auth) and refreshes the current
- * view when deployments or jobs change. Refreshes are throttled, and paused
+ * view when deployments, jobs, or PR decisions change. Refreshes are throttled, and paused
  * while the tab is hidden (one catch-up refresh happens when it becomes visible).
  *
  * Connection state: connecting → live; on an error the stream is closed and
@@ -71,7 +75,8 @@ const PREVIEWS = ["offline", "reconnecting", "back"] as const;
  * offline it waits for the `online` event. A degraded state that lasts more than
  * a few seconds shows a slim banner under the top bar (rendered here) and a
  * status label in the top bar. After a visible outage the view refreshes once to
- * catch up on missed events.
+ * catch up on missed events. A 15-second reconciliation also covers messages
+ * lost by Redis pub/sub, and observable heartbeats detect stalled connections.
  */
 export function LiveUpdates() {
   const router = useRouter();
@@ -96,8 +101,6 @@ export function LiveUpdates() {
         };
       }
     }
-    if (typeof EventSource === "undefined") return;
-
     let es: EventSource | null = null;
     let attempt = 0;
     let disposed = false;
@@ -107,17 +110,15 @@ export function LiveUpdates() {
     let backTimer: ReturnType<typeof setTimeout> | null = null;
     let refreshTimer: ReturnType<typeof setTimeout> | null = null;
     let last = 0;
-    let missed = false;
+    let lastMessageAt = Date.now();
 
     const refresh = () => {
-      if (document.visibilityState !== "visible") {
-        missed = true;
-        return;
-      }
+      if (disposed || !navigator.onLine || document.visibilityState !== "visible") return;
       const wait = Math.max(0, last + MIN_GAP_MS - Date.now());
       if (refreshTimer) return;
       refreshTimer = setTimeout(() => {
         refreshTimer = null;
+        if (disposed || !navigator.onLine || document.visibilityState !== "visible") return;
         last = Date.now();
         router.refresh();
       }, wait);
@@ -165,13 +166,19 @@ export function LiveUpdates() {
         degrade({ state: "offline", retryAt: null }, true);
         return;
       }
+      if (typeof EventSource === "undefined") return;
       if (snap.state !== "connecting") set({ state: "reconnecting", retryAt: null });
       const source = new EventSource("/api/v1/stream");
       es = source;
-      for (const type of EVENTS) source.addEventListener(type, refresh);
+      lastMessageAt = Date.now();
+      source.addEventListener("heartbeat", () => { lastMessageAt = Date.now(); });
+      for (const type of EVENTS) source.addEventListener(type, () => {
+        lastMessageAt = Date.now();
+        refresh();
+      });
       source.onopen = () => {
         const shown = snap.visible;
-        const hadOutage = attempt > 0 || wasOffline;
+        lastMessageAt = Date.now();
         showTimer = clear(showTimer);
         attempt = 0;
         set({ state: "live", retryAt: null, attempt: 0, visible: false, recovered: shown ? (wasOffline ? "online" : "resumed") : null });
@@ -180,8 +187,9 @@ export function LiveUpdates() {
           backTimer = clear(backTimer);
           backTimer = setTimeout(() => set({ recovered: null }), BACK_ONLINE_MS);
         }
-        // Catch up on anything that changed while the stream was down.
-        if (hadOutage) refresh();
+        // Includes the first connection: data may have changed between the
+        // server render and the Redis subscription becoming ready.
+        refresh();
       };
       source.onerror = () => {
         // EventSource would retry on its own at a fixed interval; take over with backoff.
@@ -210,16 +218,26 @@ export function LiveUpdates() {
     };
     const onVisible = () => {
       if (document.visibilityState !== "visible") return;
-      if (missed) {
-        missed = false;
-        refresh();
-      }
+      refresh();
       // A long-hidden tab may have been throttled past its retry time.
-      if (snap.state === "reconnecting" && snap.retryAt && snap.retryAt < Date.now()) connect();
+      if ((snap.state === "reconnecting" && snap.retryAt && snap.retryAt < Date.now()) ||
+        (es && Date.now() - lastMessageAt > HEARTBEAT_TIMEOUT_MS)) connect();
     };
+
+    const reconciliation = setInterval(() => {
+      if (!navigator.onLine || document.visibilityState !== "visible") return;
+      refresh();
+      // A proxy can leave HTTP open while no longer forwarding events. Native
+      // EventSource.onerror never fires in that case, so monitor real frames.
+      if (es && Date.now() - lastMessageAt > HEARTBEAT_TIMEOUT_MS) {
+        close();
+        scheduleRetry();
+      }
+    }, RECONCILE_MS);
 
     window.addEventListener("online", onOnline);
     window.addEventListener("offline", onOffline);
+    window.addEventListener("focus", onVisible);
     document.addEventListener("visibilitychange", onVisible);
     connect();
 
@@ -230,8 +248,10 @@ export function LiveUpdates() {
       clear(showTimer);
       clear(backTimer);
       clear(refreshTimer);
+      clearInterval(reconciliation);
       window.removeEventListener("online", onOnline);
       window.removeEventListener("offline", onOffline);
+      window.removeEventListener("focus", onVisible);
       document.removeEventListener("visibilitychange", onVisible);
       retryNowImpl = () => {};
       set(INITIAL);

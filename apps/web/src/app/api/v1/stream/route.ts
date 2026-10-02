@@ -2,7 +2,7 @@ import { authorize, route } from "@/lib/server/api/http";
 import { subscribeOrg } from "@/lib/server/redis";
 
 // Server-sent events for the console: relays Redis org:<orgId>:events as
-// `event: <type>` / `data: <json>`, with a comment heartbeat every 15 s.
+// `event: <type>` / `data: <json>`, with an observable heartbeat every 15 s.
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +25,9 @@ export const GET = route(async (req) => {
         }
       };
       const unsubscribe = await subscribeOrg(ctx.orgId, (type, data) => send(`event: ${type}\ndata: ${data}\n\n`));
-      const heartbeat = setInterval(() => send(`: ping ${new Date().toISOString()}\n\n`), HEARTBEAT_MS);
+      // Comments aren't delivered to EventSource listeners. A named event lets
+      // the client detect a proxy that silently stops forwarding this stream.
+      const heartbeat = setInterval(() => send(`event: heartbeat\ndata: ${JSON.stringify({ at: new Date().toISOString() })}\n\n`), HEARTBEAT_MS);
       const stop = async () => {
         if (closed) return;
         closed = true;

@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useRef, useState } from "react";
+import Link from "next/link";
 import { ArrowUpRight, GitPullRequest, GitFork, RefreshCw, ShieldCheck } from "lucide-react";
 import { reevaluatePull } from "@/app/app/github/actions";
 import { Card, EmptyState, FormStatus, Pill, buttonClass } from "@/components/console/primitives";
@@ -44,7 +45,7 @@ export function GitHubWorkspace({ repositories, decisions, admin }: { repositori
         <div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0 flex-1"><p className="mb-1 text-[12px] text-con-fg3">{decision.repository} · #{decision.pullNumber}</p><a href={decision.url.startsWith("https://github.com/") ? decision.url : `https://github.com/${decision.repository}/pull/${decision.pullNumber}`} target="_blank" rel="noreferrer" className="break-words text-[15px] font-medium hover:underline">{decision.title || `Pull request #${decision.pullNumber}`} <ArrowUpRight size={13} className="inline" /></a></div><Pill tone={decision.outcome === "review_required" || decision.outcome === "error" ? "warn" : "idle"}>{outcomes[decision.outcome] ?? decision.outcome.replaceAll("_", " ")}</Pill></div>
         <div className="my-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] text-con-fg3"><span>Risk <span className="font-mono text-con-fg2">{decision.score}/100</span></span><span>{modeLabel[decision.mode]}</span><code title={decision.headSha}>{decision.headSha.slice(0, 8)}</code><time dateTime={decision.updatedAt}>{new Date(decision.updatedAt).toISOString().replace("T", " ").slice(0, 16)} UTC</time></div>
         <ul className="mb-4 list-disc space-y-1.5 pl-4 text-[13px] leading-relaxed text-con-fg2">{decision.reasons.map((reason, i) => <li key={i}>{reason}</li>)}</ul>
-        {admin && <Reevaluate decision={decision} />}
+        <div className="flex flex-wrap items-start gap-3"><Link href={`/app/github/repositories/${encodeURIComponent(decision.repositoryId)}/pulls/${decision.pullNumber}`} className={buttonClass.secondary}>View decision<ArrowUpRight size={13} /></Link>{admin && <Reevaluate decision={decision} />}</div>
       </Card>)}</>}
     </div>
   </div>;
