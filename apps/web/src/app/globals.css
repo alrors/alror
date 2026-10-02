@@ -1,0 +1,360 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-bg: #070708;
+  --color-surface: #111113;
+  --color-surface-2: #18181b;
+  --color-line: #222226;
+  --color-line-strong: #2d2d32;
+  --color-fg: #f2f2f3;
+  --color-muted: #a1a1aa;
+  --color-faint: #6b6b74;
+  --color-accent: #35e08f;
+  --color-good: #35e08f;
+  --color-warn: #f5a524;
+  --color-bad: #ff5a4f;
+  --color-paper: #efede6;
+  --color-ink: #17171a;
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+}
+
+html {
+  color-scheme: dark;
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-fg);
+}
+
+::selection {
+  background: rgb(53 224 143 / 0.3);
+}
+
+summary::-webkit-details-marker {
+  display: none;
+}
+
+/* ---------- Type ---------- */
+
+.text-fade {
+  background: linear-gradient(180deg, #9a9aa3 0%, #4a4a52 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* ---------- Tactile surfaces ---------- */
+
+.tactile {
+  background: linear-gradient(180deg, #1d1d21 0%, #121214 100%);
+  border: 1px solid #28282d;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.07),
+    inset 0 -1px 0 rgb(0 0 0 / 0.6),
+    0 24px 48px -16px rgb(0 0 0 / 0.8),
+    0 2px 4px rgb(0 0 0 / 0.4);
+}
+
+.inset-panel {
+  background: #0a0a0b;
+  border: 1px solid #1f1f23;
+  box-shadow:
+    inset 0 2px 6px rgb(0 0 0 / 0.8),
+    0 1px 0 rgb(255 255 255 / 0.05);
+}
+
+.tile-cream {
+  background: linear-gradient(160deg, #f6f4ee 0%, #e3e0d5 100%);
+  box-shadow:
+    inset 0 1px 0 #ffffff,
+    inset 0 -2px 0 rgb(0 0 0 / 0.06),
+    0 40px 60px -24px rgb(0 0 0 / 0.9),
+    0 10px 20px -10px rgb(0 0 0 / 0.7);
+}
+
+.paper {
+  background: linear-gradient(180deg, #f4f2ec 0%, #e9e6dd 100%);
+  color: var(--color-ink);
+  box-shadow: 0 24px 40px -18px rgb(0 0 0 / 0.9);
+}
+
+.led {
+  /* status dot; intentionally static, no glow */
+}
+
+/* ---------- Motion ---------- */
+
+@keyframes flow {
+  to {
+    stroke-dashoffset: -40;
+  }
+}
+
+.trace-flow {
+  stroke-dasharray: 4 16;
+  animation: flow 1.4s linear infinite;
+}
+
+@keyframes print {
+  0% {
+    transform: translateY(-100%);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+
+.print {
+  animation: print 2.2s cubic-bezier(0.3, 0.7, 0.2, 1) 0.6s both;
+}
+
+@keyframes float {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  50% {
+    translate: 0 -8px;
+  }
+}
+
+.float {
+  animation: float 6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trace-flow,
+  .print,
+  .float {
+    animation: none;
+  }
+}
+
+/* ---------- Console (appended): flat enterprise-dark tokens ---------- */
+
+@theme inline {
+  --color-con-bg: #121212;
+  --color-con-panel: #171717;
+  --color-con-line: #2e2e2e;
+  --color-con-line-hover: #3e3e3e;
+  --color-con-row: #242424;
+  --color-con-hover: #1c1c1c;
+  --color-con-fg: #ededed;
+  --color-con-fg2: #a1a1a1;
+  --color-con-fg3: #737373;
+  --color-con-spark: #525252;
+  --color-con-good: #35e08f;
+  --color-con-bad: #f2555a;
+  --color-con-warn: #f5a524;
+  --color-con-info: #3b82f6;
+}
+
+.con-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #3e3e3e transparent;
+}
+
+.con-dots {
+  background-color: #121212;
+  background-image: radial-gradient(#2a2a2a 1px, transparent 1px);
+  background-size: 16px 16px;
+}
+
+/* ---------- Console motion kit (shared; subtle, no glow, no blinking) ---------- */
+
+@keyframes con-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes con-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes con-scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes con-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes con-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes con-grow-x {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: none;
+  }
+}
+
+@keyframes con-grow-y {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: none;
+  }
+}
+
+/* Entrances: content appears once, quickly. */
+.con-fade-up {
+  animation: con-fade-up 0.22s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.con-fade {
+  animation: con-fade 0.24s ease-out both;
+}
+.con-scale-in {
+  animation: con-scale-in 0.2s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+/* Stagger direct children (cards, rows): quick steps, capped at 200 ms so content never waits. */
+.con-stagger > * {
+  animation: con-fade-up 0.22s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.con-stagger > *:nth-child(2) { animation-delay: 25ms; }
+.con-stagger > *:nth-child(3) { animation-delay: 50ms; }
+.con-stagger > *:nth-child(4) { animation-delay: 75ms; }
+.con-stagger > *:nth-child(5) { animation-delay: 100ms; }
+.con-stagger > *:nth-child(6) { animation-delay: 120ms; }
+.con-stagger > *:nth-child(7) { animation-delay: 140ms; }
+.con-stagger > *:nth-child(8) { animation-delay: 160ms; }
+.con-stagger > *:nth-child(9) { animation-delay: 170ms; }
+.con-stagger > *:nth-child(10) { animation-delay: 180ms; }
+.con-stagger > *:nth-child(11) { animation-delay: 190ms; }
+.con-stagger > *:nth-child(n + 12) { animation-delay: 200ms; }
+
+/* Loading placeholders. */
+.con-skeleton {
+  border-radius: 6px;
+  background: linear-gradient(90deg, #1c1c1c 25%, #262626 37%, #1c1c1c 63%);
+  background-size: 200% 100%;
+  animation: con-shimmer 1.4s ease-in-out infinite;
+}
+
+/* Charts: draw a line once (set pathLength="1" on the path), grow bars from their base. */
+.con-draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: con-draw 0.9s cubic-bezier(0.3, 0.7, 0.2, 1) 0.1s forwards;
+}
+.con-grow-x {
+  transform-origin: left center;
+  animation: con-grow-x 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.con-grow-y {
+  transform-box: fill-box;
+  transform-origin: bottom center;
+  animation: con-grow-y 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+/* Interactions: smooth state changes. */
+.con-ease {
+  transition-property: color, background-color, border-color, opacity, transform, width, height;
+  transition-duration: 160ms;
+  transition-timing-function: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.con-lift {
+  transition: transform 160ms cubic-bezier(0.2, 0.7, 0.2, 1), border-color 160ms;
+}
+.con-lift:hover {
+  transform: translateY(-1px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .con-fade-up,
+  .con-fade,
+  .con-scale-in,
+  .con-stagger > *,
+  .con-skeleton,
+  .con-grow-x,
+  .con-grow-y {
+    animation: none;
+  }
+  .con-draw {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+  .con-ease,
+  .con-lift {
+    transition: none;
+  }
+  .con-lift:hover {
+    transform: none;
+  }
+}
+
+
+/* ---------- Console shell (appended by the shell): mobile drawer slide-in ---------- */
+
+@keyframes shell-slide-in {
+  from {
+    transform: translateX(-16px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+.shell-slide-in {
+  animation: shell-slide-in 0.22s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .shell-slide-in {
+    animation: none;
+  }
+}
+
+/* ---------- Sync banner (live-updates.tsx): "back online" shows, then fades out ---------- */
+
+@keyframes con-sync-fade {
+  0% {
+    opacity: 0;
+  }
+  12%,
+  78% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+.con-sync-fade {
+  animation: con-sync-fade 2.6s ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .con-sync-fade {
+    animation: none;
+  }
+}

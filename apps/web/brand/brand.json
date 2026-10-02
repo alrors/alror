@@ -1,0 +1,31 @@
+{
+  "name": "Alror",
+  "handle": "",
+  "site": "",
+  "noir": {
+    "bg": "#070708",
+    "text": "#F2F2F3",
+    "muted": "#8A8A93",
+    "accent": "#35E08F",
+    "grid": "#222226",
+    "card": "#111113",
+    "line": "#222226"
+  },
+  "colors": {
+    "bg_start": "#070708",
+    "bg_end": "#111113",
+    "accent": "#35E08F",
+    "text": "#F2F2F3",
+    "muted": "#8A8A93",
+    "light_bg": "#EFEDE6",
+    "dark_text": "#17171A"
+  },
+  "gradient": "vertical",
+  "fonts": {
+    "bold": "D:/job/auto/context/brand/fonts/Inter-ExtraBold.ttf",
+    "regular": "D:/job/auto/context/brand/fonts/Inter-Medium.ttf",
+    "mono": "D:/job/auto/context/brand/fonts/JetBrainsMono-Medium.ttf",
+    "mono_bold": "D:/job/auto/context/brand/fonts/JetBrainsMono-Bold.ttf"
+  },
+  "logo": ""
+}

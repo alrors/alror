@@ -1,0 +1,146 @@
+/* ==========================================================================
+   Landing page (/) only. Imported by src/app/page.tsx.
+   Neutral greys, one restrained accent, no glows, no blinking.
+   ========================================================================== */
+
+.lp {
+  --lp-bg: #08080a;
+  --lp-panel: #0e0e11;
+  --lp-panel-2: #131317;
+  --lp-line: #1d1d22;
+  --lp-line-2: #2a2a31;
+  --lp-fg: #f4f4f5;
+  --lp-fg-2: #a3a3ad;
+  --lp-fg-3: #6e6e78;
+  --lp-accent: #35e08f;
+  --lp-warn: #f5a524;
+  --lp-bad: #f2555a;
+  background: var(--lp-bg);
+  font-feature-settings: "ss01", "cv11";
+}
+
+/* Hairline section rules that run edge to edge. */
+.lp-rule {
+  border-top: 1px solid var(--lp-line);
+}
+
+/* A panel: flat, hairline, a whisper of top light. */
+.lp-panel {
+  background: var(--lp-panel);
+  border: 1px solid var(--lp-line);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.035);
+}
+.lp-panel-2 {
+  background: var(--lp-panel-2);
+  border: 1px solid var(--lp-line-2);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.05), 0 20px 40px -24px rgb(0 0 0 / 0.9);
+}
+
+/* Faint engineering grid behind the hero visual, faded at the edges. */
+.lp-grid {
+  background-image:
+    linear-gradient(to right, rgb(255 255 255 / 0.035) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(255 255 255 / 0.035) 1px, transparent 1px);
+  background-size: 32px 32px;
+  mask-image: radial-gradient(ellipse 70% 65% at 50% 45%, #000 40%, transparent 100%);
+}
+
+/* Receipt paper (the CLI prints one). */
+.lp-paper {
+  background: #ecebe5;
+  color: #17171a;
+  box-shadow: 0 24px 40px -20px rgb(0 0 0 / 0.95);
+}
+.lp-zigzag {
+  height: 8px;
+  background:
+    linear-gradient(-45deg, transparent 6px, #ecebe5 0) 0 0 / 12px 8px repeat-x,
+    linear-gradient(45deg, transparent 6px, #ecebe5 0) 0 0 / 12px 8px repeat-x;
+}
+
+/* ---------- Scroll reveals (enabled only once JS has run) ---------- */
+
+.lp-js [data-reveal] {
+  opacity: 0;
+  transform: translateY(14px);
+  transition:
+    opacity 0.7s cubic-bezier(0.2, 0.7, 0.2, 1),
+    transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1);
+  transition-delay: var(--reveal-delay, 0ms);
+}
+.lp-js [data-reveal].is-in {
+  opacity: 1;
+  transform: none;
+}
+
+/* ---------- Small motion kit ---------- */
+
+@keyframes lp-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.lp-in {
+  animation: lp-in 0.45s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+@keyframes lp-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.lp-draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: lp-draw 1.1s cubic-bezier(0.3, 0.7, 0.2, 1) forwards;
+}
+
+@keyframes lp-print {
+  from {
+    transform: translateY(-24px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+.lp-print {
+  animation: lp-print 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+/* Terminal caret: steady block, never blinks. */
+.lp-caret {
+  display: inline-block;
+  width: 0.55em;
+  height: 1.1em;
+  margin-left: 1px;
+  vertical-align: -0.2em;
+  background: #d4d4d8;
+}
+
+.lp-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #2a2a31 transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-js [data-reveal] {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .lp-in,
+  .lp-print {
+    animation: none;
+  }
+  .lp-draw {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+}
