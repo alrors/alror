@@ -2,35 +2,31 @@ import type { Metadata } from "next";
 import { Navbar } from "@/components/navbar";
 import { Section, SectionHeader } from "@/components/ui";
 import { Hero } from "@/components/landing/hero";
+import { Features } from "@/components/landing/features";
 import { Integrations } from "@/components/landing/integrations";
-import { Problem } from "@/components/landing/problem";
 import { RiskDemo } from "@/components/landing/risk-demo";
 import { RolloutDemo } from "@/components/landing/rollout-demo";
 import { Terminal } from "@/components/landing/terminal";
 import { HowItWorks } from "@/components/landing/how-it-works";
 import { ConsoleShowcase } from "@/components/landing/console-showcase";
-import { Compare, FAQ, FinalCTA, Footer, Pricing, Trust } from "@/components/landing/sections";
+import {
+  FAQ,
+  FinalCTA,
+  Footer,
+  OpenSource,
+} from "@/components/landing/sections";
 import { RevealObserver } from "@/components/landing/motion";
 import { CliFacts } from "@/components/landing/cli-facts";
 import "@/components/landing/landing.css";
 
+const title = "Alror — The open-source release platform";
 const description =
-  "Alror scores every pull request for risk, sizes the canary to match, verifies each stage against live metrics and rolls back automatically. Open-source CLI, GitHub Actions, Kubernetes and ECS.";
-
+  "Ship at the speed of AI. Keep production safe. Open-source change-risk scoring, progressive rollouts, live verification, and automatic rollback. Self-host the CLI and console.";
 export const metadata: Metadata = {
-  title: "Alror: ship every change at the speed of AI, safely",
+  title,
   description,
-  openGraph: {
-    title: "Alror: ship every change at the speed of AI, safely",
-    description,
-    type: "website",
-    siteName: "Alror",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Alror: ship every change at the speed of AI, safely",
-    description,
-  },
+  openGraph: { title, description, type: "website", siteName: "Alror" },
+  twitter: { card: "summary_large_image", title, description },
 };
 
 export default function Home() {
@@ -41,58 +37,50 @@ export default function Home() {
       <main id="main" className="flex-1">
         <Hero />
         <Integrations />
-        <Problem />
-
+        <Features />
         <Section id="risk" label="Risk scoring">
           <SectionHeader
-            eyebrow="02 · Change risk"
-            title="Every pull request gets a score."
-            muted="The score sets the rollout."
-            lead="Alror reads the diff and scores it from 0 to 100 with named, auditable factors. Pick a pull request below, then change what it touches and watch the plan change with it."
+            eyebrow="Change intelligence"
+            title="Every change has a story."
+            muted="Know it before you ship."
+            lead="Turn a diff into a clear, auditable risk score. Critical paths, missing tests, recent rollbacks: see what matters and how it shapes your release. Try it below."
           />
           <RiskDemo />
         </Section>
-
         <Section id="verify" label="Verification and rollback">
           <SectionHeader
-            eyebrow="03 · Verification"
-            title="Every stage is verified."
-            muted="Regressions roll back on their own."
-            lead="At each stage the canary is compared with the baseline on error rate and latency. Play a healthy release, then a regression that is caught at 5% of traffic."
+            eyebrow="Progressive delivery"
+            title="Confidence at every step."
+            muted="A way back, built in."
+            lead="Compare your canary with the baseline on real error rates and latency. Watch a healthy release progress, or see a regression caught at just 5% of traffic."
           />
           <RolloutDemo />
         </Section>
-
         <Section id="cli" label="Open-source CLI">
           <div className="grid grid-cols-[minmax(0,1fr)] gap-12 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] lg:gap-14">
             <CliFacts />
             <Terminal />
           </div>
         </Section>
-
         <Section id="how" label="How it works">
           <SectionHeader
-            eyebrow="05 · How it works"
-            title="From install to auto-rollback,"
-            muted="in four steps."
-            lead="Keep your CI, your registry and your cluster. Alror adds a check to pull requests and one step to your deploy job."
+            eyebrow="Fits your workflow"
+            title="A safer pipeline."
+            muted="Not a new pipeline."
+            lead="Keep your CI, your registry, and your cluster. Add a check to your pull requests and one step to your deploy job. You're on your way."
           />
           <HowItWorks />
         </Section>
-
-        <Section id="console" label="Console">
+        <Section id="console" label="Workspace console">
           <SectionHeader
-            eyebrow="Workspace"
-            title="One console for every release."
-            muted="Same engine, self-hosted."
-            lead="Connect the CLI with an API key and every deployment shows up live. Queue deploys and rollbacks from the console; alror runner executes them inside your infrastructure."
+            eyebrow="The whole picture"
+            title="One home for every release."
+            muted="Hosted on your terms."
+            lead="Live rollouts, shared policies, and the story behind every deployment. Connect the CLI to your self-hosted workspace and bring your team into the loop."
           />
           <ConsoleShowcase />
         </Section>
-
-        <Compare />
-        <Trust />
-        <Pricing />
+        <OpenSource />
         <FAQ />
         <FinalCTA />
       </main>

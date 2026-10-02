@@ -4,7 +4,7 @@ import { InstallCommand, REPO_URL } from "./install";
 
 const facts = [
   { k: "License", v: "Apache-2.0" },
-  { k: "Release", v: "v0.1.0" },
+  { k: "Runtime", v: "Single Go binary" },
   { k: "SDKs", v: "Go · TypeScript" },
   { k: "Exit codes", v: "2 rolled back · 3 gate" },
 ];
@@ -12,11 +12,11 @@ const facts = [
 export function CliFacts() {
   return (
     <div className="min-w-0" data-reveal>
-      <Eyebrow>04 · Open source</Eyebrow>
-      <h2 className="mt-4 text-[32px] font-semibold leading-[1.08] tracking-[-0.035em] text-balance text-fg sm:text-[44px]">
-        The engine is a CLI.<span className="block text-[#6e6e78]">Run it wherever you deploy.</span>
+      <Eyebrow>Developer first</Eyebrow>
+      <h2 className="mt-4 text-[32px] font-medium leading-[1.13] tracking-[-0.045em] text-balance text-fg sm:text-[44px]">
+        The engine is a CLI.<span className="block text-[#7c8a80]">At home in your pipeline.</span>
       </h2>
-      <p className="mt-5 max-w-xl text-[16px] leading-relaxed text-[#a3a3ad]">
+      <p className="mt-5 max-w-xl text-[15px] leading-relaxed text-[#9ca79f]">
         Risk scoring, rollouts, verification and rollback all run inside one Go binary, usually as a single CI step. The
         output is built for humans, and the exit codes are built for CI.
       </p>

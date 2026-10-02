@@ -18,12 +18,12 @@ const items: Item[] = [
 
 export function Integrations() {
   return (
-    <section aria-labelledby="integrations-title" className="lp-rule py-10 sm:py-12">
+    <section aria-labelledby="integrations-title" className="lp-integrations lp-rule py-10 sm:py-12">
       <Container>
         <h2 id="integrations-title" className="font-mono text-[11px] uppercase tracking-[0.16em] text-[#6e6e78]">
           Works with the stack you already run
         </h2>
-        <ul className="mt-6 flex flex-wrap items-center gap-x-8 gap-y-4 lg:flex-nowrap lg:justify-between lg:gap-x-4">
+        <ul className="mt-6 flex flex-wrap items-center justify-center gap-x-8 gap-y-4 xl:flex-nowrap xl:justify-between xl:gap-x-4">
           {items.map((it) => (
             <li key={it.name} className="flex items-center gap-2.5">
               <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-[#24242a] bg-[#16161a]">

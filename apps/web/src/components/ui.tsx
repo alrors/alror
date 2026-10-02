@@ -94,7 +94,7 @@ export function SectionHeader({
 }) {
   eyebrow = eyebrow ?? tag ?? "";
   return (
-    <div className="max-w-[880px]" data-reveal>
+    <div className="lp-section-header max-w-[880px]" data-reveal>
       <Eyebrow>{eyebrow}</Eyebrow>
       <h2 id={id} className="mt-4 text-[32px] font-semibold leading-[1.08] tracking-[-0.035em] text-balance text-fg sm:text-[44px]">
         {title}

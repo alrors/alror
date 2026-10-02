@@ -1,24 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowUpRight, Menu, X } from "lucide-react";
 import { site, cn } from "@/lib/site";
 import { Button } from "./ui";
-
-// The docs are served by the CLI (`alror docs`), so they open on their own port.
-const DOCS_URL = process.env.NEXT_PUBLIC_ALROR_DOCS_URL ?? "http://127.0.0.1:4100";
+import { DOCS_URL, REPO_URL } from "./landing/links";
 
 const links = [
-  { href: "/#risk", label: "Risk" },
-  { href: "/#verify", label: "Verification" },
-  { href: "/#cli", label: "CLI" },
+  { href: "/#platform", label: "Product" },
+  { href: "/#cli", label: "Developers" },
   { href: "/#console", label: "Console" },
-  { href: "/#pricing", label: "Pricing" },
+  { href: "/#open-source", label: "Open source" },
   { href: DOCS_URL, label: "Docs", external: true },
 ];
-
-const REPO_URL = "https://github.com/alrors/alror";
 
 /** The Alror mark: a release gate with one change passing through. */
 export function LogoMark({ className }: { className?: string }) {
@@ -43,6 +38,19 @@ export function Logo() {
 export function Navbar() {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const menuButton = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") { setOpen(false); menuButton.current?.focus(); }
+    };
+    window.addEventListener("keydown", onKey);
+    const desktop = window.matchMedia("(min-width: 1024px)");
+    const onResize = () => { if (desktop.matches) setOpen(false); };
+    desktop.addEventListener("change", onResize);
+    return () => { window.removeEventListener("keydown", onKey); desktop.removeEventListener("change", onResize); };
+  }, [open]);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -54,7 +62,7 @@ export function Navbar() {
   return (
     <header
       className={cn(
-        "sticky top-0 z-50 border-b transition-colors duration-200",
+        "lp-nav sticky top-0 z-50 border-b transition-colors duration-200",
         scrolled || open ? "border-[#1d1d22] bg-[#08080a]/85 backdrop-blur-xl" : "border-transparent bg-transparent",
       )}
     >
@@ -96,10 +104,11 @@ export function Navbar() {
             </svg>
           </a>
           <Button href="/login" variant="ghost">Sign in</Button>
-          <Button href="/app" variant="primary" className="ml-1">Open console</Button>
+          <Button href="/#cli" variant="primary" className="lp-button-accent ml-2">Get started</Button>
         </div>
 
         <button
+          ref={menuButton}
           type="button"
           className="grid h-9 w-9 place-items-center rounded-lg text-[#a3a3ad] hover:text-fg focus-visible:outline-2 focus-visible:outline-white/60 lg:hidden"
           onClick={() => setOpen((o) => !o)}
@@ -136,7 +145,7 @@ export function Navbar() {
           </ul>
           <div className="grid grid-cols-2 gap-2 border-t border-[#1d1d22] pt-3">
             <Button href="/login" variant="secondary" size="md">Sign in</Button>
-            <Button href="/app" size="md">Open console</Button>
+            <Link href="/#cli" onClick={() => setOpen(false)} className="lp-button-accent inline-flex h-10 items-center justify-center rounded-lg text-sm font-medium">Get started</Link>
           </div>
         </div>
       )}

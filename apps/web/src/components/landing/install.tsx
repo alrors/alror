@@ -4,7 +4,7 @@ import { useId, useState } from "react";
 import { Check, Copy } from "lucide-react";
 import { cn } from "@/lib/site";
 
-export const REPO_URL = "https://github.com/alrors/alror";
+export { REPO_URL } from "./links";
 
 const OPTIONS = [
   { id: "sh", label: "macOS / Linux", prompt: "$", cmd: "curl -fsSL https://raw.githubusercontent.com/alrors/alror/main/scripts/install.sh | sh" },
