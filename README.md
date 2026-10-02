@@ -1,8 +1,10 @@
 <p align="center">
-  <img src="docs/images/logo.svg" width="64" alt="Alror" />
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/wordmark-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="docs/images/wordmark-light.svg">
+    <img src="docs/images/wordmark-light.svg" alt="Alror" width="280">
+  </picture>
 </p>
-
-<h1 align="center">Alror</h1>
 
 <p align="center">
   <b>The release gate for the age of AI-written code.</b><br/>
