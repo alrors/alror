@@ -1,6 +1,14 @@
 # Alror product direction
 
-This document preserves the deployment-platform direction the founder liked on October 3, 2026, and records a broader proposal for discussion. The deployment foundation is the starting point. The broader application platform is a proposed destination, not an implemented feature set or a committed delivery schedule.
+This document preserves the deployment-platform direction the founder liked on October 3, 2026, and the broader application-platform proposal discussed afterward. These are saved explorations, not the current implementation sequence or a committed delivery schedule.
+
+## Current implementation plan
+
+The current working direction is open-source execution infrastructure for trusted background workloads on user-owned servers. Start with one Linux VM, durable task attempts, bounded resource use, real progress, cancellation and verified process recovery. Reuse Alror's runner, authenticated API, Postgres, SDK and console while maintaining existing GitHub and deployment features.
+
+The [execution runtime roadmap](https://github.com/alrors/alror/issues/1) tracks three gates: define the contract and benchmark alternatives; prove a real single-VM runtime; validate it with three independent developers. Each linked issue has acceptance criteria and dependencies. The [organization project](https://github.com/orgs/alrors/projects/1) tracks priority through Now, Next and Later.
+
+The proposed advantage is predictable resource use and understandable recovery on small servers. It must be measured against existing tools. The first alpha does not include managed customer compute, hostile-code sandboxes, arbitrary process checkpointing, multi-host availability or an exactly-once guarantee for external effects. The plans below remain preserved for context and possible later expansion.
 
 ## Saved deployment platform plan
 
