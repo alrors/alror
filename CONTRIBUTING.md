@@ -36,3 +36,5 @@ npm run dev              # http://localhost:3000, sign in as admin@acme.test / a
 ```
 
 Before a PR: `npx next typegen && npx tsc --noEmit`, `npm run lint` and, with the dev server running, `npm run test:api`.
+
+Production deployment runs from `.github/workflows/deploy.yml` after successful push CI on `main`. It deploys the tested commit only if it is still the current main commit and its `apps/web` source has changed. Pull-request and fork CI cannot deploy. Unchanged web source only gets a health check; there is no polling schedule. Manual deployments remain available in this repository and the private `alrors/alror-deploy` repository, and require successful main-branch CI for the selected commit. Both use restricted SSH keys and the same server lock. Production secrets and server configuration remain outside the source tree.

@@ -1,0 +1,175 @@
+name: Deploy alror.com
+
+# Deploys apps/web from the public repo (alrors/alror) to the VPS.
+# - workflow_run: deploy the tested main commit when source CI succeeds
+# - workflow_dispatch: validate and deploy a selected ref manually
+# The deploy key can only run /srv/apps/alror/ci-deploy.sh on the server (forced command).
+on:
+  workflow_run:
+    workflows: [CI]
+    branches: [main]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch, tag or commit of alrors/alror to deploy
+        default: main
+        required: true
+      force:
+        description: Deploy even if this commit is already live
+        type: boolean
+        default: false
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  deploy:
+    if: >-
+      github.repository == 'alrors/alror' &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_branch == 'main' &&
+        github.event.workflow_run.head_repository.full_name == github.repository))
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment:
+      name: production
+      url: https://alror.com
+    env:
+      HOST: 173.212.233.39
+      HOST_KEY: 173.212.233.39 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILDQxkNueFxFYUiKFZRxU7TzDakgvBN2KHca5YZUQK0h
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: alrors/alror
+          ref: ${{ github.event.workflow_run.head_sha || inputs.ref || 'main' }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Ignore superseded automatic deployments
+        id: target
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = workflow_run ]; then
+            latest=$(gh api repos/alrors/alror/git/ref/heads/main --jq .object.sha)
+            if [ "$(git rev-parse HEAD)" != "$latest" ]; then
+              echo 'skip=true' >> "$GITHUB_OUTPUT"
+              echo 'A newer main commit exists; its successful CI will trigger deployment.'
+            fi
+          fi
+
+      - name: Require successful CI for this commit
+        if: steps.target.outputs.skip != 'true'
+        id: ci
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          sha=$(git rev-parse HEAD)
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          for attempt in $(seq 1 60); do
+            run=$(gh api "repos/alrors/alror/actions/workflows/ci.yml/runs?head_sha=$sha&event=push&per_page=100" \
+              --jq '[.workflow_runs[] | select(.head_branch == "main")] | sort_by(.run_number) | last // {}')
+            status=$(jq -r '.status // "missing"' <<< "$run")
+            conclusion=$(jq -r '.conclusion // "pending"' <<< "$run")
+            if [ "$status" = completed ] || [ "$GITHUB_EVENT_NAME" != workflow_dispatch ]; then break; fi
+            echo "Waiting for source CI ($attempt/60): $status"
+            sleep 10
+          done
+          url=$(jq -r '.html_url // "https://github.com/alrors/alror/actions/workflows/ci.yml"' <<< "$run")
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          if [ "$status" = completed ] && [ "$conclusion" = success ]; then
+            echo 'ready=true' >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::Not deploying $sha: CI is $status / $conclusion. See $url"
+            printf '### Deployment held\n\nCommit: `%s`\n\n[Required CI](%s): **%s / %s**. Production was not changed.\n' "$sha" "$url" "$status" "$conclusion" >> "$GITHUB_STEP_SUMMARY"
+            if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then exit 1; fi
+          fi
+
+      - name: Set up SSH
+        if: steps.ci.outputs.ready == 'true'
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          test -n "$DEPLOY_SSH_KEY" || { echo "::error::Set the DEPLOY_SSH_KEY secret"; exit 1; }
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$HOST_KEY" > ~/.ssh/known_hosts
+          echo "SSH=ssh -i $HOME/.ssh/deploy_key -o StrictHostKeyChecking=yes -o BatchMode=yes root@$HOST" >> "$GITHUB_ENV"
+
+      - name: Compare with the live commit
+        if: steps.ci.outputs.ready == 'true'
+        id: check
+        env:
+          FORCE_DEPLOY: ${{ inputs.force }}
+        run: |
+          sha=$(git rev-parse HEAD)
+          live=$($SSH revision < /dev/null | tr -d '\r\n')
+          echo "wanted $sha, live $live"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          wanted_tree=$(git rev-parse HEAD:apps/web)
+          live_tree=$(git rev-parse "$live:apps/web" 2>/dev/null || true)
+          if [ "$FORCE_DEPLOY" != "true" ] && { [ "$sha" = "$live" ] || [ "$wanted_tree" = "$live_tree" ]; }; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "The same apps/web source is already live; no deployment needed."
+          fi
+
+      - name: Ship apps/web and redeploy
+        if: steps.ci.outputs.ready == 'true' && steps.check.outputs.skip != 'true'
+        env:
+          DEPLOY_SHA: ${{ steps.ci.outputs.sha }}
+        run: git archive --format=tar.gz HEAD:apps/web | $SSH deploy "$DEPLOY_SHA"
+
+      - name: Health check
+        if: steps.ci.outputs.ready == 'true'
+        id: health
+        run: |
+          for i in $(seq 1 20); do
+            if curl -fsS --connect-timeout 5 --max-time 10 https://alror.com/api/v1/health -o "$RUNNER_TEMP/alror-health.json" \
+              && jq -e '.status == "ok" and .postgres.ok == true and .redis.ok == true' "$RUNNER_TEMP/alror-health.json" > /dev/null; then
+              echo 'Alror, PostgreSQL and Redis are healthy at https://alror.com'
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::Health check failed"; exit 1
+
+      - name: Deployment report
+        if: always() && steps.ci.outputs.ready == 'true'
+        env:
+          DEPLOY_SHA: ${{ steps.ci.outputs.sha }}
+          CI_URL: ${{ steps.ci.outputs.url }}
+          ALREADY_LIVE: ${{ steps.check.outputs.skip }}
+          HEALTH_RESULT: ${{ steps.health.outcome }}
+          JOB_RESULT: ${{ job.status }}
+        run: |
+          {
+            echo '### Alror production'
+            echo
+            echo '| Item | Result |'
+            echo '| --- | --- |'
+            echo '| Website | https://alror.com |'
+            printf '| Source | [`%s`](https://github.com/alrors/alror/commit/%s) |\n' "$DEPLOY_SHA" "$DEPLOY_SHA"
+            printf '| Required CI | [Passed](%s) |\n' "$CI_URL"
+            printf '| Deployment job | %s |\n' "$JOB_RESULT"
+            printf '| Public API, PostgreSQL and Redis | %s |\n' "$HEALTH_RESULT"
+            echo
+            if [ "$ALREADY_LIVE" = true ]; then
+              echo 'The same apps/web source was already live; the domain health was checked again.'
+            elif [ "$JOB_RESULT" != success ]; then
+              echo 'Deployment or verification failed. Inspect the failed step before retrying; this report does not confirm that production was updated.'
+            else
+              echo 'The checked commit was deployed and the public domain is healthy.'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remove deployment key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key
