@@ -13,6 +13,7 @@
     "db:seed": "node --env-file-if-exists=.env.local --conditions=react-server --import tsx scripts/seed.ts",
     "test:api": "node --env-file-if-exists=.env.local --conditions=react-server --import tsx --test --test-concurrency=1 tests/api.test.ts",
     "typecheck": "tsc --noEmit",
+    "test:learn": "node --env-file-if-exists=.env.local --conditions=react-server --import tsx --test --test-concurrency=1 tests/learn.test.ts",
     "test:admin": "node --env-file-if-exists=.env.local --conditions=react-server --import tsx --test --test-concurrency=1 tests/admin.test.ts",
     "preview": "next build && next start -p 3000"
   },

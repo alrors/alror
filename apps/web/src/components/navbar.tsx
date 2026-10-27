@@ -12,6 +12,7 @@ const links = [
   { href: "/#cli", label: "Developers" },
   { href: "/#console", label: "Console" },
   { href: "/#open-source", label: "Open source" },
+  { href: "/learn", label: "Learn" },
   { href: DOCS_URL, label: "Docs", external: true },
 ];
 
