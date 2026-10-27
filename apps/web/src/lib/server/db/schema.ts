@@ -425,3 +425,45 @@ export const githubDecisions = pgTable("github_decisions", {
   commentId: text("comment_id"),
   updatedAt: ts("updated_at").notNull().defaultNow(),
 }, (t) => [uniqueIndex("github_decisions_revision_key").on(t.repositoryId, t.pullNumber, t.headSha, t.baseSha, t.policyVersion), index("github_decisions_org_updated_idx").on(t.orgId, t.updatedAt.desc())]);
+
+// ---------------------------------------------------------------------------
+// Learn: courses of YouTube lectures on /learn, managed by platform admins in /admin/learn.
+// ---------------------------------------------------------------------------
+
+export const learnCourses = pgTable(
+  "learn_courses",
+  {
+    id: id(),
+    slug: text("slug").notNull(),
+    title: text("title").notNull(),
+    summary: text("summary").notNull().default(""),
+    published: boolean("published").notNull().default(false),
+    position: integer("position").notNull().default(0),
+    createdAt: createdAt(),
+    updatedAt: ts("updated_at").notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("learn_courses_slug_key").on(t.slug), index("learn_courses_position_idx").on(t.position)],
+);
+
+export const learnLectures = pgTable(
+  "learn_lectures",
+  {
+    id: id(),
+    courseId: uuid("course_id")
+      .notNull()
+      .references(() => learnCourses.id, { onDelete: "cascade" }),
+    slug: text("slug").notNull(),
+    title: text("title").notNull(),
+    description: text("description").notNull().default(""),
+    youtubeId: text("youtube_id").notNull(),
+    published: boolean("published").notNull().default(false),
+    position: integer("position").notNull().default(0),
+    createdAt: createdAt(),
+    updatedAt: ts("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("learn_lectures_course_slug_key").on(t.courseId, t.slug),
+    index("learn_lectures_course_position_idx").on(t.courseId, t.position),
+    check("learn_lectures_youtube_id_check", sql`youtube_id ~ '^[A-Za-z0-9_-]{11}$'`),
+  ],
+);
