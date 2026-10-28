@@ -191,7 +191,7 @@ export function PageHeader({
     <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
       <div className="min-w-0">
         {meta && <div className="mb-2 flex flex-wrap items-center gap-2">{meta}</div>}
-        <h1 className="text-[28px] font-semibold leading-tight tracking-[-0.025em] text-con-fg">{title}</h1>
+        <h1 data-tour="page-title" className="text-[28px] font-semibold leading-tight tracking-[-0.025em] text-con-fg">{title}</h1>
         {description && <p className="mt-1 max-w-3xl text-[14px] text-con-fg2">{description}</p>}
       </div>
       {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}

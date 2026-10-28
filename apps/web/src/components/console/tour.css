@@ -1,0 +1,67 @@
+/* driver.js popovers in the console's dark style. */
+
+.driver-popover.alror-tour {
+  max-width: 340px;
+  padding: 16px 16px 14px;
+  border: 1px solid var(--color-con-line-hover);
+  border-radius: 10px;
+  background: var(--color-con-panel);
+  color: var(--color-con-fg);
+  box-shadow: 0 18px 48px -12px rgb(0 0 0 / 0.75);
+  font-family: var(--font-sans);
+}
+.driver-popover.alror-tour .driver-popover-title {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--color-con-fg);
+}
+.driver-popover.alror-tour .driver-popover-description {
+  margin-top: 6px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--color-con-fg2);
+}
+.driver-popover.alror-tour .driver-popover-progress-text {
+  font-size: 12px;
+  color: var(--color-con-fg3);
+}
+.driver-popover.alror-tour .driver-popover-footer {
+  margin-top: 14px;
+}
+.driver-popover.alror-tour .driver-popover-footer button {
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--color-con-line-hover);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-con-fg);
+  font-size: 12px;
+  font-weight: 500;
+  text-shadow: none;
+}
+.driver-popover.alror-tour .driver-popover-footer button:hover {
+  background: var(--color-con-hover);
+}
+.driver-popover.alror-tour .driver-popover-footer .driver-popover-next-btn {
+  border-color: var(--color-con-fg);
+  background: var(--color-con-fg);
+  color: #000;
+}
+.driver-popover.alror-tour .driver-popover-footer .driver-popover-next-btn:hover {
+  background: #fff;
+}
+.driver-popover.alror-tour .driver-popover-footer button:focus-visible {
+  outline: 2px solid var(--color-con-fg);
+  outline-offset: 2px;
+}
+.driver-popover.alror-tour .driver-popover-close-btn {
+  color: var(--color-con-fg3);
+}
+.driver-popover.alror-tour .driver-popover-close-btn:hover {
+  color: var(--color-con-fg);
+}
+.driver-popover.alror-tour .driver-popover-arrow-side-left.driver-popover-arrow { border-left-color: var(--color-con-panel); }
+.driver-popover.alror-tour .driver-popover-arrow-side-right.driver-popover-arrow { border-right-color: var(--color-con-panel); }
+.driver-popover.alror-tour .driver-popover-arrow-side-top.driver-popover-arrow { border-top-color: var(--color-con-panel); }
+.driver-popover.alror-tour .driver-popover-arrow-side-bottom.driver-popover-arrow { border-bottom-color: var(--color-con-panel); }

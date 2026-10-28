@@ -42,7 +42,7 @@ export default async function PoliciesPage() {
     <div className="space-y-8">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="text-[28px] font-semibold tracking-[-0.025em]">Policies</h1>
+          <h1 data-tour="page-title" className="text-[28px] font-semibold tracking-[-0.025em]">Policies</h1>
           <p className="mt-1 text-[14px] text-con-fg2">How Alror verifies canaries and when it rolls back, for project {c.project}.</p>
         </div>
         {admin && (

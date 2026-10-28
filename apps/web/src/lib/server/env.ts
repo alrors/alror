@@ -25,4 +25,7 @@ export const env = {
     return process.env.NODE_ENV === "production";
   },
   isProduction: () => process.env.NODE_ENV === "production",
+  /** Public documentation base (NEXT_PUBLIC_ALROR_DOCS_URL overrides it). */
+  docsUrl: () =>
+    (process.env.NEXT_PUBLIC_ALROR_DOCS_URL || "https://github.com/alrors/alror/tree/main/internal/docsite/content").replace(/\/+$/, ""),
 };

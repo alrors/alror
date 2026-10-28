@@ -334,6 +334,9 @@ func (rn *Runner) deploy(ctx context.Context, job *api.Job) (string, error) {
 	if err := rollout.Preflight(cfg, svc, prov.Name()); err != nil {
 		return "", err
 	}
+	if rollout.CompressSimulatedBakes(svc.Target, prov.Name(), cfg.Policy.BakeScale, false, p.FullBakes) {
+		cfg.Policy.BakeScale = rollout.FastBakeScale
+	}
 	var notifier notify.Notifier = notify.Nop{}
 	if cfg.Notify.SlackWebhook != "" {
 		notifier = notify.Slack{Webhook: cfg.Notify.SlackWebhook}

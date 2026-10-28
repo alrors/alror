@@ -198,6 +198,21 @@ describe("API keys and scopes", () => {
     assert.equal((await new Client(token).get("/api/v1/whoami")).status, 401);
   });
 
+  test("errors carry a fix, a docs link and a request id; every response has X-Request-Id", async () => {
+    const r = await anon.get("/api/v1/deployments");
+    const e = r.body.error as Json;
+    assert.equal(typeof e.fix, "string");
+    assert.match(String(e.docs_url), /errors\.md#unauthorized$/);
+    assert.match(String(e.request_id), /^req_[0-9a-f]{16}$/);
+    assert.equal(r.headers.get("x-request-id"), e.request_id);
+    const ok = await keyA.get("/api/v1/whoami");
+    assert.match(ok.headers.get("x-request-id") ?? "", /^req_/);
+    const mine = await anon.req("GET", "/api/v1/deployments", undefined, { "x-request-id": "trace-abc12345" });
+    assert.equal((mine.body.error as Json).request_id, "trace-abc12345");
+    const bad = await anon.req("GET", "/api/v1/deployments", undefined, { "x-request-id": "no spaces allowed!" });
+    assert.match(String((bad.body.error as Json).request_id), /^req_/);
+  });
+
   test("403 when a scope is missing", async () => {
     const r = await readA.post("/api/v1/deployments", deployment(depId("noscope")));
     assert.equal(r.status, 403);

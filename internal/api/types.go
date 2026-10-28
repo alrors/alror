@@ -108,6 +108,8 @@ type DeployPayload struct {
 	Ref         string `json:"ref,omitempty"`
 	Environment string `json:"environment,omitempty"`
 	Shadow      bool   `json:"shadow,omitempty"`
+	// FullBakes keeps real bake times on a simulated target with synthetic metrics.
+	FullBakes bool `json:"full_bakes,omitempty"`
 	// RiskOverride skips risk scoring: a level ("low", "medium" or "high",
 	// as the console sends) or a numeric score ("0" to "100"). Runners have
 	// no git context, so without it a deploy job assumes medium risk.

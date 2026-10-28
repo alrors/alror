@@ -3,10 +3,11 @@
 import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ArrowUpRight, Bell, BookOpen, Check, ChevronsUpDown, CircleAlert, CircleHelp, Keyboard, LogOut, Rocket, RotateCcw, Search, Settings, TerminalSquare } from "lucide-react";
+import { ArrowUpRight, Bell, BookOpen, Check, ChevronsUpDown, CircleAlert, CircleHelp, Keyboard, LogOut, Play, Rocket, RotateCcw, Search, Settings, TerminalSquare } from "lucide-react";
 import { LogoMark } from "@/components/navbar";
 import { logout, markNotificationsRead, sendFeedback, setEnvironment, switchOrg, type FeedbackState } from "@/app/app/actions";
 import { CommandPalette } from "@/components/console/command-palette";
+import { TOURS } from "@/lib/console/tours";
 import { DeployButton, type DeployDefaults } from "@/components/console/deploy-dialog";
 import { SyncIndicator } from "@/components/console/live-updates";
 import { buttonClass } from "@/components/console/primitives";
@@ -430,6 +431,13 @@ function HelpMenu({ docsUrl }: { docsUrl: string }) {
             <TerminalSquare size={14} />
             <span className="flex-1">Setup checklist</span>
           </Link>
+          <div className={menuLabel}>Tours</div>
+          {TOURS.map((t) => (
+            <Link key={t.id} href={`${t.href}?tour=${t.id}`} onClick={close} className={menuItem}>
+              <Play size={14} />
+              <span className="flex-1">{t.title}</span>
+            </Link>
+          ))}
         </>
       )}
     </Dropdown>
@@ -572,7 +580,7 @@ export function Topbar(props: TopbarProps & { docsUrl: string }) {
       <MobileNav docsUrl={docsUrl} rolling={rolling} />
       <Breadcrumbs org={org} orgs={orgs} services={services} depService={depService} environments={environments} environment={environment} />
       {deploy.services.length > 0 && (
-        <span ref={deployRef} className="contents">
+        <span ref={deployRef} className="inline-flex" data-tour="deploy">
           <DeployButton defaults={deploy} variant="topbar" />
         </span>
       )}
@@ -589,12 +597,18 @@ export function Topbar(props: TopbarProps & { docsUrl: string }) {
           </Link>
         )}
         <Feedback />
-        <SearchButton onOpen={() => setPaletteOpen(true)} className="hidden lg:flex" />
-        <button type="button" onClick={() => setPaletteOpen(true)} className={cn(iconBtn, "lg:hidden")} aria-label="Search">
+        <span className="hidden lg:inline-flex" data-tour="search">
+          <SearchButton onOpen={() => setPaletteOpen(true)} />
+        </span>
+        <button type="button" onClick={() => setPaletteOpen(true)} className={cn(iconBtn, "lg:hidden")} aria-label="Search" data-tour="search">
           <Search size={15} />
         </button>
-        <HelpMenu docsUrl={docsUrl} />
-        <Notifications items={notifications} unread={unread} />
+        <span className="hidden sm:inline-flex" data-tour="help">
+          <HelpMenu docsUrl={docsUrl} />
+        </span>
+        <span className="inline-flex" data-tour="notifications">
+          <Notifications items={notifications} unread={unread} />
+        </span>
         <UserMenu user={user} org={org.slug} role={role} />
       </div>
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} isAdmin={isAdmin} canDeploy={deploy.services.length > 0} />

@@ -33,6 +33,7 @@ Scores the diff between `--base` (default `origin/main`, then `main`) and `HEAD`
 | `--risk N` | Skip git and use this score |
 | `--regress m=f` | Synthetic metrics only: make the canary worse |
 | `--fast` | Compress bake times for demos |
+| `--full-bakes` | Keep real bake times on a simulated target (by default, simulated services with synthetic metrics bake in seconds) |
 | `--shadow` | Recommend rollbacks without acting |
 | `--env` | Target environment (default `production`); recorded in connected mode, ignored in local mode |
 

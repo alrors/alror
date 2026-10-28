@@ -30,7 +30,6 @@ func initCmd() *cobra.Command {
 			}
 
 			cfg := config.Default(filepath.Base(dir))
-			cfg.Policy.BakeScale = 0.003 // simulated targets: a 10-minute bake runs in ~2 s
 			if err := cfg.Save(path); err != nil {
 				return err
 			}
@@ -52,8 +51,6 @@ func initCmd() *cobra.Command {
 			fmt.Println(ui.Hint("edit alror.yaml", "map your services to their source paths"))
 			fmt.Println(ui.Hint("alror risk", "score your current change"))
 			fmt.Println(ui.Hint("alror deploy -s checkout-api -i app:v2", "try a simulated rollout"))
-			fmt.Println()
-			fmt.Println(ui.Fainter.Render("bake_scale is 0.003 for the simulated target. Remove it before using real targets."))
 			return nil
 		},
 	}

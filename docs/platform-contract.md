@@ -88,7 +88,7 @@ Usage numbers in the console are **computed** from these tables (deploying servi
 
 ## 5. REST API v1 (`/api/v1`, JSON)
 
-Auth is either the session cookie (console) or a Bearer API key (CLI, CI, runner). The org is implied by the key or the session. Errors look like `{"error":{"code":"not_found","message":"…"}}` with status 400 (malformed JSON), 401, 403, 404, 409, 422 (validation; also `unknown_service`, `unknown_environment`), 429 (`rate_limited`, login only) or 503 (`unavailable`: the server can't reach Postgres or Redis; `details.reason` is `database_unavailable` or `cache_unavailable`, with `Retry-After: 10`). Clients should retry a 503 with backoff.
+Auth is either the session cookie (console) or a Bearer API key (CLI, CI, runner). The org is implied by the key or the session. Errors look like `{"error":{"code":"not_found","message":"…","fix":"…","docs_url":"…","request_id":"req_…"}}` (`fix` is the next step, `docs_url` the code's section of the Errors docs page, `request_id` also sent as the `X-Request-Id` header on every response; a well-formed client `X-Request-Id` of 8–64 `[A-Za-z0-9_-]` is reused) with status 400 (malformed JSON), 401, 403, 404, 409, 422 (validation; also `unknown_service`, `unknown_environment`), 429 (`rate_limited`, login only) or 503 (`unavailable`: the server can't reach Postgres or Redis; `details.reason` is `database_unavailable` or `cache_unavailable`, with `Retry-After: 10`). Clients should retry a 503 with backoff.
 
 **Domain JSON is byte-compatible with the Go `internal/domain` structs:** snake_case keys in struct order, `bake` is integer nanoseconds, times are RFC 3339 (`RFC3339Nano` with trailing zeros trimmed, millisecond precision), `ref`, `reason`, event `weight` and `verdict` are omitted when empty.
 
