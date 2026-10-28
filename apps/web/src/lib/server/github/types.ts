@@ -27,7 +27,7 @@ export type DecisionView = {
   title: string; url: string; headSha: string; outcome: string; score: number;
   reasons: string[]; mode: GateMode; updatedAt: string;
   /** Shared-rules risk level, or null when it was not computed for this revision. */
-  level: "low" | "medium" | "high" | null;
+  level?: "low" | "medium" | "high" | null;
 };
 export type ChangedFile = { filename: string; previous_filename?: string; additions: number; deletions: number; status: string };
 export type CheckEvidence = { name: string; appId: number; status: string; conclusion: string | null };
