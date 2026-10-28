@@ -1,23 +1,29 @@
 import type { Metadata } from "next";
-import { Navbar } from "@/components/navbar";
-import { Section, SectionHeader } from "@/components/ui";
-import { Hero } from "@/components/landing/hero";
-import { Features } from "@/components/landing/features";
-import { Integrations } from "@/components/landing/integrations";
+import { Pixelify_Sans } from "next/font/google";
+import { ConsoleShowcase } from "@/components/landing/console-showcase";
+import { HowItWorks } from "@/components/landing/how-it-works";
+import { RevealObserver } from "@/components/landing/motion";
 import { RiskDemo } from "@/components/landing/risk-demo";
 import { RolloutDemo } from "@/components/landing/rollout-demo";
 import { Terminal } from "@/components/landing/terminal";
-import { HowItWorks } from "@/components/landing/how-it-works";
-import { ConsoleShowcase } from "@/components/landing/console-showcase";
 import {
-  FAQ,
-  FinalCTA,
-  Footer,
-  OpenSource,
-} from "@/components/landing/sections";
-import { RevealObserver } from "@/components/landing/motion";
-import { CliFacts } from "@/components/landing/cli-facts";
+  DemoSection,
+  RetroCli,
+  RetroCta,
+  RetroFaq,
+  RetroFeatures,
+  RetroFooter,
+  RetroHero,
+  RetroNav,
+  RetroOpenSource,
+  RetroStack,
+  RetroTicker,
+} from "@/components/retro/sections";
+// landing.css styles the interactive demos, which render inside dark .lp screens.
 import "@/components/landing/landing.css";
+import "@/components/retro/retro.css";
+
+const pixel = Pixelify_Sans({ subsets: ["latin"], weight: ["500", "600", "700"], variable: "--font-pixel", display: "swap" });
 
 const title = "Alror — The open-source release platform";
 const description =
@@ -31,60 +37,68 @@ export const metadata: Metadata = {
 
 export default function Home() {
   return (
-    <div className="lp flex min-h-full flex-1 flex-col">
+    <div className={`rx ${pixel.variable} flex min-h-full flex-1 flex-col`}>
       <RevealObserver />
-      <Navbar />
+      <RetroNav />
       <main id="main" className="flex-1">
-        <Hero />
-        <Integrations />
-        <Features />
-        <Section id="risk" label="Risk scoring">
-          <SectionHeader
-            eyebrow="Change intelligence"
-            title="Every change has a story."
-            muted="Know it before you ship."
-            lead="Turn a diff into a clear, auditable risk score. Critical paths, missing tests, recent rollbacks: see what matters and how it shapes your release. Try it below."
-          />
+        <RetroHero />
+        <RetroTicker />
+        <RetroStack />
+        <RetroFeatures />
+        <DemoSection
+          id="risk"
+          label="Risk scoring"
+          eyebrow="change intelligence"
+          title="Every change has a story."
+          marker="Know it before you ship."
+          lead="Turn a diff into a clear, auditable risk score. Critical paths, missing tests, recent rollbacks: see what matters and how it shapes your release. Try it below."
+          window="risk_scanner.exe"
+          tone="butter"
+        >
           <RiskDemo />
-        </Section>
-        <Section id="verify" label="Verification and rollback">
-          <SectionHeader
-            eyebrow="Progressive delivery"
-            title="Confidence at every step."
-            muted="A way back, built in."
-            lead="Compare your canary with the baseline on real error rates and latency. Watch a healthy release progress, or see a regression caught at just 5% of traffic."
-          />
+        </DemoSection>
+        <DemoSection
+          id="verify"
+          label="Verification and rollback"
+          eyebrow="progressive delivery"
+          title="Confidence at every step."
+          marker="A way back, built in."
+          lead="Compare your canary with the baseline on real error rates and latency. Watch a healthy release progress, or see a regression caught at just 5% of traffic."
+          window="canary_watch.exe"
+          tone="lime"
+        >
           <RolloutDemo />
-        </Section>
-        <Section id="cli" label="Open-source CLI">
-          <div className="grid grid-cols-[minmax(0,1fr)] gap-12 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] lg:gap-14">
-            <CliFacts />
-            <Terminal />
-          </div>
-        </Section>
-        <Section id="how" label="How it works">
-          <SectionHeader
-            eyebrow="Fits your workflow"
-            title="A safer pipeline."
-            muted="Not a new pipeline."
-            lead="Keep your CI, your registry, and your cluster. Add a check to your pull requests and one step to your deploy job. You're on your way."
-          />
+        </DemoSection>
+        <RetroCli terminal={<Terminal />} />
+        <DemoSection
+          id="how"
+          label="How it works"
+          eyebrow="fits your workflow"
+          title="A safer pipeline."
+          marker="Not a new pipeline."
+          lead="Keep your CI, your registry and your cluster. Add a check to your pull requests and one step to your deploy job. You're on your way."
+          window="pipeline.exe"
+          tone="sky"
+        >
           <HowItWorks />
-        </Section>
-        <Section id="console" label="Workspace console">
-          <SectionHeader
-            eyebrow="The whole picture"
-            title="One home for every release."
-            muted="Hosted on your terms."
-            lead="Live rollouts, shared policies, and the story behind every deployment. Connect the CLI to your self-hosted workspace and bring your team into the loop."
-          />
+        </DemoSection>
+        <DemoSection
+          id="console"
+          label="Workspace console"
+          eyebrow="the whole picture"
+          title="One home for every release."
+          marker="Hosted on your terms."
+          lead="Live rollouts, shared policies and the story behind every deployment. Connect the CLI to your self-hosted workspace and bring your team into the loop."
+          window="console.exe"
+          tone="lilac"
+        >
           <ConsoleShowcase />
-        </Section>
-        <OpenSource />
-        <FAQ />
-        <FinalCTA />
+        </DemoSection>
+        <RetroOpenSource />
+        <RetroFaq />
+        <RetroCta />
       </main>
-      <Footer />
+      <RetroFooter />
     </div>
   );
 }
