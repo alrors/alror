@@ -38,6 +38,8 @@ Scores the diff between `--base` (default `origin/main`, then `main`) and `HEAD`
 
 Before anything is recorded, `deploy` checks the [capability matrix](/targets): an unsupported target (such as `ecs`) is refused, and so is the `synthetic` metrics provider on a non-simulated target unless `policy.allow_synthetic_telemetry` is set (both exit `1`).
 
+On the `kubernetes` target, the engine first annotates the Rollout with `alror.dev/controlled-by` (the deployment id) and `alror.dev/image`, then sets the image. The annotations tell [release detection](/connected#release-detection-experimental) that Alror made the change. If the annotation cannot be written, the deploy fails with exit `1` and no traffic is changed.
+
 | Exit code | Meaning |
 | --- | --- |
 | `0` | Promoted |
@@ -65,7 +67,7 @@ Prints the capability matrix: for every target and operation, and every metrics 
 
 ## `alror doctor`
 
-Checks git, `alror.yaml`, the state directory, target tools (for example `kubectl`) and metrics connectivity. It reports unsupported targets and non-simulated targets configured with synthetic telemetry as problems. When connected, it also checks that the workspace is reachable, that the key is valid and which scopes it has.
+Checks git, `alror.yaml`, the state directory, target tools (for example `kubectl`) and metrics connectivity. It reports unsupported targets and non-simulated targets configured with synthetic telemetry as problems, and services with `detect: true` whose target cannot detect releases. When connected, it also checks that the workspace is reachable, that the key is valid and which scopes it has.
 
 ## `alror login`
 
@@ -88,8 +90,14 @@ Runs deploys and rollbacks queued from the Alror console, inside your own infras
 | `--name` | Reported as `claimed_by` (default: hostname) |
 | `--once` | One claim (long-poll); run the job if one arrives, then exit |
 | `--concurrency N` | Jobs to run in parallel (default `1`) |
+| `--watch` | Experimental: also start a verified release when the Argo Rollout of a service with `detect: true` changes image outside Alror (also `watch.enabled` in `alror.yaml`) |
+| `--watch-service NAME` | Also watch this service (repeatable; implies `--watch`) |
+| `--watch-interval D` | Poll interval per Rollout (default `watch.interval`, else `15s`) |
+| `--watch-state PATH` | File that remembers handled image changes across restarts (default `watch.state`, else `.alror/watch.json`) |
 
 Ctrl-C stops claiming and lets the current job finish; a second Ctrl-C aborts it, and the canary is rolled back. A rolled-back release is job status `done`.
+
+With `--local --watch` the runner only watches: no workspace is needed, and releases are recorded in `.alror/`. With `--once` it polls each Rollout once and waits for any release it started. Services that cannot be watched (for example on the `simulated` or `ecs` target) are listed in the log; if none can be watched, a watch-only runner exits `1`. See [Release detection](/connected#release-detection-experimental).
 
 ## `alror config pull` / `alror config push`
 

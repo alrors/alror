@@ -9,6 +9,7 @@ By default Alror runs in **local mode**: it reads `alror.yaml` and keeps state i
 | Recent rollbacks (risk) | `.alror/` | `GET /api/v1/rollbacks/recent` |
 | Risk scoring | local git | local git (unchanged) |
 | Console Deploy / Roll back | n/a | jobs, executed by `alror runner` |
+| Releases detected in the cluster (experimental) | `alror runner --local --watch` | `alror runner --watch` |
 
 ## Connect
 
@@ -83,6 +84,61 @@ alror runner --once                   # one long-poll; run a job if one arrives,
 …
 14:42:33  ✓ job 3f2a91c0 done in 40m3s · dep_20261002T140230_a1b2c3
 ```
+
+## Release detection (experimental)
+
+With `--watch`, the runner also notices releases made **in the cluster**, so teams get verified releases without adding `alror deploy` to their pipelines. It watches the Argo Rollout of each enrolled service and, when the pod template image changes and Alror did not make the change (a GitOps sync, `kubectl set image`, a Helm upgrade), starts one Alror-controlled release for it: score, plan, step through the Rollout with verification, and roll back on a regression, exactly like `alror deploy`.
+
+Enrol services in `alror.yaml` (release detection is runner-side configuration and is never sent to the workspace; in connected mode the runner merges these keys into the workspace config):
+
+```yaml
+services:
+  - name: checkout-api
+    target: kubernetes
+    namespace: shop
+    detect: true          # watch this service's Rollout
+watch:
+  enabled: true           # same as --watch
+  interval: 15s           # poll interval per Rollout (default 15s)
+  environment: production # recorded on detected releases in connected mode
+  state: .alror/watch.json
+```
+
+```bash
+alror runner --watch                                   # jobs from the console + release detection
+alror runner --watch --watch-service checkout-api      # enrol a service without editing alror.yaml
+alror runner --local --watch                           # no workspace: alror.yaml and .alror/ only
+alror runner --local --watch --once                    # poll each Rollout once, finish any release, exit
+```
+
+**How it works.** Every interval the runner reads each Rollout with `kubectl get rollouts.argoproj.io <service> -o json` (skipping it when its `resourceVersion` has not changed) and compares the image of the container named after the service with the last image it saw. The first image it sees is a baseline, not a release. A change is acted on only once the Argo controller has observed it (`status.observedGeneration`).
+
+**Exactly one release per image change, and never two controllers.** A change is skipped, and the reason logged, when:
+
+| Check | Why |
+| --- | --- |
+| The Rollout's `alror.dev/controlled-by` and `alror.dev/image` annotations name this image | An Alror deployment set it. The engine writes both annotations (with the deployment id) **before** it changes the image, so `alror deploy` in CI and console jobs are never picked up a second time. |
+| The service has a `pending` or `rolling` deployment (updated in the last 2 hours), or its latest deployment has this image | Another release controls the service (for example a CI pipeline on an older CLI that does not write the annotations). Connected mode asks the workspace; local mode reads `.alror/`. |
+| The dedupe key (service + image tag or digest) was already handled at this generation | The state file (`watch.state`, default `.alror/watch.json`) remembers every handled change, written **before** the release starts, so a restart never re-triggers it. If the file is lost, the annotations still say Alror set the image. |
+| `status.currentPodHash` equals `status.stableRS` | The Rollout is already fully on this image (for example a revert to stable); there is no canary to control. |
+
+Otherwise the runner claims the Rollout with `kubectl annotate --resource-version=<the version it read>`. The write fails if anything changed the Rollout in between, so two runners watching the same Rollout start at most one release; the loser re-reads it on the next poll. A release that cannot start after the claim is recorded in the state file and not retried.
+
+**Linking to the merged PR.** The release's `ref` is the commit SHA, taken from (in order) the pod template annotation `alror.dev/commit`, the pod template label `alror.dev/commit`, or the image tag when it is a SHA: 7 to 40 lowercase hex characters on their own, as `sha-<sha>` (docker/metadata-action), `-g<sha>` (git describe) or a `-`, `_` or `.` suffix such as `1.4.2-3f9c2ab`. A short SHA must contain both digits and letters, so dates and words never match. Anything else records the commit as unknown; it is never guessed. Set the annotation in your manifests or CI for reliable links:
+
+```yaml
+spec:
+  template:
+    metadata:
+      annotations:
+        alror.dev/commit: 3f9c2ab1d4e5f60718293a4b5c6d7e8f90a1b2c3
+```
+
+**Risk.** In connected mode, a deployment already stored in the workspace for the same commit (matching `ref`) provides the risk decision. Otherwise, when the runner runs inside a git checkout that contains the commit (the directory of `alror.yaml`), the offline scorer scores that commit against its first parent; it never fetches. Otherwise the release is medium risk with a factor saying why. Every detected release carries a "Detected in cluster" factor with the previous and new image and where the commit came from.
+
+**Capabilities.** Detection is `experimental` and only exists for the `kubernetes` target (see the [capability matrix](/targets)). Services on `simulated` or `ecs` targets, services whose release could not run (for example synthetic telemetry on a real target), Rollouts that use `workloadRef`, and Rollouts without a container named after the service are reported in the runner log and never simulated; `alror doctor` also flags `detect: true` on a target that cannot detect releases. The runner needs RBAC to `get` and `patch` Rollouts in the watched namespaces.
+
+**Not covered yet.** A release interrupted by a runner restart is not resumed (the Rollout stays where it paused; roll it back or promote it by hand). ECS services cannot be watched. Policy changes are picked up before each release in connected mode, but enrolment (`detect`, `watch:`) is read at start.
 
 ## Sync alror.yaml
 

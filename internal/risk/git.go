@@ -50,6 +50,30 @@ func HeadCommit(dir string) (string, error) {
 	return strings.TrimSpace(out), err
 }
 
+// FromCommit collects the change one commit introduced, against its first
+// parent (for a merge commit, the whole merged branch). It fails when dir is
+// not a git checkout that contains the commit; it never fetches.
+func FromCommit(dir, sha string) (Change, error) {
+	var c Change
+	if _, err := git(dir, "cat-file", "-e", sha+"^{commit}"); err != nil {
+		return c, fmt.Errorf("commit %s is not in %s: %w", sha, dir, err)
+	}
+	numstat, err := git(dir, "diff", "--numstat", sha+"^1", sha)
+	if err != nil {
+		return c, fmt.Errorf("git diff %s^1 %s: %w", sha, sha, err)
+	}
+	c.Files = parseNumstat(numstat)
+	if out, err := git(dir, "log", "-1", "--format=%an <%ae>%x1f%B", sha); err == nil {
+		if parts := strings.SplitN(strings.TrimSpace(out), "\x1f", 2); parts[0] != "" {
+			c.Authors = append(c.Authors, parts[0])
+			if len(parts) == 2 {
+				c.Message = parts[1] + "\n"
+			}
+		}
+	}
+	return c, nil
+}
+
 func defaultBase(dir string) string {
 	for _, b := range []string{"origin/main", "main", "origin/master", "master"} {
 		if _, err := git(dir, "rev-parse", "--verify", "--quiet", b); err == nil {

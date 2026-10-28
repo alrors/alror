@@ -349,7 +349,7 @@ func (rn *Runner) deploy(ctx context.Context, job *api.Job) (string, error) {
 
 	eng := &rollout.Engine{
 		Cfg: cfg, Store: rn.Store, Driver: drv, Metrics: prov, Notifier: notifier, Wait: rn.Wait,
-		Observer: &observer{rn: rn, d: d},
+		Observer: &observer{log: rn.Log, d: d},
 		Verifier: verify.Verifier{MaxRegression: cfg.Policy.MaxRegression, MaxIncrease: cfg.Policy.MaxIncrease, Alpha: cfg.Policy.Alpha},
 	}
 	runErr := eng.Run(ctx, d)
@@ -409,7 +409,7 @@ func (rn *Runner) rollback(ctx context.Context, job *api.Job) (string, error) {
 	if reason == "" {
 		reason = "requested from the Alror console"
 	}
-	eng := &rollout.Engine{Cfg: cfg, Store: rn.Store, Driver: drv, Observer: &observer{rn: rn, d: d}}
+	eng := &rollout.Engine{Cfg: cfg, Store: rn.Store, Driver: drv, Observer: &observer{log: rn.Log, d: d}}
 	if err := eng.Rollback(ctx, d, reason); err != nil {
 		return d.ID, err
 	}
@@ -418,8 +418,8 @@ func (rn *Runner) rollback(ctx context.Context, job *api.Job) (string, error) {
 
 // observer turns engine events into log lines (no progress bars: this is a daemon).
 type observer struct {
-	rn *Runner
-	d  *domain.Deployment
+	log func(Level, string)
+	d   *domain.Deployment
 }
 
 func (o *observer) Progress(int, float64) {}
@@ -428,19 +428,19 @@ func (o *observer) Event(e domain.Event) {
 	id := o.d.ID
 	switch e.Kind {
 	case domain.EventStep:
-		o.rn.Log(Info, fmt.Sprintf("%s · %s", id, e.Message))
+		o.log(Info, fmt.Sprintf("%s · %s", id, e.Message))
 	case domain.EventVerdict:
 		if e.Verdict != nil && e.Verdict.Pass {
-			o.rn.Log(OK, fmt.Sprintf("%s · %d%% passed (%s telemetry) · %s", id, e.Weight, orUnknown(e.Verdict.Evidence), e.Message))
+			o.log(OK, fmt.Sprintf("%s · %d%% passed (%s telemetry) · %s", id, e.Weight, orUnknown(e.Verdict.Evidence), e.Message))
 		} else {
-			o.rn.Log(Warn, fmt.Sprintf("%s · %s", id, e.Message))
+			o.log(Warn, fmt.Sprintf("%s · %s", id, e.Message))
 		}
 	case domain.EventPromoted:
-		o.rn.Log(OK, fmt.Sprintf("%s · promoted · %s", id, e.Message))
+		o.log(OK, fmt.Sprintf("%s · promoted · %s", id, e.Message))
 	case domain.EventRolledBack:
-		o.rn.Log(Warn, fmt.Sprintf("%s · rolled back · %s", id, e.Message))
+		o.log(Warn, fmt.Sprintf("%s · rolled back · %s", id, e.Message))
 	case domain.EventError:
-		o.rn.Log(Error, fmt.Sprintf("%s · %s", id, e.Message))
+		o.log(Error, fmt.Sprintf("%s · %s", id, e.Message))
 	}
 }
 

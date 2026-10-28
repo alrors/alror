@@ -45,6 +45,10 @@ type Observer interface {
 //	                   ├─ step fails, shadow mode ──→ continue (recommendation logged)
 //	                   └─ driver error ─────────────→ failed (rollback attempted; its result is recorded in recovery)
 //
+// Before the first step the target is marked as controlled by the
+// deployment (drivers implementing driver.Marker) and the image is
+// prepared once. A failed mark stops the run with nothing changed.
+//
 // A step "fails" on a measured regression and also on insufficient or
 // invalid data: no verdict passes without evidence.
 type Engine struct {
@@ -115,6 +119,17 @@ func (e *Engine) Run(ctx context.Context, d *domain.Deployment) error {
 	e.emit(d, domain.Event{Kind: domain.EventCreated, Message: fmt.Sprintf(
 		"Risk %d (%s) · %s plan with %d steps · target %s · telemetry %s",
 		d.Risk.Score, d.Risk.Level, d.Plan.Strategy, len(d.Plan.Steps), describeTarget(d.Target), describeTelemetry(d.Telemetry))})
+
+	// Record on the target which deployment controls it before the image
+	// changes, so release detection never starts a second release for it.
+	// Nothing has moved yet, so a failure here needs no rollback.
+	if m, ok := e.Driver.(driver.Marker); ok {
+		if err := m.Mark(ctx, svc, d.ID, d.Image); err != nil {
+			d.Status, d.Reason = domain.StatusFailed, fmt.Sprintf("mark %s as controlled by %s: %v · no traffic was changed", d.Service, d.ID, err)
+			e.emit(d, domain.Event{Kind: domain.EventError, Message: d.Reason})
+			return fmt.Errorf("mark target: %w", err)
+		}
+	}
 
 	// The image is prepared once, independent of the first step's weight.
 	if err := e.Driver.Prepare(ctx, svc, d.Image); err != nil {

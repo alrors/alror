@@ -203,6 +203,10 @@ Auth is either the session cookie (console) or a Bearer API key (CLI, CI, runner
   - A deploy job builds the Deployment with risk (`risk_override`, or medium when no git context is available) and the job's `environment`, and runs the engine with the remote store.
   - A rollback job loads the deployment and calls `Engine.Rollback`.
   - It handles SIGINT by finishing the current job, stops a job whose heartbeat returns 409, logs with the CLI UI style, and backs off when the server is unreachable.
+- **`alror runner --watch`** (experimental release detection) polls the Argo Rollout of each service with `detect: true` (runner-side, from the local `alror.yaml`; not part of `GET /config`) and starts one release per image change made outside Alror. It uses only existing endpoints:
+  - `GET /deployments?service=&limit=` to skip a service with an active (`pending`/`rolling`) deployment or whose latest deployment already has the image, and to reuse the stored risk of a deployment whose `ref` is the same commit.
+  - `POST /deployments` and the event endpoints to record the release, with `source: "runner"`, the commit SHA (when derivable) as `ref`, and a "Detected in cluster" risk factor. No job is created.
+  - Control is marked on the Rollout, not in the API: the engine annotates `alror.dev/controlled-by` (deployment id) and `alror.dev/image` before every kubernetes image change, and the watcher claims a change with `kubectl annotate --resource-version` so concurrent runners start at most one release.
 - **`alror config pull`** writes the server config to `alror.yaml`; **`alror config push`** uploads services and policy from `alror.yaml` (admin keys only, `PUT /config`).
 
 ## 7. Seed and demo

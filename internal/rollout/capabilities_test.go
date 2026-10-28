@@ -99,6 +99,8 @@ func TestLowRiskPlanAt25PercentStillAppliesTheImage(t *testing.T) {
 		t.Fatalf("status %s, err %v (%s)", d.Status, err, d.Reason)
 	}
 	want := []string{
+		// The control mark comes first, so release detection never mistakes this change for an external one.
+		"annotate rollouts.argoproj.io checkout-api alror.dev/controlled-by=" + d.ID + " alror.dev/image=img:2 --overwrite",
 		"argo rollouts set image checkout-api checkout-api=img:2",
 		"argo rollouts promote checkout-api --full",
 	}
@@ -138,7 +140,8 @@ func TestImageIsPreparedOnceAcrossLowWeightSteps(t *testing.T) {
 		}
 	}
 	// High risk is 1 → 5 → 25 → 50 → 100: one image change, then one promote per later step, then --full.
-	if sets != 1 || promotes != 3 || !strings.HasSuffix(cmds[len(cmds)-1], "--full") || !strings.Contains(cmds[0], "set image") {
+	if sets != 1 || promotes != 3 || !strings.HasSuffix(cmds[len(cmds)-1], "--full") ||
+		!strings.HasPrefix(cmds[0], "annotate ") || !strings.Contains(cmds[1], "set image") {
 		t.Fatalf("kubectl calls: %q", cmds)
 	}
 }

@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/alrors/alror/internal/api"
+	"github.com/alrors/alror/internal/capability"
 	"github.com/alrors/alror/internal/cli/ui"
 	"github.com/alrors/alror/internal/config"
 	"github.com/alrors/alror/internal/credentials"
@@ -89,6 +90,14 @@ func doctorCmd() *cobra.Command {
 				}
 				if err := rollout.Preflight(cfg, s, cfg.Metrics.Provider); err != nil && errors.Is(err, rollout.ErrSyntheticTelemetry) {
 					check(false, "", s.Name+": "+err.Error())
+				}
+				if s.Detect {
+					t, _ := capability.TargetFor(s.Target)
+					if err := t.Check(capability.OpDetect); err != nil {
+						check(false, "", s.Name+": detect: true, but release detection is unsupported on target "+s.Target+" (see `alror capabilities`)")
+					} else {
+						fmt.Println(ui.OK(s.Name + ": release detection enabled (experimental; runs in `alror runner --watch`)"))
+					}
 				}
 			}
 

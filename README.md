@@ -41,6 +41,7 @@ Alror is open source. Teams merge more changes than ever, many written by agents
 - [x] **Targets and metrics.** A simulated target, Kubernetes via Argo Rollouts (experimental), Prometheus and Datadog (experimental), Slack. Amazon ECS is not supported. See the [capability matrix](#capability-matrix). ([Docs](internal/docsite/content/targets.md))
 - [x] **Workspace console.** Live rollouts, release stories, insights, policies, API keys, audit log and a plugin marketplace. ([Docs](internal/docsite/content/console.md))
 - [x] **Runner.** `alror runner` executes deploys and rollbacks queued from the console inside your own infrastructure. ([Docs](internal/docsite/content/connected.md))
+- [x] **Release detection (experimental).** `alror runner --watch` notices image changes made in the cluster (GitOps syncs, `kubectl set image`) on enrolled Argo Rollouts and starts one verified release for each, linked to its commit when the tag or an `alror.dev/commit` annotation names it. No pipeline changes, and never a second controller for a release CI already started. ([Docs](internal/docsite/content/connected.md#release-detection-experimental))
 - [x] **SDKs.** Go and TypeScript clients for the workspace API. ([Docs](#client-libraries))
 
 <p align="center">
@@ -95,11 +96,11 @@ Alror is a release engine plus a workspace. The engine runs inside the `alror` C
 What each target and metrics provider can really do. `alror capabilities` prints the same matrix; [Targets and metrics](internal/docsite/content/targets.md) explains the levels. Experimental operations are reported as *requested*, never as observed; unsupported ones are refused; synthetic telemetry is refused for non-simulated targets unless `policy.allow_synthetic_telemetry` is set.
 
 <!-- capability-matrix:start -->
-| Target | Prepare image | Shift traffic | Promote | Rollback | Observe traffic | Notes |
-| --- | --- | --- | --- | --- | --- | --- |
-| `simulated` | simulated | simulated | simulated | simulated | simulated | Records weights in memory. For demos and tests; nothing is deployed. |
-| `kubernetes` | experimental | experimental | experimental | experimental | unsupported | Argo Rollouts via `kubectl argo rollouts`: set image once, then promote/abort. The Rollout's own steps decide the real weights; Alror's step weights are requests and are not read back. |
-| `ecs` | unsupported | unsupported | unsupported | unsupported | unsupported | Not implemented. Deploys and rollbacks to an ecs target are refused. |
+| Target | Prepare image | Shift traffic | Promote | Rollback | Observe traffic | Detect release | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `simulated` | simulated | simulated | simulated | simulated | simulated | unsupported | Records weights in memory. For demos and tests; nothing is deployed, so there is no release to detect. |
+| `kubernetes` | experimental | experimental | experimental | experimental | unsupported | experimental | Argo Rollouts via `kubectl argo rollouts`: set image once, then promote/abort. The Rollout's own steps decide the real weights; Alror's step weights are requests and are not read back. Release detection polls the Rollout's pod template image with `kubectl get`. |
+| `ecs` | unsupported | unsupported | unsupported | unsupported | unsupported | unsupported | Not implemented. Deploys, rollbacks and release detection on an ecs target are refused. |
 
 | Metrics provider | Maturity | Notes |
 | --- | --- | --- |

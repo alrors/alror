@@ -23,6 +23,7 @@ type Config struct {
 	Metrics  Metrics   `yaml:"metrics" json:"metrics"`
 	Policy   Policy    `yaml:"policy" json:"policy"`
 	Notify   Notify    `yaml:"notify" json:"notify"`
+	Watch    Watch     `yaml:"watch,omitempty" json:"-"`
 
 	// Dir is the directory that holds alror.yaml (not serialised).
 	Dir string `yaml:"-" json:"-"`
@@ -36,6 +37,24 @@ type Service struct {
 	Cluster   string   `yaml:"cluster,omitempty" json:"cluster"`     // kube context or ECS cluster
 	Namespace string   `yaml:"namespace,omitempty" json:"namespace"` // kube namespace
 	Critical  bool     `yaml:"critical,omitempty" json:"critical"`   // raises risk when touched
+	// Detect enrols the service in release detection: `alror runner --watch`
+	// starts a release when its Rollout's image changes outside Alror.
+	Detect bool `yaml:"detect,omitempty" json:"detect,omitempty"`
+}
+
+// Watch configures release detection in `alror runner` (experimental). It
+// is runner-side configuration: read from the local alror.yaml, never sent
+// to the workspace.
+type Watch struct {
+	// Enabled turns the watcher on, like `alror runner --watch`.
+	Enabled bool `yaml:"enabled,omitempty"`
+	// Interval between polls of each Rollout (default 15s).
+	Interval time.Duration `yaml:"interval,omitempty"`
+	// Environment recorded on detected releases in connected mode (default production).
+	Environment string `yaml:"environment,omitempty"`
+	// State is the file that remembers handled image changes across
+	// restarts (default .alror/watch.json next to alror.yaml).
+	State string `yaml:"state,omitempty"`
 }
 
 // Metrics selects and configures the metrics provider used for verification.

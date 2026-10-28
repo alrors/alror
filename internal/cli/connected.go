@@ -152,14 +152,23 @@ func project() (*config.Config, store.Store, error) {
 
 // mergeWorkspaceConfig completes a config fetched from the server: the server
 // wins on everything except services[].paths, which a local alror.yaml may
-// still provide for mapping git paths to services.
+// still provide for mapping git paths to services, and the runner-side
+// release detection settings (services[].detect, watch:).
 func mergeWorkspaceConfig(cfg, local *config.Config, server string) error {
 	cfg.Server = server
 	if local != nil {
 		cfg.Dir = local.Dir
+		cfg.Watch = local.Watch
 		for i, s := range cfg.Services {
-			if l, ok := local.Service(s.Name); ok && len(l.Paths) > 0 {
+			l, ok := local.Service(s.Name)
+			if !ok {
+				continue
+			}
+			if len(l.Paths) > 0 {
 				cfg.Services[i].Paths = l.Paths
+			}
+			if l.Detect {
+				cfg.Services[i].Detect = true
 			}
 		}
 	} else {
