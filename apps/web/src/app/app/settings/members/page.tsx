@@ -111,7 +111,7 @@ export default async function MembersPage() {
                     </td>
                     <td className={cn(tableCell, "text-right")}>
                       {editable && !lastOwner && (
-                        <ConfirmAction action={removeMember} fields={{ user: m.user_id }} label="Remove" prompt={`Remove ${m.email}?`} />
+                        <ConfirmAction action={removeMember} fields={{ user: m.user_id }} label="Remove" prompt={`Remove ${m.email}? They lose access now and need a new invite to return. This can't be undone.`} />
                       )}
                     </td>
                   </tr>
