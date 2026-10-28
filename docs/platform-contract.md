@@ -100,6 +100,7 @@ Auth is either the session cookie (console) or a Bearer API key (CLI, CI, runner
 | `GET /deployments/{id}/events` | deploy:read | | `Event[]` in order |
 | `POST /deployments/{id}/events` | deploy:write | Event | 201 Event |
 | `GET /rollbacks/recent` | deploy:read | `?since=RFC3339` (default 30 days ago) | `{"<service>": count}` of `rolled_back` deployments with server `updated_at` after `since` |
+| `GET /decisions/{sha}` | deploy:read | a PR head SHA or merge commit SHA, full or a prefix of at least 7 hex characters | the newest stored PR decision for that commit (see Decisions below); 404 when none is stored, 422 for a malformed or ambiguous prefix |
 | `POST /jobs` | deploy:write | `{kind:"deploy", payload:{service, image, ref, environment, shadow?, risk_override?}}` or `{kind:"rollback", payload:{deployment_id, reason}}` | 201 Job |
 | `POST /jobs/claim` | jobs:run | `{worker:"<runner name>"}` (`runner` accepted as an alias); optional `wait` seconds (0 to 25); long-poll up to 25 s (Redis `BRPOP jobs:<orgId>`; Postgres row claimed with `FOR UPDATE SKIP LOCKED`) | 200 Job, or 204 |
 | `POST /jobs/{id}/heartbeat` | jobs:run | `{worker:"<runner name>"}` | 200 Job; 409 when the job is no longer claimed by this runner |
@@ -116,6 +117,18 @@ Auth is either the session cookie (console) or a Bearer API key (CLI, CI, runner
 **Timestamps:** the server sets `updated_at = now()` on every deployment write and ignores the client's value. `created_at` is taken from the client on the first insert (now() when missing) and never changes afterwards.
 
 **Rollout plans (v1.2):** `policy.plans` is optional and only present when an org customised its plans (on `/app/policies` or with `PUT /config`). Shape: `{"low"|"medium"|"high": [{weight, bake}]}` with `weight` 1 to 100 strictly increasing, only the last stage at 100, and `bake` in integer nanoseconds (canary stages bake at least one minute, at most 24 hours). Levels that are absent use the built-in planner; `"plans": null` in `PUT /config` resets to it. Invalid plans are 422. Clients that do not know the field ignore it.
+
+**Decisions (v1.4):** the GitHub App scores every open pull request with the **shared risk rules**: `internal/risk/rules.json`, embedded in the Go CLI and runner, with a byte-for-byte copy at `apps/web/src/lib/server/decision/rules.json` (`node scripts/sync-rules.mjs` copies it and the shared fixtures; CI fails on drift, and both `go test ./internal/risk` and `apps/web/tests/decision.test.ts` run the fixtures in `internal/risk/testdata/fixtures`). Inputs are the PR's changed files, commit authors and messages, the org's services (paths, critical) and `rolled_back` deployments per service in the rules' window. The risk (score, level, factors), the plan for that level and the merge gate outcome are stored per head SHA in `github_decisions` (`risk`, `plan`, `merge_sha` columns, migration 0006), and the check run and sticky comment show the score, level, plan and top factors next to the gate outcome. A high risk level requires review. If the risk decision cannot be computed, the PR is never merged automatically: the check stays `in_progress` with the reason, and evaluation is retried. Response of `GET /decisions/{sha}`:
+
+```json
+{"sha":"<the commit asked for>","head_sha":"…","merge_sha":"…"|null,"matched":"head"|"merge",
+ "repository":"acme/shop","pull_number":42,"url":"https://github.com/acme/shop/pull/42",
+ "outcome":"eligible"|"review_required"|"waiting"|"merged"|"closed","mode":"observe"|"review"|"auto_merge",
+ "rules_version":1,"risk":{"score":38,"level":"medium","factors":[{"name","detail","points"}],"services":["…"],"ai_authored":false},
+ "plan":{"strategy":"canary","steps":[{"weight":5,"bake":600000000000},…]},"reasons":["…"],"updated_at":"RFC 3339"}
+```
+
+`risk` and `plan` use the Go `domain.RiskReport` and `domain.Plan` shapes (`bake` in nanoseconds). `merge_sha` is recorded when the PR merges, so a deploy of the merge commit finds the PR's decision.
 
 **Marketplace (v1.3):** the catalog is defined in code (`src/lib/server/marketplace/catalog.ts`); `org_plugins` records what an org installed. Owners and admins install, configure, disable and uninstall (enforced in the data layer, `src/lib/server/data/plugins.ts`); members browse and vote for planned items. Every change writes a `plugin.*` audit row (`plugin.install`, `plugin.configure`, `plugin.enable`, `plugin.disable`, `plugin.uninstall`, `plugin.vote`, `plugin.unvote`). Effects:
 
@@ -147,7 +160,7 @@ Auth is either the session cookie (console) or a Bearer API key (CLI, CI, runner
 - **Connected mode** (server and key present):
   - The store is `store.Remote`, which implements the existing `store.Store` over the API.
   - Config is fetched from `/config`, and `alror.yaml` becomes optional (local `services[].paths` may still be used for git path mapping if present; the server wins).
-  - Risk scoring is still computed locally from git; recent rollbacks come from `/rollbacks/recent`.
+  - `alror deploy` first asks `GET /decisions/{sha}` for the commit being deployed (`--ref` when it is a SHA, else `HEAD`) and uses the stored risk and plan when there is one. Otherwise it scores locally from git with the same embedded rules (recent rollbacks come from `/rollbacks/recent`). The output says which was used (`risk: portal decision for …` / `risk: scored locally (…)`), and `--json` adds `risk_source: {source: "portal"|"local"|"override"|"assumed", commit, repository?, pull_number?, rules_version?, note?}`. `--risk` skips the lookup.
   - Every command works in connected mode, and every request sends `X-Alror-Source`.
 - **`alror runner [--name host] [--once]`:** loops claim → execute (heartbeat every 30 s) → finish.
   - A deploy job builds the Deployment with risk (`risk_override`, or medium when no git context is available) and the job's `environment`, and runs the engine with the remote store.
