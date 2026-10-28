@@ -30,6 +30,8 @@ export const SCOPES = ["deploy:read", "deploy:write", "jobs:run", "config:write"
 export const TARGETS = ["simulated", "kubernetes", "ecs"] as const;
 export const STATUSES = ["pending", "rolling", "promoted", "rolled_back", "failed"] as const;
 export const SOURCES = ["cli", "console", "ci", "runner"] as const;
+/** Result of the last rollback attempt (Go domain.Recovery*); null when none was attempted or the client predates it. */
+export const RECOVERIES = ["rollback_simulated", "rollback_requested", "rollback_failed"] as const;
 export const EVENT_KINDS = ["created", "step", "verdict", "promoted", "rolled_back", "error"] as const;
 export const JOB_KINDS = ["deploy", "rollback"] as const;
 export const JOB_STATUSES = ["queued", "claimed", "done", "failed", "canceled"] as const;
@@ -43,6 +45,7 @@ export type Scope = (typeof SCOPES)[number];
 export type Target = (typeof TARGETS)[number];
 export type DeploymentStatus = (typeof STATUSES)[number];
 export type DeploymentSource = (typeof SOURCES)[number];
+export type DeploymentRecovery = (typeof RECOVERIES)[number];
 export type EventKindDb = (typeof EVENT_KINDS)[number];
 export type JobKind = (typeof JOB_KINDS)[number];
 export type JobStatus = (typeof JOB_STATUSES)[number];
@@ -224,6 +227,7 @@ export const deployments = pgTable(
     risk: jsonb("risk").$type<unknown>().notNull(),
     plan: jsonb("plan").$type<unknown>().notNull(),
     source: text("source").$type<DeploymentSource>().notNull().default("cli"),
+    recovery: text("recovery").$type<DeploymentRecovery>(),
     createdByUser: uuid("created_by_user").references(() => users.id, { onDelete: "set null" }),
     createdByKey: uuid("created_by_key").references(() => apiKeys.id, { onDelete: "set null" }),
     createdAt: createdAt(),

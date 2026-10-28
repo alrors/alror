@@ -1,6 +1,6 @@
 import "server-only";
 import { and, asc, desc, eq, gt, gte, ilike, inArray, lt, or, sql, type SQL } from "drizzle-orm";
-import type { DeployEvent, Deployment, EventKind, Status, Verdict } from "@/lib/console/types";
+import type { DeployEvent, Deployment, EventKind, Recovery, Status, Verdict } from "@/lib/console/types";
 import type { OrgCtx } from "../context";
 import { db } from "../db";
 import { deploymentEvents, deployments, environments, type DeploymentSource } from "../db/schema";
@@ -37,6 +37,7 @@ export function toDeployment(r: Row, environment?: string | null): Deployment {
     updated_at: goTime(r.updatedAt),
     ...(environment ? { environment } : {}),
     source: r.source,
+    ...(r.recovery ? { recovery: r.recovery } : {}),
   };
 }
 
@@ -225,7 +226,9 @@ export async function recentRollbacks(ctx: OrgCtx, since: Date): Promise<Record<
 
 // ---------- Writes ----------
 
-export type DeploymentInput = Omit<Deployment, "created_at" | "updated_at" | "environment" | "source"> & {
+export type DeploymentInput = Omit<Deployment, "created_at" | "updated_at" | "environment" | "source" | "recovery"> & {
+  /** Result of the last rollback attempt; absent clears it (the body is the full record). */
+  recovery?: Recovery;
   created_at?: string;
   updated_at?: string;
   /** Environment name; defaults to production on insert and is left unchanged on update when absent. */
@@ -324,6 +327,7 @@ export async function upsertDeployment(ctx: OrgCtx, input: DeploymentInput, opts
       reason: input.reason ?? "",
       risk: input.risk,
       plan: input.plan,
+      recovery: input.recovery ?? null,
       updatedAt: opts.trustTimestamps ? parseTime(input.updated_at, now) : now,
       ...(explicitSource && mine ? { source: explicitSource } : {}),
     };
