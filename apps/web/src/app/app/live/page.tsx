@@ -62,7 +62,7 @@ import type { Deployment } from "@/lib/console/types";
 import { ctxFor } from "@/lib/server/auth/accounts";
 import { listApiKeys } from "@/lib/server/auth/api-keys";
 import { levelFor } from "@/lib/server/decision/score";
-import { isAdminRole } from "@/lib/server/context";
+import { hasScope, isAdminRole } from "@/lib/server/context";
 import { usage as usageFor } from "@/lib/server/data/analytics";
 import { listAuditActions, type AuditEntry } from "@/lib/server/data/audit";
 import { listJobs, pageJobs } from "@/lib/server/data/jobs";
@@ -237,6 +237,8 @@ export default async function LivePage({
   const session = await requireSession();
   const ctx = ctxFor(session);
   const admin = isAdminRole(session.role);
+  // Rolling back needs deploy:write (every member role), the same check the rollback action makes.
+  const canDeploy = hasScope(ctx.actor, "deploy:write");
 
   // One deployments query serves everything (it is cached per request and shared with the layout).
   // Events for live releases start as soon as the list arrives, in parallel with the rest.
@@ -618,14 +620,14 @@ export default async function LivePage({
               lanes={lanes}
               events={liveEvents}
               now={now}
-              canRollBack={admin}
+              canRollBack={canDeploy}
             />
           </div>
           <div id="attention">
             <NeedsAttention
               items={attentionSorted}
               now={now}
-              canRollBack={admin}
+              canRollBack={canDeploy}
             />
           </div>
         </div>

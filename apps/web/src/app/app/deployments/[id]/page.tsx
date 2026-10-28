@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { JobStatus } from "@/components/console/jobs-table";
-import { ReleaseActions } from "@/components/console/release-actions";
+import { ReleaseActions, ReleasePrimaryAction } from "@/components/console/release-actions";
 import { ReleaseEvents } from "@/components/console/release-events";
 import { ReleaseProgress } from "@/components/console/release-progress";
 import { ReleaseRisk, ReleaseRiskGauge } from "@/components/console/release-risk";
@@ -72,6 +72,14 @@ export default async function DeploymentPage({ params }: PageProps<"/app/deploym
           <span className="text-[12px] text-con-fg3">
             {d.environment ?? "production"} · from {d.source ?? "cli"} · {ago(d.created_at, now)}
           </span>
+          {/* On phones and tablets the primary action sits here; on desktop it lives in the Actions card. */}
+          <ReleasePrimaryAction
+            id={d.id}
+            service={d.service}
+            environment={d.environment ?? "production"}
+            canRollBack={canRollBack}
+            className="w-full sm:ml-auto sm:w-auto lg:hidden"
+          />
         </div>
         <h1 className="flex flex-wrap items-baseline gap-x-3 text-[28px] font-semibold leading-tight tracking-[-0.025em]">
           <Link href={`/app/services/${encodeURIComponent(d.service)}`} className="hover:underline hover:decoration-con-line-hover hover:underline-offset-4">
@@ -197,7 +205,6 @@ export default async function DeploymentPage({ params }: PageProps<"/app/deploym
             <ReleaseActions
               id={d.id}
               service={d.service}
-              image={d.image}
               environment={d.environment ?? "production"}
               canRollBack={canRollBack}
               status={d.status}

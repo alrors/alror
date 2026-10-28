@@ -10,7 +10,8 @@ type Result = { ok?: boolean; error?: string; message?: string; retryable?: bool
 
 /**
  * A small button that runs a server action after an inline confirmation
- * (revoke, remove, archive). Hidden fields carry the ids.
+ * (revoke, remove, archive). Hidden fields carry the ids. Pass `confirm={false}`
+ * for a reversible action: it then runs on the first click.
  */
 export function ConfirmAction({
   action,
@@ -21,6 +22,7 @@ export function ConfirmAction({
   tone = "danger",
   className,
   icon,
+  confirm = true,
 }: {
   action: (prev: Result, formData: FormData) => Promise<Result>;
   fields: Record<string, string>;
@@ -30,6 +32,7 @@ export function ConfirmAction({
   tone?: "danger" | "secondary";
   className?: string;
   icon?: React.ReactNode;
+  confirm?: boolean;
 }) {
   // Success shows a toast. Errors the user can act on (validation, permissions) stay
   // next to the button; retryable failures (an outage, an unexpected error) toast with Retry.
@@ -59,7 +62,11 @@ export function ConfirmAction({
           </button>
         </span>
       ) : (
-        <button type="button" disabled={pending} onClick={() => setConfirming(true)} className={tone === "danger" ? buttonClass.danger : buttonClass.secondary}>
+        <button
+          type={confirm ? "button" : "submit"}
+          disabled={pending}
+          onClick={confirm ? () => setConfirming(true) : undefined}
+          className={tone === "danger" ? buttonClass.danger : buttonClass.secondary}>
           {pending ? <Spinner size={14} /> : icon}
           {label}
         </button>

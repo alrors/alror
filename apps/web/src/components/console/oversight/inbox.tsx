@@ -66,7 +66,8 @@ function ItemLink({ link, className }: { link: InboxLink; className: string }) {
   );
 }
 
-export function NeedsYou({ items, now, canRollBack }: { items: InboxItem[]; now: number; canRollBack: boolean }) {
+/** `canRollBack` is deploy:write (any member); `canJudge` (shadow-recommendation verdicts) stays admin-only, as on the release page. */
+export function NeedsYou({ items, now, canRollBack, canJudge }: { items: InboxItem[]; now: number; canRollBack: boolean; canJudge: boolean }) {
   const [raw, setRaw] = useLocalValue(KEY);
   const all = useMemo(() => parse(raw), [raw]);
   // Expiry is checked against the request time, so the server and client renders agree.
@@ -154,7 +155,7 @@ export function NeedsYou({ items, now, canRollBack }: { items: InboxItem[]; now:
                         <ItemLink link={it.primary} className={cn(SMALL_BUTTON, GHOST_BUTTON)} />
                         {it.secondary && <ItemLink link={it.secondary} className={cn(SMALL_BUTTON, "text-con-fg3 hover:bg-con-hover hover:text-con-fg")} />}
                         {canRollBack && it.rollback && <LaneRollback id={it.rollback.id} service={it.rollback.service} />}
-                        {canRollBack && it.feedback && <RecommendationFeedback id={it.feedback.id} current={it.feedback.current} />}
+                        {canJudge && it.feedback && <RecommendationFeedback id={it.feedback.id} current={it.feedback.current} />}
                         <time dateTime={it.at} className="ml-auto text-[11.5px] tabular-nums text-con-fg3" title="How long this has needed attention">
                           {ago(it.at, now)}
                         </time>
