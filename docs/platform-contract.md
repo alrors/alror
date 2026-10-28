@@ -65,6 +65,8 @@ All ids are `uuid` (`gen_random_uuid()`) except `deployments.id`, which is the C
 | `feedback` | id, org_id, user_id null, message, page (console path), created_at; written by the console's Feedback button, never sent anywhere |
 | `org_plugins` | (org_id, plugin_id) PK, enabled bool (true), config jsonb (`{}`; non-secret settings only), installed_by null, installed_at, updated_at; marketplace installs (see section 5) |
 | `plugin_votes` | (org_id, plugin_id, user_id) PK, created_at; "I want this" votes for planned marketplace items |
+| `org_alert_settings` | org_id PK, secret_prefix (first 14 chars of the alert webhook secret, unique, shown in the console), secret_hash (sha256 hex), secret_rotated_at, auto_rollback bool (false), threshold int (80), max_age_minutes int (30), window_minutes int (120), updated_at, updated_by |
+| `incidents` | id, org_id, source (`alertmanager`\|`datadog`\|`sentry`\|`generic`), fingerprint, title, service, environment, severity (`critical`\|`error`\|`warning`\|`info`), status (`open`\|`resolved`), started_at, last_seen_at, resolved_at, event_count, raw jsonb (the alert as received, capped at 64 KB), candidates jsonb (ranked when the incident opened), auto_action jsonb null (the automatic rollback decision and its checks), rollback_job_id null, created_at, updated_at; unique (org_id, source, fingerprint) where status = 'open' |
 
 Deleting an org cascades to everything it owns.
 
@@ -108,6 +110,11 @@ Auth is either the session cookie (console) or a Bearer API key (CLI, CI, runner
 | `GET /jobs` | deploy:read | `?status=` | `Job[]`, newest first |
 | `GET /stream` | session only | | `text/event-stream` |
 | `GET /plugins` | deploy:read | | `{plugins:[{id,name,category,version,stage,enabled,config,webhook_set?,installed_by,installed_at,updated_at}], metrics_provider, targets}` (see Marketplace below) |
+| `POST /alerts/{source}` | alert webhook secret (not an API key) | `source` is `alertmanager`, `datadog`, `sentry` or `generic`; body is the tool's webhook JSON (see Alert intake below) | 202 `{source, received, results:[{fingerprint, status, action:"created"\|"deduplicated"\|"resolved"\|"ignored", incident_id}]}`; 401 bad secret, 404 unknown source, 400 bad JSON, 422 payload that does not fit the source, 429 rate limited |
+| `GET /incidents` | deploy:read | `?status=open\|resolved&limit=50` (1 to 200) `&page=1` | `Incident[]`, newest first by started_at (no `raw`) |
+| `GET /incidents/{id}` | deploy:read | | `Incident` plus `raw` |
+| `POST /incidents/{id}/rollback` | deploy:write | `{deployment_id}` (must be one of the incident's candidates, else 422) | 201 Job (kind `rollback`) |
+| `POST /incidents/{id}/resolve` | deploy:write | | 200 Incident; 409 when already resolved |
 
 `Deployment` and `Event` match Go: `{id, service, image, ref, risk, plan, status, step_index, weight, reason, created_at, updated_at}` and `{at, kind, message, weight?, verdict?}`. Deployments also carry two **optional** platform fields after `updated_at`:
 
@@ -138,6 +145,36 @@ Auth is either the session cookie (console) or a Bearer API key (CLI, CI, runner
 - Built-in (`synthetic`, `simulated`), guide (`github-actions`, `alror-cli`, `go-sdk`, `ts-sdk`) and planned items cannot be installed (409).
 
 `GET /plugins` lists installed plugins (enabled or not) with their non-secret `config`; `webhook_set` tells whether the Slack webhook is set without returning it. `metrics_provider` is the policy's current provider and `targets` the deploy targets the console offers (always including `simulated`).
+
+**Alert intake and incidents (v1.4):** `POST /alerts/{source}` turns an alert into an incident, ranks the org's recent deployments as likely causes ("what changed?"), notifies the org and posts to Slack. The portal owns intake and ranking; rollbacks always go through the job queue and are executed by `alror runner`.
+
+- **Secret:** owners and admins create, rotate or revoke one alert webhook secret per org under **Settings → Integrations** (`alrwh_` + 40 base62 characters, shown once). Only its sha256 is stored; the row is found by its 14-character prefix and the hash is compared in constant time. Send it as `X-Alror-Token: alrwh_…`, `Authorization: Bearer alrwh_…`, or `?token=alrwh_…` (Alertmanager, Datadog and Sentry webhooks cannot always set headers). Audit: `alerts.secret_create`, `alerts.secret_rotate`, `alerts.secret_revoke`, `alerts.settings_update`.
+- **Limits:** 120 requests per org per minute (Redis `rl:alerts:<orgId>`), 30 requests with a missing or invalid secret per client IP per minute (`rl:alerts:ip:<ip>`), 1 MB per body, 100 alerts per request. A 429 carries `Retry-After`.
+- **Normalised alert:** `{source, status (firing|resolved), title, service, environment, severity, started_at, fingerprint, raw}`. Environments are lowercased and `prod`/`prd`/`live` → `production`, `stage`/`stg` → `staging`, `dev` → `development`. Severities map to `critical` (critical, page, fatal, P1), `error` (error, high, P2), `info` (info, low, P4, P5) and otherwise `warning`. Without a provider fingerprint, a sha256 of the identifying fields is used.
+
+| Source | title | service | environment | severity | started_at | fingerprint | resolved when |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `alertmanager` (webhook v4, one incident per entry in `alerts`) | `annotations.summary`, `title`, else `labels.alertname` | label `service`, `service_name`, `app`, `application`, `app_kubernetes_io_name`, `job`, `deployment` or `container` | label `env`, `environment`, `stage`, else `namespace` | label `severity` | `startsAt` | `fingerprint`, else hash of the labels | alert `status` is `resolved` |
+| `datadog` (Webhooks integration, custom payload shown in the console) | `title` without the `[Triggered]` prefix | `service`, else tag `service:` | `env`, else tag `env:` | `alert_type` (`error` → critical), else `priority` | `date` (epoch ms) | `aggregate`, else `alert_id:alert_scope` | `alert_transition` is `Recovered` or `alert_type` is `success` |
+| `sentry` (internal integration issue / alert rule webhooks, legacy webhook plugin) | `data.issue.title`, `data.event.title`, `message` | event tag `service`, else the project slug | `event.environment` or tag `environment` | `level` (default error) | event `datetime`/`timestamp`, else the issue's `lastSeen`/`firstSeen` | issue id (group id) | `action` is `resolved` or the issue status is `resolved` |
+| `generic` (one object or `{alerts:[…]}`) | `title` (required) | `service` or `labels.service` | `environment`/`env` | `severity` | `started_at` (RFC 3339 or epoch) | `fingerprint`, `id` or `dedup_key` | `status` is `resolved`, `ok`, `recovered` or `closed` |
+
+- **Dedupe and resolve:** a firing alert whose (source, fingerprint) has an open incident bumps `event_count` and `last_seen_at`; otherwise it opens a new incident (also after the previous one resolved). A resolved alert closes the open incident (`incident.resolve` audit row), or is `ignored` when none is open. Members can also resolve by hand.
+- **"What changed?" ranking** (`src/lib/incidents/rank.ts`, pure and unit-tested): candidates are the org's deployments created in the window before `started_at` (default 120 minutes; up to 2 minutes after, for clock skew) plus any still `rolling` or `pending`. Each scores 0 to 100 as the sum of its signals, and each signal's points and reason are stored with the candidate:
+
+| Signal | Points |
+| --- | --- |
+| Service match | 40 exact (same name), 20 related (the change's `risk.services` names the alert's service, or one name extends the other: `checkout` / `checkout-worker`), 0 none |
+| Recency | up to 25, falling linearly from the alert's start to the edge of the window |
+| Risk | up to 15: `15 × risk.score / 100` |
+| Outcome state | 10 rolling, or promoted within 15 minutes before the alert; 5 promoted earlier; 3 pending; −30 rolled back or failed before the alert started |
+| Metric movement | 10 when a stored canary verdict failed; up to 6 for a passing verdict whose worst metric moved up (full at +25%); 0 without verdicts |
+| Environment | −25 when both environments are known and differ, else 0 |
+
+  The top 10 are stored on the incident (`candidates: {window_minutes, ranked_at, items:[{deployment_id, service, image, environment, status, created_at, minutes_before, service_match, score, signals:[{signal, points, max, detail}]}]}`).
+- **Actions:** the console's incident page (`/app/incidents/{id}`) and `POST /incidents/{id}/rollback` queue a rollback job for a candidate (members and above; audit `incident.rollback` with the score and signals). New incidents create an org-wide notification (`incident.opened`, linking to the incident) and, when the Slack plugin is installed, post the top three candidates with their reasons and a link to the incident.
+- **Automatic rollback** is off by default. An owner or admin turns it on under Settings → Integrations; then the top candidate is rolled back only if **every** rule passes: the alert is firing, its score is at least the threshold (default 80), it was deployed at most `max_age_minutes` (default 30) before the alert, its service matches the alert's exactly, it is not already rolled back or failed, and no other candidate scores within 15 points. The decision and each rule's result are stored on the incident (`auto_action`) whether or not it acts; an automatic rollback is queued as a normal rollback job (actor `system`) and writes an `incident.auto_rollback` audit row with the incident, job, score, signals, rule checks and runner-up.
+- `Incident` = `{id, source, fingerprint, title, service, environment, severity, status, started_at, last_seen_at, resolved_at, event_count, candidates, auto_action, rollback_job_id, created_at, updated_at}`. `listOpenIncidents(ctx)` in `src/lib/server/data/incidents.ts` returns the open ones for console surfaces.
 
 `Job` = `{id, kind, payload, status, claimed_by, deployment_id, error, created_at, claimed_at, finished_at, heartbeat_at, attempts}`.
 

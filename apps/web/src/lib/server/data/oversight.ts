@@ -3,6 +3,7 @@ import { and, eq, gte, inArray, lt, ne, sql } from "drizzle-orm";
 import type { OrgCtx } from "../context";
 import { db } from "../db";
 import { auditLog, githubDecisions, githubRepositories } from "../db/schema";
+import { listOpenIncidents, type Incident } from "./incidents";
 
 // Read-only queries for the oversight home. They read what the GitHub worker and the
 // rollout engine already stored; nothing here evaluates or changes anything.
@@ -45,4 +46,9 @@ export async function manualRollbackIds(ctx: OrgCtx, ids: string[]): Promise<Set
     .from(auditLog)
     .where(and(eq(auditLog.orgId, ctx.orgId), eq(auditLog.action, "deployment.rollback"), inArray(auditLog.target, ids.slice(0, 1000))));
   return new Set(rows.map((r) => r.target));
+}
+
+/** Open incidents from alert webhooks for the Needs you inbox (newest first). */
+export async function openIncidents(ctx: OrgCtx, limit = 20): Promise<Incident[]> {
+  return listOpenIncidents(ctx, limit);
 }

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Building2, KeyRound, Mail, MessageSquare, ScrollText, Users, type LucideIcon } from "lucide-react";
+import { Building2, KeyRound, Mail, MessageSquare, ScrollText, Siren, Users, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/site";
 
 const ITEMS: { href: string; label: string; icon: LucideIcon; exact?: boolean; admin?: boolean }[] = [
@@ -10,6 +10,7 @@ const ITEMS: { href: string; label: string; icon: LucideIcon; exact?: boolean; a
   { href: "/app/settings/members", label: "Members", icon: Users, admin: true },
   { href: "/app/settings/invites", label: "Invites", icon: Mail, admin: true },
   { href: "/app/settings/api-keys", label: "API keys", icon: KeyRound, admin: true },
+  { href: "/app/settings/integrations", label: "Integrations", icon: Siren, admin: true },
   { href: "/app/settings/audit", label: "Audit log", icon: ScrollText, admin: true },
   { href: "/app/settings/feedback", label: "Feedback", icon: MessageSquare, admin: true },
 ];

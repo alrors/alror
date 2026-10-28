@@ -10,6 +10,7 @@ const SECTIONS: Record<string, string> = {
   github: "GitHub",
   deployments: "Deployments",
   jobs: "Jobs",
+  incidents: "Incidents",
   insights: "Insights",
   policies: "Policies",
   settings: "Settings",
@@ -22,6 +23,7 @@ const SETTINGS: Record<string, string> = {
   members: "Members",
   invites: "Invites",
   "api-keys": "API keys",
+  integrations: "Integrations",
   audit: "Audit log",
   feedback: "Feedback",
 };
@@ -50,6 +52,11 @@ function crumbsFor(pathname: string, depService: Record<string, string>): Crumb[
     const pull = parts[0] === "github" && id === "repositories" && parts[3] === "pulls" ? parts[4] : undefined;
     out.push(pull ? { label: "GitHub", href: "/app/github" } : { label: "GitHub" });
     if (pull) out.push({ label: `Pull request #${pull}` });
+    return out;
+  }
+  if (section === "incidents") {
+    out.push(id ? { label: "Incidents", href: "/app/incidents" } : { label: "Incidents" });
+    if (id) out.push({ label: id.slice(0, 8), mono: true });
     return out;
   }
   if (section === "marketplace") {

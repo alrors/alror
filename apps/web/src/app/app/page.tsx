@@ -17,6 +17,7 @@ import {
   auditDid,
   DID_AUDIT_ACTIONS,
   impact as computeImpact,
+  incidentInbox,
   INBOX_HORIZON_MS,
   isAutomaticOutcome,
   isManualRollback,
@@ -36,7 +37,7 @@ import { listApiKeys } from "@/lib/server/auth/api-keys";
 import { isAdminRole } from "@/lib/server/context";
 import { listAuditActions } from "@/lib/server/data/audit";
 import { listJobs } from "@/lib/server/data/jobs";
-import { gateImpact, manualRollbackIds } from "@/lib/server/data/oversight";
+import { gateImpact, manualRollbackIds, openIncidents } from "@/lib/server/data/oversight";
 import { enabledTargets } from "@/lib/server/data/plugins";
 import { getPolicy } from "@/lib/server/data/policy";
 import { listDecisions, listRepositories } from "@/lib/server/github/data";
@@ -61,7 +62,7 @@ export default async function OversightPage({ searchParams }: PageProps<"/app">)
   const admin = isAdminRole(session.role);
   const wall = requestTime();
 
-  const [all, config, envs, env, openJobs, failedJobs, decisions, repos, audit, keys, policy, targets] = await Promise.all([
+  const [all, config, envs, env, openJobs, failedJobs, decisions, repos, audit, keys, policy, targets, incidents] = await Promise.all([
     listDeployments(),
     readProjectConfig(),
     environments(),
@@ -75,6 +76,7 @@ export default async function OversightPage({ searchParams }: PageProps<"/app">)
     admin ? listApiKeys(ctx) : Promise.resolve(null),
     getPolicy(ctx),
     admin ? enabledTargets(ctx) : Promise.resolve(undefined),
+    openIncidents(ctx),
   ]);
 
   const deps = env ? all.filter((d) => (d.environment ?? "production") === env) : all;
@@ -108,6 +110,7 @@ export default async function OversightPage({ searchParams }: PageProps<"/app">)
     ...pullInbox(decisions, wall),
     ...releaseInbox(inboxDeps, events, limits, now),
     ...jobInbox(openJobs, failedJobs, all, wall),
+    ...incidentInbox(env ? incidents.filter((i) => !i.environment || i.environment === env) : incidents),
   ]).slice(0, 40);
 
   /* ---- What Alror did ---- */

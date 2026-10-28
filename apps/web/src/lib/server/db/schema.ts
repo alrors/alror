@@ -480,3 +480,100 @@ export const learnLectures = pgTable(
     check("learn_lectures_youtube_id_check", sql`youtube_id ~ '^[A-Za-z0-9_-]{11}$'`),
   ],
 );
+
+// ---------------------------------------------------------------------------
+// Incidents: alerts received on POST /api/v1/alerts/{source}, ranked against
+// recent deployments ("what changed?"). See docs/platform-contract.md.
+// ---------------------------------------------------------------------------
+
+export const INCIDENT_STATUSES = ["open", "resolved"] as const;
+export type IncidentStatus = (typeof INCIDENT_STATUSES)[number];
+
+/** Per-org alert intake settings: the webhook secret (hash only) and the automatic rollback rules. */
+export const orgAlertSettings = pgTable(
+  "org_alert_settings",
+  {
+    orgId: uuid("org_id")
+      .primaryKey()
+      .references(() => orgs.id, { onDelete: "cascade" }),
+    /** First 14 characters of the token (alrwh_ + 8), used to find the row; shown in the console. */
+    secretPrefix: text("secret_prefix"),
+    /** sha256 hex of the full token; compared in constant time. */
+    secretHash: text("secret_hash"),
+    secretRotatedAt: ts("secret_rotated_at"),
+    autoRollback: boolean("auto_rollback").notNull().default(false),
+    threshold: integer("threshold").notNull().default(80),
+    maxAgeMinutes: integer("max_age_minutes").notNull().default(30),
+    windowMinutes: integer("window_minutes").notNull().default(120),
+    updatedAt: ts("updated_at").notNull().defaultNow(),
+    updatedBy: uuid("updated_by").references(() => users.id, { onDelete: "set null" }),
+  },
+  (t) => [
+    uniqueIndex("org_alert_settings_secret_prefix_key").on(t.secretPrefix),
+    check("org_alert_settings_threshold_check", sql`threshold between 0 and 100`),
+    check("org_alert_settings_minutes_check", sql`max_age_minutes between 1 and 1440 and window_minutes between 5 and 1440`),
+  ],
+);
+
+export type IncidentCandidates = {
+  window_minutes: number;
+  ranked_at: string;
+  items: {
+    deployment_id: string;
+    service: string;
+    image: string;
+    environment: string;
+    status: string;
+    created_at: string;
+    minutes_before: number;
+    service_match: string;
+    score: number;
+    signals: { signal: string; points: number; max: number; detail: string }[];
+  }[];
+};
+
+export type IncidentAutoAction = {
+  rollback: boolean;
+  deployment_id: string | null;
+  job_id?: string | null;
+  error?: string;
+  checks: { rule: string; pass: boolean; detail: string }[];
+  decided_at: string;
+};
+
+export const incidents = pgTable(
+  "incidents",
+  {
+    id: id(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => orgs.id, { onDelete: "cascade" }),
+    source: text("source").notNull(),
+    fingerprint: text("fingerprint").notNull(),
+    title: text("title").notNull(),
+    service: text("service").notNull().default(""),
+    environment: text("environment").notNull().default(""),
+    severity: text("severity").notNull().default("warning"),
+    status: text("status").$type<IncidentStatus>().notNull().default("open"),
+    startedAt: ts("started_at").notNull(),
+    lastSeenAt: ts("last_seen_at").notNull().defaultNow(),
+    resolvedAt: ts("resolved_at"),
+    /** Number of firing deliveries folded into this incident (deduplicated by fingerprint). */
+    eventCount: integer("event_count").notNull().default(1),
+    raw: jsonb("raw").$type<unknown>().notNull(),
+    /** Ranked "what changed?" candidates, computed when the incident opened. */
+    candidates: jsonb("candidates").$type<IncidentCandidates>().notNull(),
+    /** The automatic rollback decision and its evidence (null when not evaluated). */
+    autoAction: jsonb("auto_action").$type<IncidentAutoAction | null>(),
+    rollbackJobId: uuid("rollback_job_id"),
+    createdAt: createdAt(),
+    updatedAt: ts("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("incidents_open_fingerprint_key").on(t.orgId, t.source, t.fingerprint).where(sql`status = 'open'`),
+    index("incidents_org_status_started_idx").on(t.orgId, t.status, t.startedAt.desc()),
+    index("incidents_org_created_idx").on(t.orgId, t.createdAt.desc()),
+    check("incidents_status_check", oneOf("status", INCIDENT_STATUSES)),
+    check("incidents_severity_check", sql`severity in ('critical', 'error', 'warning', 'info')`),
+  ],
+);
