@@ -111,7 +111,8 @@ func doctorCmd() *cobra.Command {
 				if res != nil {
 					res.Body.Close()
 				}
-				check(herr == nil && res.StatusCode < 300, "prometheus reachable at "+cfg.Metrics.URL, "prometheus not reachable at "+cfg.Metrics.URL)
+				shown := redactURL(cfg.Metrics.URL)
+				check(herr == nil && res.StatusCode < 300, "prometheus reachable at "+shown, "prometheus not reachable at "+shown)
 			} else {
 				fmt.Println(ui.OK("metrics provider: " + cfg.Metrics.Provider))
 			}

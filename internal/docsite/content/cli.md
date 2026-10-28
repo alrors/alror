@@ -102,7 +102,7 @@ With `--local --watch` the runner only watches: no workspace is needed, and rele
 
 ## `alror config pull` / `alror config push`
 
-`pull` writes `alror.yaml` from the workspace config and keeps its `server:` line. `push` upserts the services and policy from `alror.yaml` (needs `config:write`). Both print a diff summary; `--dry-run` writes or pushes nothing.
+`pull` writes `alror.yaml` from the workspace config and keeps its `server:` line. `push` upserts the services and policy from `alror.yaml` (needs `config:write`). Both print a diff summary; `--dry-run` writes or pushes nothing. Secrets stay out of `alror.yaml` and the output: the Slack webhook is shown only as `set` or `unset` and is never written (connected mode reads it from the workspace), and credentials in `metrics.url` are masked when printed and not written.
 
 ## `alror docs`
 
