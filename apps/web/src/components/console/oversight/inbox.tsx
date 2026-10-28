@@ -20,9 +20,9 @@ const DISMISS_MS = 30 * 24 * 3_600_000;
 const LIMIT = 6;
 
 const SEV: Record<Severity, { label: string; text: string; bar: string; Icon: typeof CircleAlert }> = {
-  critical: { label: "Critical", text: "text-con-bad", bar: "bg-con-bad", Icon: OctagonAlert },
-  high: { label: "High", text: "text-con-warn", bar: "bg-con-warn", Icon: TriangleAlert },
-  medium: { label: "Medium", text: "text-con-fg2", bar: "bg-con-fg3", Icon: CircleAlert },
+  critical: { label: "Critical", text: "text-con-bad-text", bar: "bg-con-bad", Icon: OctagonAlert },
+  high: { label: "High", text: "text-con-warn-text", bar: "bg-con-warn", Icon: TriangleAlert },
+  medium: { label: "Medium", text: "text-con-info-text", bar: "bg-con-info", Icon: CircleAlert },
 };
 const KIND_ICON: Partial<Record<InboxKind, typeof CircleAlert>> = {
   pull_review: GitPullRequest,
@@ -86,7 +86,7 @@ export function NeedsYou({ items, now, canRollBack }: { items: InboxItem[]; now:
       title={
         <h2 className="flex items-center gap-2 text-[14px] font-semibold tracking-[-0.01em] text-con-fg">
           Needs you
-          {visible.length > 0 && <Count className={critical ? "bg-con-bad/15 text-con-bad" : undefined}>{visible.length}</Count>}
+          {visible.length > 0 && <Count className={critical ? "bg-con-bad-soft text-con-bad-text" : "bg-con-warn-soft text-con-warn-text"}>{visible.length}</Count>}
         </h2>
       }
       tip="Pull requests the merge gate sent to a person or has waited on too long, open incidents from your alerts, releases whose rollback is unconfirmed or whose verdict had too little data or passed close to its limit, shadow-mode rollback recommendations (mark them correct or a false alarm for the trust ramp), services ready for automatic rollback, stalled runner jobs, and tuning proposals waiting for an admin. Snooze hides an item on this device for a day; dismiss hides it until it changes."
@@ -101,7 +101,7 @@ export function NeedsYou({ items, now, canRollBack }: { items: InboxItem[]; now:
     >
       {visible.length === 0 ? (
         <div className={cn("flex items-start gap-3 border-t border-con-row py-6", PAD_X)}>
-          <CircleCheck size={16} className="mt-0.5 shrink-0 text-con-fg3" />
+          <CircleCheck size={16} className="mt-0.5 shrink-0 text-con-good" />
           <div>
             <p className="text-[13px] font-medium text-con-fg">Nothing needs you</p>
             <p className="mt-0.5 text-[12px] leading-relaxed text-con-fg3">
@@ -132,7 +132,7 @@ export function NeedsYou({ items, now, canRollBack }: { items: InboxItem[]; now:
                             onClick={() => hide(it.key, SNOOZE_MS)}
                             aria-label={`Snooze for a day: ${it.subject}`}
                             title="Snooze for a day"
-                            className="grid h-6 w-6 place-items-center rounded text-con-fg3 outline-none transition-colors duration-150 hover:bg-con-hover hover:text-con-fg focus-visible:ring-1 focus-visible:ring-con-line-hover"
+                            className="grid h-6 w-6 place-items-center rounded text-con-fg3 outline-none transition-colors duration-150 hover:bg-con-hover hover:text-con-fg focus-visible:ring-2 focus-visible:ring-con-brand/60"
                           >
                             <AlarmClock size={13} />
                           </button>
@@ -141,7 +141,7 @@ export function NeedsYou({ items, now, canRollBack }: { items: InboxItem[]; now:
                             onClick={() => hide(it.key, DISMISS_MS)}
                             aria-label={`Dismiss until it changes: ${it.subject}`}
                             title="Dismiss until it changes"
-                            className="grid h-6 w-6 place-items-center rounded text-con-fg3 outline-none transition-colors duration-150 hover:bg-con-hover hover:text-con-fg focus-visible:ring-1 focus-visible:ring-con-line-hover"
+                            className="grid h-6 w-6 place-items-center rounded text-con-fg3 outline-none transition-colors duration-150 hover:bg-con-hover hover:text-con-fg focus-visible:ring-2 focus-visible:ring-con-brand/60"
                           >
                             <X size={13} />
                           </button>

@@ -13,9 +13,9 @@ import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { cn } from "@/lib/site";
 import { areaPath, linePath, runs, type Tick } from "./scale";
 
-const GRID = "#242424";
-const AXIS = "#3a3a3a";
-const PANEL = "#171717";
+const GRID = "#1c2433";
+const AXIS = "#2c3648";
+const PANEL = "#111722";
 
 /* --------------------------------- Hooks --------------------------------- */
 

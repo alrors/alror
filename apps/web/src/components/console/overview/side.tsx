@@ -82,7 +82,7 @@ export function RunnersWidget({
 
 /* --------------------------------- Risk mix --------------------------------- */
 
-export const LEVEL_COLORS = { low: "#8f8f8f", medium: COLORS.warn, high: COLORS.bad };
+export const LEVEL_COLORS = { low: COLORS.good, medium: COLORS.warn, high: COLORS.bad };
 
 export function RiskMixWidget({ mix, rangeLabel }: { mix: RiskMix[]; rangeLabel: string }) {
   const total = mix.reduce((s, m) => s + m.total, 0);

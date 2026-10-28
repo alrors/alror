@@ -402,7 +402,7 @@ function Popover({
             aria-hidden
             className={cn(
               "grid h-3.5 w-3.5 shrink-0 place-items-center rounded-[3px] border transition-colors duration-100",
-              isSel ? "border-con-fg bg-con-fg text-black" : "border-con-line-hover",
+              isSel ? "border-con-brand bg-con-brand text-con-brand-ink" : "border-con-line-hover",
             )}
           >
             {isSel && <Check size={10} strokeWidth={3} />}

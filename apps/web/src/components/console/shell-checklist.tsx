@@ -49,11 +49,11 @@ export function ShellChecklist({ steps }: { steps: ChecklistItem[] }) {
           aria-valuenow={done}
           aria-label="Setup progress"
         >
-          <div className="con-grow-x h-full rounded-full bg-con-fg2" style={{ width: `${pct}%`, animationDuration: "0.9s" }} />
+          <div className="con-grow-x h-full rounded-full bg-con-brand" style={{ width: `${pct}%`, animationDuration: "0.9s" }} />
         </div>
         <ol className="mt-3 flex gap-1.5" aria-hidden>
           {steps.map((s, i) => (
-            <li key={s.title} className={cn("h-1 flex-1 rounded-full transition-colors duration-300", s.done ? "bg-con-fg3" : i === next ? "bg-con-line-hover" : "bg-con-row")} />
+            <li key={s.title} className={cn("h-1 flex-1 rounded-full transition-colors duration-300", s.done ? "bg-con-brand/60" : i === next ? "bg-con-line-hover" : "bg-con-row")} />
           ))}
         </ol>
       </div>
@@ -74,7 +74,7 @@ export function ShellChecklist({ steps }: { steps: ChecklistItem[] }) {
                 <span
                   className={cn(
                     "grid h-7 w-7 shrink-0 place-items-center rounded-full border text-[13px] font-medium tabular-nums transition-colors duration-200",
-                    s.done ? "border-con-line-hover bg-con-row text-con-fg" : current ? "border-con-fg3 text-con-fg" : "border-con-line text-con-fg3",
+                    s.done ? "border-con-good-edge bg-con-good-soft text-con-good-text" : current ? "border-con-brand text-con-fg" : "border-con-line text-con-fg3",
                   )}
                   aria-label={s.done ? "Done" : `Step ${i + 1}`}
                 >

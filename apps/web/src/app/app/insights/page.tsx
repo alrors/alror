@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { BarList, COLORS, DotPlot, LegendItem, LineChart, ShareBar, Sparkline, StackedBars } from "@/components/console/charts";
+import { BarList, COLORS, DotPlot, LegendItem, LineChart, SERIES_COLORS, ShareBar, Sparkline, StackedBars } from "@/components/console/charts";
 import { CountUp } from "@/components/console/count-up";
 import { FilterForm } from "@/components/console/filter-form";
 import { hrefWith, Pagination } from "@/components/console/pagination";
@@ -219,7 +219,7 @@ export default async function InsightsPage({ searchParams }: PageProps<"/app/ins
     .map((d) => ({
       x: Math.min(1, Math.max(0, (Date.parse(d.created_at) - start) / (range * DAY))),
       y: restoreMs(d)! / 60000,
-      color: d.status === "failed" ? COLORS.bad : d.reason?.startsWith("Regression") ? COLORS.neutralLight : COLORS.warn,
+      color: d.status === "failed" ? COLORS.bad : d.reason?.startsWith("Regression") ? COLORS.lilac : COLORS.warn,
       title: `${d.service} ${d.ref ?? ""} · ${weekdayLabel(d.created_at)} · restored in ${span(restoreMs(d))}`,
       href: `/app/deployments/${d.id}`,
     }));
@@ -259,16 +259,21 @@ export default async function InsightsPage({ searchParams }: PageProps<"/app/ins
 
       {/* KPI strip */}
       <div className="con-stagger grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-        {kpis.map((k) => (
-          <div key={k.label} className="flex flex-col rounded-lg border border-con-line bg-con-panel p-5">
-            <div className="text-[13px] text-con-fg2" title={k.help}>
+        {kpis.map((k, i) => (
+          <div
+            key={k.label}
+            className="con-surface con-accent-top flex flex-col rounded-lg border border-con-line bg-con-panel p-5"
+            style={{ "--con-accent": SERIES_COLORS[i % SERIES_COLORS.length] } as React.CSSProperties}
+          >
+            <div className="flex items-center gap-1.5 text-[13px] text-con-fg2" title={k.help}>
+              <span aria-hidden className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: SERIES_COLORS[i % SERIES_COLORS.length] }} />
               {k.label}
             </div>
             <div className="mt-2 text-[28px] font-semibold leading-none tracking-[-0.02em]">{k.value}</div>
             <div className="mt-2">
               <Delta value={k.delta} goodWhen={k.good} suffix={deltaLabel} />
             </div>
-            <Sparkline values={k.spark} className="mt-4 h-9" label={`${k.label} trend, last ${range} days`} />
+            <Sparkline values={k.spark} color={SERIES_COLORS[i % SERIES_COLORS.length]} className="mt-4 h-9" label={`${k.label} trend, last ${range} days`} />
             <div className="mt-2 text-[12px] text-con-fg3">{k.foot}</div>
           </div>
         ))}
@@ -290,7 +295,7 @@ export default async function InsightsPage({ searchParams }: PageProps<"/app/ins
               header: bucketSize === 7 ? `Week of ${dayLabel(b.day)}` : weekdayLabel(b.day),
               title: `${bucketSize === 7 ? `Week of ${dayLabel(b.day)}` : weekdayLabel(b.day)}: ${b.deps.length} releases`,
               segments: [
-                { name: "Promoted", value: b.promoted, color: COLORS.neutral },
+                { name: "Promoted", value: b.promoted, color: COLORS.promoted },
                 { name: "In progress", value: b.other, color: COLORS.info },
                 { name: "Rolled back or failed", value: b.bad, color: COLORS.bad },
               ],
@@ -312,8 +317,8 @@ export default async function InsightsPage({ searchParams }: PageProps<"/app/ins
             height={220}
             toggleLegend
             series={[
-              { name: "cfr", label: `Last ${range} days`, values: cfrSeries, color: COLORS.neutralLight, area: true },
-              ...(hasPrevCfr ? [{ name: "prev", label: `Previous ${range} days`, values: cfrPrev, color: "#737373", dashed: true }] : []),
+              { name: "cfr", label: `Last ${range} days`, values: cfrSeries, color: COLORS.sky, area: true },
+              ...(hasPrevCfr ? [{ name: "prev", label: `Previous ${range} days`, values: cfrPrev, color: COLORS.neutral, dashed: true }] : []),
             ]}
             threshold={{ value: 15, label: "15% guide" }}
             yFormat={(v) => `${Math.round(v)}%`}
@@ -345,7 +350,7 @@ export default async function InsightsPage({ searchParams }: PageProps<"/app/ins
             guide={restoreMedian !== null ? { value: restoreMedian, label: `median ${span(restoreMedian * 60000)}` } : undefined}
             legend={
               <>
-                <LegendItem color={COLORS.neutralLight} label="Auto rollback" />
+                <LegendItem color={COLORS.lilac} label="Auto rollback" />
                 <LegendItem color={COLORS.warn} label="Manual rollback" />
                 <LegendItem color={COLORS.bad} label="Failed" />
               </>
@@ -376,7 +381,7 @@ export default async function InsightsPage({ searchParams }: PageProps<"/app/ins
               header: `Risk ${b.from} to ${b.to}`,
               title: `Risk ${b.from} to ${b.to}: ${b.count} releases, ${b.bad} rolled back or failed`,
               segments: [
-                { name: "Promoted", value: b.count - b.bad, color: COLORS.neutral },
+                { name: "Promoted", value: b.count - b.bad, color: COLORS.promoted },
                 { name: "Rolled back or failed", value: b.bad, color: COLORS.bad },
               ],
             }))}
@@ -418,8 +423,8 @@ export default async function InsightsPage({ searchParams }: PageProps<"/app/ins
             height={180}
             toggleLegend
             series={[
-              { name: "ai", label: "AI-assisted", values: aiCfr, color: COLORS.info },
-              { name: "human", label: "Human", values: humanCfr, color: COLORS.neutralLight },
+              { name: "ai", label: "AI-assisted", values: aiCfr, color: COLORS.lilac },
+              { name: "human", label: "Human", values: humanCfr, color: COLORS.sky },
             ]}
             yFormat={(v) => `${Math.round(v)}%`}
             tooltipFormat={pctTip}
@@ -433,7 +438,7 @@ export default async function InsightsPage({ searchParams }: PageProps<"/app/ins
             {[ai, human].map((o) => (
               <div key={o.label} className="min-w-0">
                 <dt className="flex items-center gap-2 text-[13px] text-con-fg2">
-                  <span aria-hidden className="h-2.5 w-2.5 rounded-[3px]" style={{ background: o === ai ? COLORS.info : COLORS.neutralLight }} />
+                  <span aria-hidden className="h-2.5 w-2.5 rounded-[3px]" style={{ background: o === ai ? COLORS.lilac : COLORS.sky }} />
                   {o.label}
                 </dt>
                 <dd className="mt-2 space-y-2">
@@ -449,7 +454,7 @@ export default async function InsightsPage({ searchParams }: PageProps<"/app/ins
                     <span className="text-con-fg3">Rolled back</span>
                     <span className="font-mono tabular-nums">{pct(o.cfr, 1)}</span>
                   </div>
-                  <ShareBar parts={[{ name: "Promoted", value: o.promoted, color: COLORS.neutral }, { name: "Rolled back or failed", value: o.bad, color: COLORS.bad }]} />
+                  <ShareBar parts={[{ name: "Promoted", value: o.promoted, color: COLORS.promoted }, { name: "Rolled back or failed", value: o.bad, color: COLORS.bad }]} />
                 </dd>
               </div>
             ))}
@@ -500,7 +505,7 @@ export default async function InsightsPage({ searchParams }: PageProps<"/app/ins
           description={`Last ${N} releases per service, oldest to newest`}
           aside={
             <span className="hidden flex-wrap gap-4 sm:flex">
-              <LegendItem color={COLORS.neutral} label="Promoted" />
+              <LegendItem color={COLORS.promoted} label="Promoted" />
               <LegendItem color={COLORS.info} label="Rolling" />
               <LegendItem color={COLORS.warn} label="Manual rollback" />
               <LegendItem color={COLORS.bad} label="Auto rollback or failed" />
@@ -530,7 +535,7 @@ export default async function InsightsPage({ searchParams }: PageProps<"/app/ins
                       />
                     ))}
                   </div>
-                  <span className={cn("text-right font-mono text-[12px] tabular-nums", s.cfr > 0.15 ? "text-con-bad" : "text-con-fg3")}>{pct(s.cfr)}</span>
+                  <span className={cn("text-right font-mono text-[12px] tabular-nums", s.cfr > 0.15 ? "text-con-bad-text" : "text-con-fg3")}>{pct(s.cfr)}</span>
                 </div>
               );
             })}
@@ -604,7 +609,7 @@ function cellColor(d: Deployment): string {
   if (d.status === "rolling" || d.status === "pending") return COLORS.info;
   if (d.status === "failed") return COLORS.bad;
   if (d.status === "rolled_back") return d.reason?.startsWith("Regression") ? COLORS.bad : COLORS.warn;
-  return COLORS.neutral;
+  return COLORS.promoted;
 }
 
 function feedDot(kind: string, pass?: boolean): string {

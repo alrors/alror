@@ -30,11 +30,11 @@ export function SettingsNav({ isAdmin }: { isAdmin: boolean }) {
             aria-current={active ? "page" : undefined}
             className={cn(
               "relative flex h-9 shrink-0 items-center gap-2.5 whitespace-nowrap rounded-md px-2.5 text-[14px] transition-colors duration-150",
-              active ? "bg-con-row text-con-fg" : "text-con-fg2 hover:bg-con-hover hover:text-con-fg",
+              active ? "bg-con-brand-soft text-con-fg shadow-[inset_2px_0_0_var(--color-con-brand)]" : "text-con-fg2 hover:bg-con-hover hover:text-con-fg",
               locked && !active && "text-con-fg3",
             )}
           >
-            <it.icon size={15} strokeWidth={1.7} className={cn("shrink-0", active ? "text-con-fg" : "text-con-fg3")} />
+            <it.icon size={15} strokeWidth={1.7} className={cn("shrink-0", active ? "text-con-brand" : "text-con-fg3")} />
             <span className="flex-1">{it.label}</span>
             {locked && <span className="hidden text-[11px] text-con-fg3 lg:inline">Admins</span>}
           </Link>

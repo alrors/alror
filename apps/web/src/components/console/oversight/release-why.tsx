@@ -5,16 +5,25 @@ import type { ReleaseWhy } from "@/lib/console/oversight";
 import { cn } from "@/lib/site";
 
 const BORDER: Record<ReleaseWhy["tone"], string> = {
-  good: "border-con-line",
-  info: "border-con-info/30",
+  good: "border-con-good-edge",
+  info: "border-con-info-edge",
   idle: "border-con-line",
-  warn: "border-con-warn/35",
-  bad: "border-con-bad/35",
+  warn: "border-con-warn-edge",
+  bad: "border-con-bad-edge",
+};
+
+/** Thin tone stripe along the top edge. */
+const ACCENT: Record<ReleaseWhy["tone"], string> = {
+  good: "[--con-accent:var(--color-con-good)]",
+  info: "[--con-accent:var(--color-con-info)]",
+  idle: "[--con-accent:var(--color-con-line-hover)]",
+  warn: "[--con-accent:var(--color-con-warn)]",
+  bad: "[--con-accent:var(--color-con-bad)]",
 };
 
 export function ReleaseWhyCard({ why }: { why: ReleaseWhy }) {
   return (
-    <section aria-labelledby="why-outcome" className={cn("con-fade-up rounded-lg border bg-con-panel px-5 py-4", BORDER[why.tone])} style={{ animationDelay: "30ms" }}>
+    <section aria-labelledby="why-outcome" className={cn("con-fade-up con-surface con-accent-top rounded-lg border bg-con-panel px-5 py-4", BORDER[why.tone], ACCENT[why.tone])} style={{ animationDelay: "30ms" }}>
       <h2 id="why-outcome" className="text-[12px] font-medium uppercase tracking-wide text-con-fg3">
         Why this outcome
       </h2>
