@@ -543,7 +543,8 @@ func TestWatchScoresTheCommitFromALocalCheckout(t *testing.T) {
 	write("services/checkout/payment.go", strings.Repeat("x := 1\n", 300))
 	git("add", ".")
 	git("commit", "-q", "-m", "payments")
-	sha := git("rev-parse", "--short=9", "HEAD")
+	// Full SHA: a short one can be all digits, which the watcher rightly refuses to treat as a commit.
+	sha := git("rev-parse", "HEAD")
 
 	cl := newFakeCluster(map[string]string{"checkout-api": "reg/checkout:1"})
 	st := fsStore(t)
