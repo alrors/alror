@@ -1,0 +1,103 @@
+{
+  "name": "07-critical-service",
+  "description": "A tested change in a critical service.",
+  "services": [
+    {
+      "name": "checkout-api",
+      "paths": [
+        "services/checkout/"
+      ],
+      "critical": true
+    },
+    {
+      "name": "web",
+      "paths": [
+        "web/"
+      ],
+      "critical": false
+    },
+    {
+      "name": "billing-worker",
+      "paths": [
+        "services/billing/"
+      ],
+      "critical": false
+    },
+    {
+      "name": "search",
+      "paths": [
+        "services/search/"
+      ],
+      "critical": false
+    },
+    {
+      "name": "inventory",
+      "paths": [
+        "services/inventory/"
+      ],
+      "critical": false
+    },
+    {
+      "name": "notifications",
+      "paths": [
+        "services/notifications/"
+      ],
+      "critical": false
+    }
+  ],
+  "change": {
+    "files": [
+      {
+        "path": "services/checkout/cart.go",
+        "added": 40,
+        "deleted": 0
+      },
+      {
+        "path": "services/checkout/cart_test.go",
+        "added": 40,
+        "deleted": 0
+      }
+    ],
+    "authors": [],
+    "message": "",
+    "recent_rollbacks": {}
+  },
+  "expected": {
+    "score": 15,
+    "level": "low",
+    "factors": [
+      {
+        "name": "Critical service",
+        "detail": "checkout-api is marked critical",
+        "points": 12
+      },
+      {
+        "name": "Small diff",
+        "detail": "80 lines changed",
+        "points": 8
+      },
+      {
+        "name": "Well tested",
+        "detail": "1 test files for 1 code files",
+        "points": -5
+      }
+    ],
+    "services": [
+      "checkout-api"
+    ],
+    "ai_authored": false,
+    "plan": {
+      "strategy": "canary",
+      "steps": [
+        {
+          "weight": 25,
+          "bake_seconds": 300
+        },
+        {
+          "weight": 100,
+          "bake_seconds": 0
+        }
+      ]
+    }
+  }
+}
