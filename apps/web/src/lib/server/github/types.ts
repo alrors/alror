@@ -26,6 +26,8 @@ export type DecisionView = {
   id: string; repositoryId: string; repository: string; pullNumber: number;
   title: string; url: string; headSha: string; outcome: string; score: number;
   reasons: string[]; mode: GateMode; updatedAt: string;
+  /** Shared-rules risk level, or null when it was not computed for this revision. */
+  level: "low" | "medium" | "high" | null;
 };
 export type ChangedFile = { filename: string; previous_filename?: string; additions: number; deletions: number; status: string };
 export type CheckEvidence = { name: string; appId: number; status: string; conclusion: string | null };
@@ -35,5 +37,6 @@ export type PullSnapshot = {
   head: { sha: string; repo: { id: number } | null };
   base: { sha: string; ref: string; repo: { id: number } };
   user: { login: string }; mergeable: boolean | null; mergeable_state: string;
+  merge_commit_sha?: string | null;
 };
 export type GateResult = { outcome: "eligible" | "review_required" | "waiting" | "closed"; score: number; reasons: string[] };

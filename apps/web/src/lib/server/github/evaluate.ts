@@ -4,11 +4,20 @@ import { repoPath } from "./client";
 import { evaluatePolicy } from "./policy";
 import { CHECK_NAME, COMMENT_MARKER, decisionMarkdown } from "./report";
 import type { ChangedFile, CheckEvidence, GatePolicy, GateResult, PullSnapshot } from "./types";
+import { decidePull, type DecisionContext, type PullCommit, type RiskDecision } from "../decision/decide";
 
-export type Evaluation = { pull: PullSnapshot; result: GateResult; checkId?: string; commentId?: string };
+export type Evaluation = {
+  pull: PullSnapshot; result: GateResult; checkId?: string; commentId?: string;
+  /** Shared-rules risk for the head SHA; absent when the PR is closed or computing it failed. */
+  decision?: RiskDecision;
+  /** Internal failure detail for logs and audit; never posted to GitHub. */
+  decisionError?: string;
+};
 export type EvaluationHooks = {
   /** Must check the lease, repository enabled state, and current policy version. */
   beforeEffect: () => Promise<void>;
+  /** The org's services and recent rollbacks for risk scoring. A failure keeps the PR from merging automatically. */
+  decisionContext: () => Promise<DecisionContext>;
   save: (evaluation: Evaluation) => Promise<void>;
   audit: (action: string, meta: Record<string, unknown>) => Promise<void>;
 };
@@ -22,6 +31,13 @@ export function hasBlockingReview(reviews: Review[]): boolean {
   return [...latest.values()].some((review) => review.state === "CHANGES_REQUESTED");
 }
 
+export const DECISION_UNAVAILABLE = "Alror could not compute the risk decision for this commit, so automatic merge stays off. It retries automatically; push a commit or re-run the evaluation if this persists.";
+/** Fail-safe: without a risk decision an open PR is never eligible; it waits with a clear reason. */
+export function failSafe(result: GateResult, decisionError?: string): GateResult {
+  if (!decisionError || result.outcome === "closed") return result;
+  return { ...result, outcome: "waiting", reasons: [DECISION_UNAVAILABLE, ...(result.outcome === "eligible" ? [] : result.reasons)] };
+}
+
 export async function evaluatePull(client: GitHubClient, input: {
   repositoryId: string; fullName: string; pullNumber: number; policy: GatePolicy; policyVersion: number;
   appId: number; appSlug: string; detailsUrl: string;
@@ -32,22 +48,33 @@ export async function evaluatePull(client: GitHubClient, input: {
   const files = pull.state === "open" ? await client.pages<ChangedFile>(`${prPath}/files`) : [];
   const checks = pull.state === "open" ? await client.pages<ApiCheck>(`${path}/commits/${pull.head.sha}/check-runs?filter=latest`, "check_runs") : [];
   const evidence: CheckEvidence[] = checks.map((c) => ({ name: c.name, appId: c.app.id, status: c.status, conclusion: c.conclusion }));
-  const result = evaluatePolicy(input.policy, pull, files, evidence);
-  const evaluation: Evaluation = { pull, result };
+  // One decision: shared-rules risk (score, level, factors, plan) combined with the merge gate.
+  let decision: RiskDecision | undefined, decisionError: string | undefined;
+  if (pull.state === "open") {
+    try {
+      const [commits, context] = await Promise.all([client.pages<PullCommit>(`${prPath}/commits`), hooks.decisionContext()]);
+      decision = decidePull(files, commits, context);
+    } catch (error) {
+      decisionError = error instanceof Error ? error.message : "Unknown error.";
+    }
+  }
+  const result = failSafe(evaluatePolicy(input.policy, pull, files, evidence, decision?.risk), decisionError);
+  const evaluation: Evaluation = { pull, result, decision, decisionError };
   await hooks.save(evaluation);
   if (result.outcome === "closed") return evaluation;
 
   const externalId = `alror:${input.repositoryId}:${pull.number}:${pull.head.sha}:${pull.base.sha}:${input.policyVersion}`;
   const existing = checks.find((c) => c.app.id === input.appId && c.external_id === externalId);
-  const reportContext = { repository: input.fullName, checks: evidence.filter((c) => c.appId !== input.appId), policyVersion: input.policyVersion };
+  const reportContext = { repository: input.fullName, checks: evidence.filter((c) => c.appId !== input.appId), policyVersion: input.policyVersion, decision, decisionFailed: !!decisionError };
   const summary = decisionMarkdown(pull, result, input.policy, files, input.detailsUrl, reportContext);
-  const status = result.outcome === "waiting" && input.policy.mode !== "observe" ? "in_progress" : "completed";
+  // Without a risk decision the check never completes, in any mode: it stays in progress until a retry succeeds.
+  const status = decisionError || (result.outcome === "waiting" && input.policy.mode !== "observe") ? "in_progress" : "completed";
   const conclusion = input.policy.mode === "observe" ? "neutral" : result.outcome === "eligible" ? "success" : "action_required";
   await hooks.beforeEffect();
   const check = await client.request<{ id: number }>(existing ? `${path}/check-runs/${existing.id}` : `${path}/check-runs`, existing ? "PATCH" : "POST", {
     name: CHECK_NAME, ...(existing ? {} : { head_sha: pull.head.sha }), external_id: externalId,
     status, ...(status === "completed" ? { conclusion } : {}), details_url: input.detailsUrl,
-    output: { title: result.outcome === "eligible" ? "Policy checks passed" : result.outcome === "waiting" ? "Waiting for checks" : "Human review required", summary },
+    output: { title: decisionError ? "Risk decision unavailable" : result.outcome === "eligible" ? "Policy checks passed" : result.outcome === "waiting" ? "Waiting for checks" : "Human review required", summary },
   });
   evaluation.checkId = String(check.id); await hooks.save(evaluation);
 
@@ -67,7 +94,7 @@ export async function evaluatePull(client: GitHubClient, input: {
       await hooks.audit("github.review_requested", { reviewers, head_sha: pull.head.sha });
     }
   }
-  if (result.outcome !== "eligible" || input.policy.mode !== "auto_merge") return evaluation;
+  if (result.outcome !== "eligible" || input.policy.mode !== "auto_merge" || !decision) return evaluation;
 
   // Never approve a PR or bypass GitHub's review, checks, merge queue, or branch restrictions.
   const fresh = await client.request<PullSnapshot>(prPath);
@@ -78,7 +105,7 @@ export async function evaluatePull(client: GitHubClient, input: {
     client.pages<ApiCheck>(`${path}/commits/${pull.head.sha}/check-runs?filter=latest`, "check_runs"),
     client.pages<Review>(`${prPath}/reviews`),
   ]);
-  const finalResult = evaluatePolicy(input.policy, fresh, files, latestChecks.map((c) => ({ name: c.name, appId: c.app.id, status: c.status, conclusion: c.conclusion })));
+  const finalResult = evaluatePolicy(input.policy, fresh, files, latestChecks.map((c) => ({ name: c.name, appId: c.app.id, status: c.status, conclusion: c.conclusion })), decision?.risk);
   if (finalResult.outcome !== "eligible" || fresh.mergeable !== true || fresh.mergeable_state !== "clean" || hasBlockingReview(reviews)) {
     evaluation.result = { ...finalResult, outcome: finalResult.outcome === "review_required" ? "review_required" : "waiting", reasons: [...finalResult.reasons, "Automatic merge is waiting for GitHub branch protections and human review requirements."] };
     await hooks.save(evaluation);
@@ -95,6 +122,7 @@ export async function evaluatePull(client: GitHubClient, input: {
   await hooks.beforeEffect();
   const merged = await client.request<{ merged: boolean; sha?: string }>(`${prPath}/merge`, "PUT", { sha: pull.head.sha, merge_method: input.policy.mergeMethod });
   if (!merged.merged) throw new Error("GitHub did not merge the evaluated commit.");
+  evaluation.pull = { ...pull, merge_commit_sha: merged.sha || null };
   evaluation.result = { ...result, outcome: "closed", reasons: [`Merged evaluated commit ${pull.head.sha.slice(0, 12)} after configured checks and GitHub protections passed.`] };
   await hooks.save(evaluation);
   await hooks.audit("github.pull_merged", { head_sha: pull.head.sha, merge_sha: merged.sha || "", method: input.policy.mergeMethod });

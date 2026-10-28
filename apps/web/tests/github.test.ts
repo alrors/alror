@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createHmac, createVerify, generateKeyPairSync } from "node:crypto";
 import { test } from "node:test";
 import { appJwt, GitHubClient } from "../src/lib/server/github/client";
-import { evaluatePull, hasBlockingReview } from "../src/lib/server/github/evaluate";
+import { DECISION_UNAVAILABLE, evaluatePull, hasBlockingReview, type Evaluation } from "../src/lib/server/github/evaluate";
 import { evaluatePolicy, matchesPath, normalizePolicy } from "../src/lib/server/github/policy";
 import { COMMENT_MARKER, decisionMarkdown, decisionPath } from "../src/lib/server/github/report";
 import { verifySignature } from "../src/lib/server/github/webhook";
@@ -92,9 +92,10 @@ test("a later comment does not clear a blocking review", () => {
   ]));
 });
 
-function fixture(opts: { mode?: GatePolicy["mode"]; changeHead?: boolean; finalCiFails?: boolean; blocked?: boolean; sensitive?: boolean; spoofComment?: boolean; denyEffects?: boolean } = {}) {
+function fixture(opts: { mode?: GatePolicy["mode"]; changeHead?: boolean; finalCiFails?: boolean; blocked?: boolean; sensitive?: boolean; spoofComment?: boolean; denyEffects?: boolean; decisionFails?: boolean; code?: boolean } = {}) {
   const calls: { path: string; method: string; body: Record<string, unknown> }[] = [];
   let gets = 0, checks = 0;
+  const saved: Evaluation[] = [];
   const transport: typeof fetch = async (url, init) => {
     const parsed = new URL(String(url)), path = parsed.pathname, method = init?.method || "GET";
     const body = init?.body ? JSON.parse(String(init.body)) : {};
@@ -102,7 +103,8 @@ function fixture(opts: { mode?: GatePolicy["mode"]; changeHead?: boolean; finalC
     let response: unknown;
     if (path.endsWith("/pulls/7") && method === "GET") {
       gets++; response = { ...pull, mergeable_state: opts.blocked ? "blocked" : "clean", head: { ...pull.head, sha: opts.changeHead && gets > 1 ? "c".repeat(40) : pull.head.sha } };
-    } else if (path.endsWith("/files")) response = opts.sensitive ? [{ ...files[0], filename: ".github/readme.md" }] : files;
+    } else if (path.endsWith("/pulls/7/commits")) response = [{ commit: { message: "Update docs", author: { name: "Contributor", email: "c@example.com" } }, author: { login: "contributor" } }];
+    else if (path.endsWith("/files")) response = opts.sensitive ? [{ ...files[0], filename: ".github/readme.md" }] : opts.code ? [{ filename: "services/checkout/payment.go", status: "modified", additions: 3, deletions: 1 }] : files;
     else if (path.endsWith("/check-runs") && method === "GET") {
       checks++; response = { check_runs: [{ id: 500, name: "test", app: { id: 55 }, status: "completed", conclusion: opts.finalCiFails && checks > 1 ? "failure" : "success" }] };
     } else if (path.endsWith("/check-runs") && method === "POST") response = { id: 123 };
@@ -114,8 +116,9 @@ function fixture(opts: { mode?: GatePolicy["mode"]; changeHead?: boolean; finalC
     return new Response(JSON.stringify(response), { status: 200 });
   };
   const input = { repositoryId: "12", fullName: "example/project", pullNumber: 7, policy: { ...policy, mode: opts.mode || "auto_merge", reviewers: ["senior"] }, policyVersion: 1, appId: 42, appSlug: "alror-platform", detailsUrl: "https://alror.com/app/github" };
-  return { calls, run: () => evaluatePull(new GitHubClient("fake-test-token", transport), input, {
-    beforeEffect: async () => { if (opts.denyEffects) throw new Error("Lease or policy changed"); }, save: async () => {}, audit: async () => {},
+  return { calls, saved, run: () => evaluatePull(new GitHubClient("fake-test-token", transport), input, {
+    beforeEffect: async () => { if (opts.denyEffects) throw new Error("Lease or policy changed"); }, save: async (e) => { saved.push(structuredClone(e)); }, audit: async () => {},
+    decisionContext: async () => { if (opts.decisionFails) throw new Error("database unavailable"); return { services: [{ name: "checkout-api", paths: ["services/checkout/"], critical: true }], recentRollbacks: { "checkout-api": 9 } }; },
   }) };
 }
 test("auto-merge updates its sticky comment and pins the evaluated SHA", async () => {
@@ -148,4 +151,58 @@ test("forged sticky markers are not edited and lost leases prevent effects", asy
   assert(!f.calls.some((c) => c.path.endsWith("/issues/comments/456") && c.method === "PATCH"));
   const lost = fixture({ denyEffects: true }); await assert.rejects(lost.run(), /Lease/);
   assert(lost.calls.every((c) => c.method === "GET"));
+});
+
+test("protected paths use the shared sensitive areas plus the policy's globs", () => {
+  const open = { ...policy, protectedPaths: [], allowedPaths: ["**"], requireTests: false };
+  for (const filename of ["src/crypto/keys.ts", "charts/helm/values.yaml", ".github/workflows/ci.yml", "config/server.pem", "services/ledger/post.go"]) {
+    const result = evaluatePolicy(open, pull, [{ ...files[0], filename }], evidence);
+    assert.equal(result.outcome, "review_required", filename);
+    assert(result.reasons.some((r) => r.startsWith("Protected changes")), filename);
+  }
+  assert.equal(evaluatePolicy(open, pull, [{ ...files[0], filename: "web/app.tsx" }], evidence).outcome, "eligible");
+  const custom = evaluatePolicy({ ...open, protectedPaths: ["web/**"] }, pull, [{ ...files[0], filename: "web/app.tsx" }], evidence);
+  assert.equal(custom.outcome, "review_required");
+});
+test("the gate reports the shared risk score and a high level requires review", () => {
+  const risk = { score: 84, level: "high" as const, factors: [], services: [], ai_authored: false };
+  const result = evaluatePolicy(policy, pull, files, evidence, risk);
+  assert.equal(result.score, 84);
+  assert.equal(result.outcome, "review_required");
+  assert(result.reasons.some((r) => r.includes("84/100 is high")));
+  assert.equal(evaluatePolicy(policy, pull, files, evidence, { ...risk, score: 2, level: "low" }).outcome, "eligible");
+});
+test("the check and sticky comment show risk score, level, plan and top factors", async () => {
+  const f = fixture({ mode: "review", code: true }); await f.run();
+  const decision = f.saved.at(-1)?.decision;
+  assert.equal(decision?.risk.score, 50);
+  assert.equal(decision?.risk.level, "medium");
+  assert.equal(decision?.plan.steps.length, 4);
+  const check = f.calls.find((c) => c.path.endsWith("/check-runs") && c.method === "POST");
+  const summary = String((check?.body.output as { summary: string }).summary);
+  assert(summary.includes("**50/100 · medium**"));
+  assert(summary.includes("### Top risk factors"));
+  assert(summary.includes("| +18 | Recent rollbacks |"));
+  assert(summary.includes("canary 5% → 25% → 50% → 100%"));
+  const comment = f.calls.find((c) => c.path.endsWith("/issues/comments/456") && c.method === "PATCH");
+  assert.equal(comment?.body.body, summary);
+});
+test("a failed risk decision never merges and keeps the check in progress", async () => {
+  for (const mode of ["auto_merge", "observe"] as const) {
+    const f = fixture({ mode, decisionFails: true }); const evaluation = await f.run();
+    assert(!f.calls.some((c) => c.path.endsWith("/merge")));
+    assert.equal(evaluation.result.outcome, "waiting");
+    assert.equal(evaluation.result.reasons[0], DECISION_UNAVAILABLE);
+    assert.equal(evaluation.decision, undefined);
+    const check = f.calls.find((c) => c.path.endsWith("/check-runs") && c.method === "POST");
+    assert.equal(check?.body.status, "in_progress");
+    assert.equal(check?.body.conclusion, undefined);
+    assert.equal((check?.body.output as { title: string }).title, "Risk decision unavailable");
+    assert(!JSON.stringify(f.calls).includes("database unavailable"), "internal errors are not posted to GitHub");
+  }
+});
+test("an automatic merge records the merge commit for later deploy lookups", async () => {
+  const f = fixture(); const evaluation = await f.run();
+  assert.equal(evaluation.pull.merge_commit_sha, "d".repeat(40));
+  assert(evaluation.decision, "the merged decision keeps its risk");
 });

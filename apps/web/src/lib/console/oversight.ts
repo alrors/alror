@@ -6,6 +6,7 @@ import { metricLabel, metricUnitValue, span, weekdayLabel } from "./format";
 import { jobPhase, jobTarget, type JobLike } from "./jobs";
 import { SEVERITY_RANK, type Severity } from "./overview";
 import type { DeployEvent, Deployment, MetricResult } from "./types";
+import { decisionPath } from "../server/github/report";
 import type { DecisionView } from "../server/github/types";
 
 export const HOUR = 3_600_000;
@@ -34,9 +35,9 @@ export const GATE_MODE: Record<string, string> = { observe: "Observe", review: "
 
 export const pullKey = (d: { repositoryId: string; pullNumber: number }) => `${d.repositoryId}#${d.pullNumber}`;
 
-/** Explanation page for a pull request decision. Mirrors decisionPath in server/github/report.ts. */
+/** Explanation page for a pull request decision (the same link the GitHub check and comment use). */
 export function pullHref(repositoryId: string, pullNumber: number): string {
-  return `/app/github/repositories/${encodeURIComponent(repositoryId)}/pulls/${pullNumber}`;
+  return decisionPath(repositoryId, pullNumber);
 }
 
 /** The pull request on GitHub, only ever a github.com URL. */

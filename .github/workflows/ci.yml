@@ -48,8 +48,10 @@ jobs:
       - run: npx next typegen # route types (PageProps, LayoutProps) used by the type check
       - run: npx tsc --noEmit
       - run: npm run lint
-      - name: GitHub App, onboarding and rollout regression tests
-        run: node --conditions=react-server --import tsx --test tests/github.test.ts tests/rollout-tree.test.ts tests/onboarding.test.ts
+      - name: Shared risk rules match internal/risk (run node scripts/sync-rules.mjs to fix)
+        run: node ../../scripts/sync-rules.mjs --check
+      - name: GitHub App, shared risk fixtures, onboarding and rollout regression tests
+        run: node --conditions=react-server --import tsx --test tests/github.test.ts tests/decision.test.ts tests/rollout-tree.test.ts tests/onboarding.test.ts
       - run: npm run build
 
   web-image:
