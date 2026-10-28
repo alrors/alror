@@ -188,9 +188,9 @@ func (c *Client) once(ctx context.Context, method, u, path string, payload []byt
 	}
 	switch {
 	case res.StatusCode >= 500:
-		return res.StatusCode, true, decodeError(res.StatusCode, method, path, raw)
+		return res.StatusCode, true, decodeError(res.StatusCode, method, path, raw, res.Header.Get("X-Request-Id"))
 	case res.StatusCode >= 400:
-		return res.StatusCode, false, decodeError(res.StatusCode, method, path, raw)
+		return res.StatusCode, false, decodeError(res.StatusCode, method, path, raw, res.Header.Get("X-Request-Id"))
 	case res.StatusCode == http.StatusNoContent || out == nil || len(bytes.TrimSpace(raw)) == 0:
 		return res.StatusCode, false, nil
 	}
@@ -200,16 +200,22 @@ func (c *Client) once(ctx context.Context, method, u, path string, payload []byt
 	return res.StatusCode, false, nil
 }
 
-func decodeError(status int, method, path string, raw []byte) error {
+func decodeError(status int, method, path string, raw []byte, requestID string) error {
 	var env struct {
 		Error struct {
-			Code    string `json:"code"`
-			Message string `json:"message"`
+			Code      string `json:"code"`
+			Message   string `json:"message"`
+			Fix       string `json:"fix"`
+			DocsURL   string `json:"docs_url"`
+			RequestID string `json:"request_id"`
 		} `json:"error"`
 	}
-	e := &Error{Status: status, Method: method, Path: path}
+	e := &Error{Status: status, Method: method, Path: path, RequestID: requestID}
 	if json.Unmarshal(raw, &env) == nil && (env.Error.Code != "" || env.Error.Message != "") {
-		e.Code, e.Message = env.Error.Code, env.Error.Message
+		e.Code, e.Message, e.Fix, e.DocsURL = env.Error.Code, env.Error.Message, env.Error.Fix, env.Error.DocsURL
+		if env.Error.RequestID != "" {
+			e.RequestID = env.Error.RequestID
+		}
 	} else if s := strings.TrimSpace(string(raw)); s != "" && len(s) < 300 && !strings.HasPrefix(s, "<") {
 		e.Message = s
 	}

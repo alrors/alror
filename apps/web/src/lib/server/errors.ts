@@ -24,11 +24,32 @@ export class ApiError extends Error {
     public readonly code: ErrorCode,
     message: string,
     public readonly details?: unknown,
+    /** A specific next step; defaults to ERROR_FIX[code]. */
+    public readonly fix?: string,
   ) {
     super(message);
     this.name = "ApiError";
   }
 }
+
+/** Default next step for each error code; an ApiError can override it with `fix`. */
+export const ERROR_FIX: Record<ErrorCode, string> = {
+  bad_request: "Check the request body and parameters, then retry.",
+  invalid: "Correct the field named in the message, then retry.",
+  unauthorized: "Run alror login --server <url> --key <key>, or sign in again.",
+  forbidden: "Use a key or account with the permission named in the message.",
+  not_found: "Check the id and that the key belongs to this organization (alror whoami).",
+  conflict: "Reload the current state and retry.",
+  ambiguous: "Use more characters of the id.",
+  unknown_service: "Add the service with alror config push or on the Services page, then retry.",
+  unknown_environment: "Create the environment in Settings or use an existing one.",
+  rate_limited: "Wait for Retry-After seconds, then retry.",
+  unavailable: "Retry with backoff; operators should check GET /api/v1/health.",
+  internal: "Retry once; if it persists, report it with the request_id.",
+};
+
+/** Docs for an error code (a section of the Errors page). */
+export const errorDocsUrl = (code: ErrorCode) => `${env.docsUrl()}/errors.md#${code}`;
 
 export const badRequest = (m: string, details?: unknown) => new ApiError(400, "bad_request", m, details);
 export const invalid = (m: string, details?: unknown) => new ApiError(422, "invalid", m, details);

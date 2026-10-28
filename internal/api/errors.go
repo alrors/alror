@@ -22,8 +22,12 @@ type Error struct {
 	Status  int    // HTTP status code
 	Code    string // machine code, e.g. not_found, ambiguous, unknown_service
 	Message string // human message from the server
-	Method  string
-	Path    string
+	Fix     string // the server's suggested next step, when given
+	DocsURL string // documentation for this error code, when given
+	// RequestID identifies the request in the workspace logs (body or X-Request-Id header).
+	RequestID string
+	Method    string
+	Path      string
 }
 
 func (e *Error) Error() string {
@@ -31,10 +35,20 @@ func (e *Error) Error() string {
 	if msg == "" {
 		msg = http.StatusText(e.Status)
 	}
+	out := fmt.Sprintf("%s %s: %s", e.Method, e.Path, msg)
 	if e.Code != "" {
-		return fmt.Sprintf("%s %s: %s (%s)", e.Method, e.Path, msg, e.Code)
+		out += " (" + e.Code + ")"
 	}
-	return fmt.Sprintf("%s %s: %s", e.Method, e.Path, msg)
+	if e.Fix != "" {
+		out += "\n  fix: " + e.Fix
+	}
+	if e.DocsURL != "" {
+		out += "\n  docs: " + e.DocsURL
+	}
+	if e.RequestID != "" {
+		out += "\n  request id: " + e.RequestID
+	}
+	return out
 }
 
 // Is maps the HTTP status to the sentinel errors.

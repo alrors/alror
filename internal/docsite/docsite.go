@@ -36,6 +36,7 @@ var nav = []Page{
 	{"rollouts", "Rollouts & verification", "Concepts"},
 	{"targets", "Targets & metrics", "Concepts"},
 	{"state", "State on the file system", "Concepts"},
+	{"errors", "Errors", "Use"},
 	{"console", "Web console", "Use"},
 	{"architecture", "Architecture", "Internals"},
 }

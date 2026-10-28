@@ -1,4 +1,5 @@
 import "server-only";
+import { randomBytes } from "node:crypto";
 import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { ctxFor, loadSession, type SessionContext } from "../auth/accounts";
@@ -6,7 +7,7 @@ import { authenticateApiKey } from "../auth/api-keys";
 import { SESSION_COOKIE } from "../auth/session";
 import { requireScope, type OrgCtx } from "../context";
 import type { Scope } from "../db/schema";
-import { ApiError, badRequest, classifyError, forbidden, UNAVAILABLE_MESSAGE, unauthorized } from "../errors";
+import { ApiError, badRequest, classifyError, ERROR_FIX, errorDocsUrl, forbidden, UNAVAILABLE_MESSAGE, unauthorized } from "../errors";
 
 export type Auth = {
   ctx: OrgCtx;
@@ -15,15 +16,33 @@ export type Auth = {
   session?: SessionContext;
 };
 
-/** The contract's error body: {"error":{"code","message"}}. */
-export function errorResponse(e: ApiError): Response {
+const REQUEST_ID = /^[A-Za-z0-9_-]{8,64}$/;
+
+/** The caller's X-Request-Id when well formed, else a new one. */
+export function requestId(req: Request): string {
+  const given = req.headers.get("x-request-id");
+  return given && REQUEST_ID.test(given) ? given : `req_${randomBytes(8).toString("hex")}`;
+}
+
+/** The contract's error body: {"error":{"code","message","fix","docs_url","request_id","details"?}}. */
+export function errorResponse(e: ApiError, reqId?: string): Response {
   const headers: Record<string, string> = {};
   const retry = (e.details as { retry_after?: number } | undefined)?.retry_after;
   if (e.status === 429 && retry) headers["Retry-After"] = String(retry);
   if (e.status === 503) headers["Retry-After"] = "10";
   if (e.status === 401) headers["WWW-Authenticate"] = 'Bearer realm="alror"';
+  if (reqId) headers["X-Request-Id"] = reqId;
   return Response.json(
-    { error: { code: e.code, message: e.message, ...(e.details !== undefined && e.status !== 429 ? { details: e.details } : {}) } },
+    {
+      error: {
+        code: e.code,
+        message: e.message,
+        fix: e.fix ?? ERROR_FIX[e.code],
+        docs_url: errorDocsUrl(e.code),
+        ...(reqId ? { request_id: reqId } : {}),
+        ...(e.details !== undefined && e.status !== 429 ? { details: e.details } : {}),
+      },
+    },
     { status: e.status, headers },
   );
 }
@@ -107,17 +126,26 @@ type Handler<C> = (req: NextRequest, ctx: C) => Promise<Response>;
  */
 export function route<C>(fn: Handler<C>): Handler<C> {
   return async (req, ctx) => {
+    const id = requestId(req);
+    let res: Response;
     try {
-      return await fn(req, ctx);
+      res = await fn(req, ctx);
     } catch (e) {
-      if (e instanceof ApiError) return errorResponse(e);
+      if (e instanceof ApiError) return errorResponse(e, id);
       const kind = classifyError(e);
       if (kind === "database_unavailable" || kind === "cache_unavailable") {
-        console.error(`[alror] ${req.method} ${req.nextUrl.pathname} failed: ${kind}:`, (e as Error).message);
-        return errorResponse(new ApiError(503, "unavailable", `${UNAVAILABLE_MESSAGE[kind]} Try again shortly.`, { reason: kind }));
+        console.error(`[alror] ${id} ${req.method} ${req.nextUrl.pathname} failed: ${kind}:`, (e as Error).message);
+        return errorResponse(new ApiError(503, "unavailable", `${UNAVAILABLE_MESSAGE[kind]} Try again shortly.`, { reason: kind }), id);
       }
-      console.error(`[alror] ${req.method} ${req.nextUrl.pathname} failed:`, e);
-      return errorResponse(new ApiError(500, "internal", "Internal server error."));
+      console.error(`[alror] ${id} ${req.method} ${req.nextUrl.pathname} failed:`, e);
+      return errorResponse(new ApiError(500, "internal", "Internal server error."), id);
     }
+    // Streams and responses with immutable headers keep theirs.
+    try {
+      if (!res.headers.has("X-Request-Id")) res.headers.set("X-Request-Id", id);
+    } catch {
+      // immutable headers (e.g. a proxied response): nothing to add
+    }
+    return res;
   };
 }
