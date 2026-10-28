@@ -2,13 +2,14 @@
 
 import { useId, useState } from "react";
 import { metricLabel } from "@/lib/console/format";
+import { levelFor as sharedLevelFor } from "@/lib/server/decision/score";
 import type { PolicyForm } from "@/lib/console/policy-rules";
 import type { Level } from "@/lib/console/types";
 import { cn } from "@/lib/site";
 
-/** Mirrors LevelFor in the CLI's risk scorer: 70+ high, 35+ medium, else low. */
+/** LevelFor from the shared risk rules (the CLI embeds the same rules.json). */
 export function levelFor(score: number): Level {
-  return score >= 70 ? "high" : score >= 35 ? "medium" : "low";
+  return sharedLevelFor(score);
 }
 
 const LEVEL_TEXT: Record<Level, string> = { low: "text-con-good", medium: "text-con-warn", high: "text-con-bad" };
