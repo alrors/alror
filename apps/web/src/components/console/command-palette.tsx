@@ -45,7 +45,8 @@ const ACTIONS: Action[] = [
 ];
 
 const PAGES: { title: string; href: string; keywords: string }[] = [
-  { title: "Overview", href: "/app", keywords: "home overview board dashboard" },
+  { title: "Oversight", href: "/app", keywords: "home overview oversight inbox needs you what alror did impact" },
+  { title: "Live", href: "/app/live", keywords: "live rollouts lanes pulse incident dashboard board" },
   { title: "Services", href: "/app/services", keywords: "services list" },
   { title: "Deployments", href: "/app/deployments", keywords: "releases deployments" },
   { title: "Jobs", href: "/app/jobs", keywords: "jobs runner queue" },

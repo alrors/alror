@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
-import { ArrowRight, BookOpen, ShieldCheck, TriangleAlert } from "lucide-react";
+import { ArrowRight, BookOpen, Inbox, ShieldCheck, TriangleAlert } from "lucide-react";
 import { DeployButton } from "@/components/console/deploy-dialog";
 import { ActivityFeed } from "@/components/console/overview/activity";
 import { NeedsAttention } from "@/components/console/overview/attention";
@@ -69,7 +69,7 @@ import { enabledTargets } from "@/lib/server/data/plugins";
 import { getPolicy } from "@/lib/server/data/policy";
 import { listServices } from "@/lib/server/data/services";
 
-export const metadata: Metadata = { title: "Overview" };
+export const metadata: Metadata = { title: "Live" };
 
 // Same docs link the shell uses: NEXT_PUBLIC_ALROR_DOCS_URL when set, else the public documentation.
 const DOCS_URL = process.env.NEXT_PUBLIC_ALROR_DOCS_URL || LOCAL_DOCS_URL;
@@ -214,9 +214,9 @@ function releaseActivity(d: Deployment): ActivityItem {
   };
 }
 
-export default async function OverviewPage({
+export default async function LivePage({
   searchParams,
-}: PageProps<"/app">) {
+}: PageProps<"/app/live">) {
   const sp = await searchParams;
   const range = parseOverviewRange(sp.range);
   const jar = await cookies();
@@ -424,7 +424,7 @@ export default async function OverviewPage({
     .slice((activityPage - 1) * per, activityPage * per);
   const activityHref = (n: number) =>
     hrefWith(
-      "/app",
+      "/app/live",
       { range: range === DEFAULT_RANGE ? undefined : range },
       { activity: n > 1 ? String(n) : undefined },
     );
@@ -506,17 +506,17 @@ export default async function OverviewPage({
             <span>{env ?? "All environments"}</span>
           </div>
           <h1>
-            Workspace overview<span>.</span>
+            Live releases<span>.</span>
           </h1>
           <p>
-            A clear view of what&apos;s shipping, what needs you, and
-            what&apos;s next.
+            Rollouts in flight, delivery trends and runners. Open this during
+            an incident; routine releases need no watching.
           </p>
         </div>
         <div className="dash-header-actions">
-          <Link href="/app/onboarding" className="dash-secondary">
-            <BookOpen size={15} />
-            Quickstart
+          <Link href="/app" className="dash-secondary">
+            <Inbox size={15} />
+            Oversight
           </Link>
           {serviceNames.length > 0 ? (
             <DeployButton
@@ -581,7 +581,7 @@ export default async function OverviewPage({
                   r === "24h" ? "24 hours" : r === "7d" ? "7 days" : "30 days",
                 title: RANGE_SPEC[r].label,
                 href: hrefWith(
-                  "/app",
+                  "/app/live",
                   {},
                   { range: r === DEFAULT_RANGE ? undefined : r },
                 ),
