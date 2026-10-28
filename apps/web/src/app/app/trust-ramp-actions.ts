@@ -43,8 +43,24 @@ export async function switchRollbackMode(_prev: ActionResult, formData: FormData
   revalidatePath("/app", "layout");
   return {
     ok: true,
-    message: mode === "auto" ? `${service} now rolls back automatically on its next deploy.` : `${service} is back in shadow mode; its ramp starts over.`,
+    message: mode === "auto" ? `${service} now rolls back automatically` : `${service} is back in shadow mode; its ramp starts over.`,
   };
+}
+
+/**
+ * Undo for the switch's toast: puts the service's previous override back
+ * (`null` = follow the org default) without restarting its ramp.
+ */
+export async function undoRollbackMode(service: string, previous: RollbackMode | null): Promise<ActionResult> {
+  const ctx = await requireCtx();
+  if (previous !== null && previous !== "auto" && previous !== "shadow") return { error: "Unknown rollback mode." };
+  try {
+    await setRollbackMode(ctx, String(service), previous, { undo: true });
+  } catch (e) {
+    return actionError(e, "Could not undo the rollback mode change.");
+  }
+  revalidatePath("/app", "layout");
+  return { ok: true };
 }
 
 export type RampSettingsResult = (ActionResult & { errors?: Partial<Record<keyof TrustRampSettings, string>> }) | undefined;
