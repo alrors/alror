@@ -4,6 +4,7 @@
 import { DEFAULT_PLANS, type PlanStep, type Plans } from "@/lib/console/policy-rules";
 import { duration, metricLabel, metricUnitValue, span } from "@/lib/console/format";
 import { levelFor as sharedLevelFor, rules as riskRules } from "@/lib/server/decision/score";
+import { RECOVERY_SENTENCE, recoveryState } from "@/lib/console/recovery";
 import type { RolloutTree } from "@/lib/console/rollout-tree";
 import type { DeployEvent, Deployment, Level, MetricResult } from "@/lib/console/types";
 
@@ -111,32 +112,39 @@ export function headline(d: Deployment, events: DeployEvent[], tree: RolloutTree
   const passed = verificationStages.filter((s) => s.state === "pass").length;
   const warnings = verificationStages.filter((s) => s.state === "warning").length;
   const took = span((d.status === "rolling" || d.status === "pending" ? now : Date.parse(d.updated_at)) - Date.parse(d.created_at));
+  const recovery = recoveryState(d);
+  // A manual rollback that failed leaves the status as it was (rolling or promoted).
+  const rollbackFailed = d.recovery === "rollback_failed" && d.status !== "failed" ? " A rollback was attempted and failed; production state unknown. Check the target now." : "";
+  // The traffic claim after a rollback, by what its recorded result proves.
+  const after = RECOVERY_SENTENCE[recovery] ? ` ${RECOVERY_SENTENCE[recovery]}` : "";
   switch (d.status) {
     case "promoted": {
       const verification = verificationStages.length
         ? `${passed} of ${verificationStages.length} canary stages have passing verification recorded`
         : "no canary verification stages are recorded";
-      return `Promoted to 100% of traffic ${took} after it started; ${verification}${warnings ? `, with ${warnings} continued despite warnings` : ""}.`;
+      return `Promoted to 100% of traffic ${took} after it started; ${verification}${warnings ? `, with ${warnings} continued despite warnings` : ""}.${rollbackFailed}`;
     }
     case "rolling": {
       const active = stages.find((s) => s.state === "active");
       const idx = active ? active.index + 1 : d.step_index + 1;
       const left = active?.remainingMs !== undefined ? (active.remainingMs > 0 ? ` Estimated bake time remaining: ${span(active.remainingMs)}.` : " Waiting for the verdict.") : "";
-      return `Rolling out: the canary serves ${tree.liveWeight}% of traffic at stage ${idx} of ${stages.length}.${left}`;
+      return `Rolling out: the canary serves ${tree.liveWeight}% of traffic at stage ${idx} of ${stages.length}.${left}${rollbackFailed}`;
     }
     case "rolled_back": {
       const f = failingResult(events);
       if (f && tree.outcome !== "manual_rollback") {
         const lim = limits[f.r.metric];
         const dir = f.r.delta >= 0 ? "rose" : "fell";
-        return `Rolled back at ${f.e.weight ?? d.weight}% because ${metricLabel(f.r.metric).toLowerCase()} ${dir} ${Math.abs(Math.round(f.r.delta * 100))}% vs baseline${lim !== undefined ? ` (limit ${Math.round(lim * 100)}%)` : ""}. Traffic went back to the stable version.`;
+        return `Rolled back at ${f.e.weight ?? d.weight}% because ${metricLabel(f.r.metric).toLowerCase()} ${dir} ${Math.abs(Math.round(f.r.delta * 100))}% vs baseline${lim !== undefined ? ` (limit ${Math.round(lim * 100)}%)` : ""}.${after}`;
       }
       const rb = [...events].reverse().find((e) => e.kind === "rolled_back");
-      return `Rolled back${tree.outcome === "manual_rollback" ? " manually" : ""}${rb?.weight ? ` at ${rb.weight}%` : ""}${d.reason ? `: ${d.reason}` : ""}. Traffic went back to the stable version.`;
+      return `Rolled back${tree.outcome === "manual_rollback" ? " manually" : ""}${rb?.weight ? ` at ${rb.weight}%` : ""}${d.reason ? `: ${d.reason}` : ""}.${after}`;
     }
     case "failed": {
       const err = [...events].reverse().find((e) => e.kind === "error");
-      return `Failed${err?.weight ? ` at ${err.weight}%` : ""}: ${err?.message ?? d.reason ?? "the rollout stopped with an error"}. Rollback was attempted; traffic restoration is unconfirmed.`;
+      // Older rows never recorded the rollback result; newer ones without one attempted no rollback.
+      const outcome = recovery === "legacy" ? " Rollback was attempted; traffic restoration is unconfirmed." : after;
+      return `Failed${err?.weight ? ` at ${err.weight}%` : ""}: ${err?.message ?? d.reason ?? "the rollout stopped with an error"}.${outcome}`;
     }
     default:
       return "Waiting to start: the rollout has not shifted any traffic yet.";

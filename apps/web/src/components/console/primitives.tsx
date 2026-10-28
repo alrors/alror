@@ -2,8 +2,8 @@ import Link from "next/link";
 import { ArrowDownRight, ArrowUpRight, Bot, Minus } from "lucide-react";
 import { cn } from "@/lib/site";
 import type { StageState } from "@/lib/console/analytics";
-import { levelTone, riskTone, statusLabel, statusTone, type Tone } from "@/lib/console/format";
-import type { Deployment, Level, Status } from "@/lib/console/types";
+import { deploymentStatus, levelTone, riskTone, type Tone } from "@/lib/console/format";
+import type { Deployment, Level, Recovery, Status } from "@/lib/console/types";
 
 export type { StageState };
 
@@ -52,10 +52,12 @@ export function Pill({ tone, children, className, title }: { tone?: Tone; childr
   );
 }
 
-export function StatusBadge({ status, className }: { status: Status; className?: string }) {
+/** Pass the deployment's `recovery` so a failed rollback shows as "Rollback failed" rather than its status. */
+export function StatusBadge({ status, recovery, className }: { status: Status; recovery?: Recovery; className?: string }) {
+  const { label, tone } = deploymentStatus(status, recovery);
   return (
-    <Pill tone={statusTone(status)} className={className}>
-      {statusLabel[status] ?? status}
+    <Pill tone={tone} className={className}>
+      {label}
     </Pill>
   );
 }
