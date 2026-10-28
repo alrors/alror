@@ -63,7 +63,14 @@ type Runner struct {
 	// (default 30 s). Losing the lease (409) aborts the job without finishing it.
 	HeartbeatInterval time.Duration
 
+	// LeaseTTL is how long the server keeps a claim without a heartbeat
+	// (default 2 min, the workspace's lease). When no heartbeat has
+	// succeeded for that long the job is treated as lost, like a 409: the
+	// server has requeued it and another runner may be running it.
+	LeaseTTL time.Duration
+
 	// Test hooks.
+	Now        func() time.Time
 	Wait       func(ctx context.Context, d time.Duration, tick func(float64)) error
 	NewDriver  func(config.Service) (driver.Driver, error)
 	NewMetrics func(*config.Config) (metrics.Provider, error)
@@ -71,6 +78,13 @@ type Runner struct {
 
 // ErrFatal wraps errors that retrying cannot fix (bad key, missing scope).
 var ErrFatal = errors.New("runner cannot continue")
+
+// ErrLeaseLost is the cancel cause of a job whose claim expired or was
+// taken over: the engine reports the rollout as "Stopped (runner lease lost)".
+var ErrLeaseLost = errors.New("runner lease lost")
+
+// DefaultLeaseTTL is the workspace's claim lease without heartbeats.
+const DefaultLeaseTTL = 2 * time.Minute
 
 func (rn *Runner) defaults() {
 	if rn.Store == nil {
@@ -96,6 +110,12 @@ func (rn *Runner) defaults() {
 	}
 	if rn.HeartbeatInterval <= 0 {
 		rn.HeartbeatInterval = 30 * time.Second
+	}
+	if rn.LeaseTTL <= 0 {
+		rn.LeaseTTL = DefaultLeaseTTL
+	}
+	if rn.Now == nil {
+		rn.Now = time.Now
 	}
 	if rn.NewDriver == nil {
 		rn.NewDriver = driver.For
@@ -189,14 +209,14 @@ func (rn *Runner) handle(job *api.Job) {
 	start := time.Now()
 	rn.Log(Info, fmt.Sprintf("job %s claimed · %s", short(job.ID), describe(job)))
 
-	jobCtx, cancel := context.WithCancel(rn.JobContext)
-	defer cancel()
+	jobCtx, cancel := context.WithCancelCause(rn.JobContext)
+	defer cancel(nil)
 	var lost atomic.Bool
 	stopBeat := make(chan struct{})
 	beatDone := make(chan struct{})
 	go func() {
 		defer close(beatDone)
-		rn.heartbeat(job.ID, stopBeat, func() { lost.Store(true); cancel() })
+		rn.heartbeat(job.ID, stopBeat, func() { lost.Store(true); cancel(ErrLeaseLost) })
 	}()
 
 	depID, err := rn.safeExecute(jobCtx, job)
@@ -224,11 +244,14 @@ func (rn *Runner) handle(job *api.Job) {
 }
 
 // heartbeat extends the job's lease every HeartbeatInterval until stop is
-// closed. On 409 (lease lost to another runner) it calls onLost once; other
-// errors (including 404 from a server without the endpoint) only log a warning.
+// closed. It calls onLost once when the lease is gone: on 409 (taken over by
+// another runner), or when no heartbeat has succeeded for LeaseTTL (the
+// server has requeued the job). Other errors only log a warning while the
+// lease may still be valid. The claim itself counts as the first renewal.
 func (rn *Runner) heartbeat(id string, stop <-chan struct{}, onLost func()) {
 	t := time.NewTicker(rn.HeartbeatInterval)
 	defer t.Stop()
+	lastOK := rn.Now()
 	for {
 		select {
 		case <-stop:
@@ -240,11 +263,18 @@ func (rn *Runner) heartbeat(id string, stop <-chan struct{}, onLost func()) {
 		cancel()
 		switch {
 		case err == nil:
+			lastOK = rn.Now()
 		case errors.Is(err, api.ErrConflict):
 			rn.Log(Error, fmt.Sprintf("job %s: lease lost (%v); aborting, the canary will be rolled back", short(id), err))
 			onLost()
 			return
 		default:
+			if since := rn.Now().Sub(lastOK); since >= rn.LeaseTTL {
+				rn.Log(Error, fmt.Sprintf("job %s: lease lost (no heartbeat accepted for %s: %v); aborting, the canary will be rolled back",
+					short(id), since.Round(time.Second), err))
+				onLost()
+				return
+			}
 			rn.Log(Warn, fmt.Sprintf("job %s: heartbeat failed: %v", short(id), err))
 		}
 	}
