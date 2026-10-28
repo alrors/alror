@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CornerDownLeft, Blocks, Keyboard, KeyRound, PanelLeft, Rocket, Search, Server, Settings2, TerminalSquare, UserPlus } from "lucide-react";
+import { CornerDownLeft, Blocks, Keyboard, KeyRound, PanelLeft, Play, Rocket, Search, Server, Settings2, TerminalSquare, UserPlus } from "lucide-react";
 import { search } from "@/app/app/actions";
 import { Spinner } from "@/components/console/loader";
 import { Dot } from "@/components/console/primitives";
@@ -35,6 +35,7 @@ const ACTIONS: Action[] = [
   { title: "Toggle sidebar", detail: "Collapse or expand the navigation", keywords: "sidebar collapse expand navigation toggle", icon: <PanelLeft size={15} />, event: SHELL_EVENTS.toggleSidebar, hint: "Ctrl B" },
   { title: "Keyboard shortcuts", detail: "Every shortcut in the console", keywords: "keyboard shortcuts keys help hotkeys", icon: <Keyboard size={15} />, event: SHELL_EVENTS.openShortcuts, hint: "?" },
   { title: "Connect the CLI", detail: "Setup checklist", keywords: "onboarding cli runner login get started setup", icon: <TerminalSquare size={15} />, href: "/app/onboarding" },
+  { title: "Take the console tour", detail: "A one-minute guided tour", keywords: "tour guide walkthrough help onboarding intro product", icon: <Play size={15} />, href: "/app?tour=console" },
   {
     title: "Browse the marketplace",
     detail: "Metrics providers, deploy targets, Slack, CI and SDKs",

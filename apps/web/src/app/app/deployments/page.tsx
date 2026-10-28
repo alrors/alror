@@ -87,6 +87,7 @@ export default async function DeploymentsPage({ searchParams }: PageProps<"/app/
         </BoardTile>
       </div>
 
+      <div data-tour="deployments-table">
       <Card flush>
         {/* Status tabs */}
         <div className="flex gap-1 overflow-x-auto border-b border-con-line px-3 pt-2">
@@ -128,6 +129,7 @@ export default async function DeploymentsPage({ searchParams }: PageProps<"/app/
         </div>
 
         {/* Filters */}
+        <div data-tour="deployments-filters">
         <FilterForm action="/app/deployments" className="flex flex-col gap-2 border-b border-con-line px-5 py-3 md:flex-row md:items-center">
           {f.status !== "all" && <input type="hidden" name="status" value={f.status} />}
           {f.sort !== "newest" && <input type="hidden" name="sort" value={f.sort} />}
@@ -203,6 +205,7 @@ export default async function DeploymentsPage({ searchParams }: PageProps<"/app/
             </Link>
           )}
         </FilterForm>
+        </div>
 
         <ReleaseToolbar params={params} sorts={SORTS} sort={f.sort} total={page.total} />
 
@@ -213,6 +216,7 @@ export default async function DeploymentsPage({ searchParams }: PageProps<"/app/
         )}
         <Pagination meta={page} noun="deployments" base="/app/deployments" params={params} />
       </Card>
+      </div>
     </div>
   );
 }

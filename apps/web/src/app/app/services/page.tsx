@@ -197,7 +197,7 @@ export default async function ServicesPage({ searchParams }: PageProps<"/app/ser
   return (
     <div className="space-y-6">
       <div className="con-fade-up flex flex-col gap-1">
-        <h1 className="text-[28px] font-semibold tracking-[-0.025em]">Services</h1>
+        <h1 data-tour="page-title" className="text-[28px] font-semibold tracking-[-0.025em]">Services</h1>
         <p className="text-[14px] text-con-fg2">
           {activeRows.length} active service{activeRows.length === 1 ? "" : "s"} in {config.project}
           {archived.length ? `, ${archived.length} archived` : ""}. Each card shows its health now and its last 30 days of releases.
@@ -226,6 +226,7 @@ export default async function ServicesPage({ searchParams }: PageProps<"/app/ser
         })}
       </nav>
 
+      <div data-tour="services-list">
       <ServiceViewSwitch
         initial={initialView}
         toolbar={toolbar}
@@ -240,6 +241,7 @@ export default async function ServicesPage({ searchParams }: PageProps<"/app/ser
           ) : undefined
         }
       />
+      </div>
 
       {archived.length > 0 && show === "active" && (
         <Card title="Archived services" description="Hidden from the list above and from GET /config. New deployments are rejected until restored." flush>

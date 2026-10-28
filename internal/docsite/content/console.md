@@ -32,6 +32,12 @@ alror runner        # executes Deploy and Roll back actions from the console
 
 See [Connected mode](/connected) for scopes, CI setup and the runner.
 
+## Getting started and tours
+
+**Getting started** is a five-step checklist (API key, connect, add a service, runner, first release) that ticks itself off as the workspace sees each step happen. The commands are pre-filled with your server URL and service. With no infrastructure, add a service on the simulated target and run the two release commands shown: one is promoted, the other regresses and rolls back.
+
+The Help menu (and the command palette) starts a guided tour of the console or of a page. Link to any page with `?tour=console`, `?tour=releases`, `?tour=services` or `?tour=policies` to start one there.
+
 ## Pages
 
 | Page | Shows |

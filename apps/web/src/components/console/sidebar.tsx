@@ -12,12 +12,12 @@ import {
   Compass,
   GitFork,
   Inbox,
+  ListChecks,
   Menu,
   PanelLeftClose,
   PanelLeftOpen,
   Rocket,
   Server,
-  ListChecks,
   Settings,
   Settings2,
   Siren,
@@ -106,6 +106,9 @@ function useActiveIndicator(deps: unknown[]) {
 
 /* ---------------------------------- Items ---------------------------------- */
 
+/** data-tour anchor for a navigation item, e.g. "Getting started" -> "nav-getting-started". */
+const tourAnchor = (label: string) => `nav-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`;
+
 function NavItem({ item, expanded, active, rolling, onNavigate }: { item: Item; expanded: boolean; active: boolean; rolling?: number; onNavigate?: () => void }) {
   const { href, label, icon: Icon, external } = item;
   const cls = cn(
@@ -152,11 +155,11 @@ function NavItem({ item, expanded, active, rolling, onNavigate }: { item: Item; 
     </>
   );
   return external ? (
-    <a href={href} target="_blank" rel="noreferrer" className={cls} aria-label={label}>
+    <a href={href} target="_blank" rel="noreferrer" className={cls} aria-label={label} data-tour={tourAnchor(label)}>
       {body}
     </a>
   ) : (
-    <Link href={href} onClick={onNavigate} className={cls} aria-label={label} aria-current={active ? "page" : undefined}>
+    <Link href={href} onClick={onNavigate} className={cls} aria-label={label} aria-current={active ? "page" : undefined} data-tour={tourAnchor(label)}>
       {body}
     </Link>
   );
@@ -257,6 +260,7 @@ export function Sidebar({ docsUrl, rolling, initialCollapsed }: { docsUrl: strin
 
   return (
     <aside
+      data-tour="sidebar"
       className={cn(
         "hidden min-h-0 shrink-0 flex-col border-r border-con-line bg-con-bg px-3 py-3 transition-[width] duration-200 ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-reduce:transition-none md:flex",
         expanded ? "w-[220px] overflow-hidden" : "w-[60px] overflow-visible",

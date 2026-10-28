@@ -9,6 +9,7 @@ import { ShellBreadcrumbs } from "@/components/console/shell-breadcrumbs";
 import { ShellProgress } from "@/components/console/shell-progress";
 import { ShellShortcuts } from "@/components/console/shell-shortcuts";
 import { ShellToaster } from "@/components/console/shell-toast";
+import { TourHost } from "@/components/console/tour";
 import { Sidebar } from "@/components/console/sidebar";
 import { Topbar } from "@/components/console/topbar";
 import { requireSession } from "@/lib/console/auth";
@@ -79,6 +80,9 @@ export default async function ConsoleLayout({ children }: LayoutProps<"/app">) {
       </Suspense>
       <ShellShortcuts />
       <ShellToaster />
+      <Suspense fallback={null}>
+        <TourHost />
+      </Suspense>
       <Topbar
         org={session.org}
         orgs={orgs.map((o) => ({ id: o.id, slug: o.slug, name: o.name, role: o.role }))}
