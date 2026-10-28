@@ -135,7 +135,7 @@ export function RetroHero() {
 const STACK: { name: string; src?: string; note?: string }[] = [
   { name: "Kubernetes", src: "/integrations/kubernetes.svg" },
   { name: "Argo Rollouts" },
-  { name: "Amazon ECS", src: "/integrations/ecs.svg", note: "beta" },
+  { name: "Amazon ECS", src: "/integrations/ecs.svg", note: "unsupported" },
   { name: "Prometheus", src: "/integrations/prometheus.svg" },
   { name: "Datadog", src: "/integrations/datadog.svg" },
   { name: "GitHub Actions", src: "/integrations/github-actions.svg" },
@@ -381,7 +381,7 @@ const FAQS = [
   },
   {
     q: "Which platforms are supported?",
-    a: "Kubernetes through Argo Rollouts, and Amazon ECS in beta. Verification reads Prometheus or Datadog, and notifications go to Slack. GitHub Actions integrates directly; other CI systems can run the CLI.",
+    a: "Kubernetes through Argo Rollouts is experimental: Alror requests each traffic step and reports it as requested, not observed. Amazon ECS is not supported yet. Verification reads Prometheus or Datadog (also experimental), and notifications go to Slack. GitHub Actions integrates directly; other CI systems can run the CLI. Run `alror capabilities` for the full matrix.",
   },
   {
     q: "Does my code or data leave my environment?",

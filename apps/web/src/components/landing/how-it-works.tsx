@@ -63,7 +63,7 @@ $ alror deploy -s checkout-api -i registry/checkout:1.43 --regress error_rate=1.
     code: `services:
   - name: checkout-api
     paths: [services/checkout/]
-    target: kubernetes      # Argo Rollouts, or ecs (beta)
+    target: kubernetes      # Argo Rollouts (experimental); ecs is unsupported
     critical: true
 metrics:
   provider: prometheus      # or datadog

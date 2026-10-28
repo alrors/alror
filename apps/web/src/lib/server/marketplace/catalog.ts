@@ -356,15 +356,15 @@ export const CATALOG: CatalogItem[] = [
     version: CLI_VERSION,
     kind: "installable",
     stage: "beta",
-    note: "Driver not implemented yet",
-    summary: "Shift ALB target-group weights between two ECS services. Beta: the driver is a stub.",
-    description: `The ECS driver will shift weights between two target groups behind an ALB listener.
+    note: "Unsupported: no driver yet",
+    summary: "Model ECS services in the console. Unsupported: the CLI has no ECS driver and refuses ECS deploys.",
+    description: `A future ECS driver would shift weights between two target groups behind an ALB listener.
 
-**Beta.** The driver is a stub in the current CLI: setting a weight, promoting or rolling back an \`ecs\` service returns "not implemented yet", so deploys to ECS services fail at the first stage. Install it to model ECS services in the console ahead of the driver.`,
+**Unsupported.** There is no ECS driver in the current CLI. \`alror deploy\`, \`alror rollback\` and \`alror runner\` refuse an \`ecs\` service before recording a deployment or changing traffic (see \`alror capabilities\`). Install it only to model ECS services in the console ahead of a driver.`,
     logo: { type: "icon", icon: "container" },
     fields: [{ key: "default_cluster", label: "Default ECS cluster", type: "text", placeholder: "prod-cluster", help: "Prefilled when you create an ECS service. Optional." }],
     docs: "targets",
-    changes: ["Offers ecs as a target in the console's service form.", "Deploys to ecs services fail until the driver ships."],
+    changes: ["Offers ecs as a target in the console's service form.", "Deploys to ecs services are refused until a driver ships."],
     setup: [{ title: "Model the service", snippet: { label: "alror.yaml", lang: "yaml", code: "services:\n  - name: billing\n    paths: [services/billing/]\n    target: ecs\n    cluster: prod-cluster" } }],
     target: "ecs",
     keywords: "aws alb fargate",
