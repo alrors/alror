@@ -5,6 +5,11 @@ export default function Loading() {
   return (
     <SkeletonPage label="deployment">
       <SkeletonHeader actions={2} meta />
+      <div className="space-y-3 rounded-lg border border-con-line bg-con-panel px-5 py-4">
+        <Bone className="h-3 w-28" />
+        <Bone className="h-4 w-[min(560px,90%)]" />
+        <SkeletonLines rows={3} />
+      </div>
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px] xl:grid-cols-[minmax(0,1fr)_380px]">
         <div className="min-w-0 space-y-6">
           <SkeletonCard>

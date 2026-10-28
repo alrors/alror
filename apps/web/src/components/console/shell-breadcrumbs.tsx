@@ -6,6 +6,8 @@ import { ChevronRight } from "lucide-react";
 
 const SECTIONS: Record<string, string> = {
   services: "Services",
+  live: "Live",
+  github: "GitHub",
   deployments: "Deployments",
   jobs: "Jobs",
   insights: "Insights",
@@ -29,7 +31,7 @@ type Crumb = { label: string; href?: string; mono?: boolean };
 function crumbsFor(pathname: string, depService: Record<string, string>): Crumb[] {
   const parts = pathname.replace(/^\/app\/?/, "").split("/").filter(Boolean).map(decodeURIComponent);
   const out: Crumb[] = [{ label: "Console", href: "/app" }];
-  if (parts.length === 0) return [{ label: "Console", href: "/app" }, { label: "Overview" }];
+  if (parts.length === 0) return [{ label: "Console", href: "/app" }, { label: "Oversight" }];
   const [section, id, sub] = parts;
   const label = SECTIONS[section] ?? section;
   if (section === "services") {
@@ -42,6 +44,12 @@ function crumbsFor(pathname: string, depService: Record<string, string>): Crumb[
     const svc = depService[id];
     if (svc) out.push({ label: svc, href: `/app/services/${encodeURIComponent(svc)}`, mono: true });
     out.push({ label: id, mono: true });
+    return out;
+  }
+  if (section === "github") {
+    const pull = parts[0] === "github" && id === "repositories" && parts[3] === "pulls" ? parts[4] : undefined;
+    out.push(pull ? { label: "GitHub", href: "/app/github" } : { label: "GitHub" });
+    if (pull) out.push({ label: `Pull request #${pull}` });
     return out;
   }
   if (section === "marketplace") {

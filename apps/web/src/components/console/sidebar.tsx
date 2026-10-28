@@ -4,13 +4,14 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  Activity,
   ArrowUpRight,
   Blocks,
   BookOpen,
   ChartColumn,
   Compass,
   GitFork,
-  LayoutDashboard,
+  Inbox,
   Menu,
   PanelLeftClose,
   PanelLeftOpen,
@@ -33,7 +34,8 @@ const groups: { label: string; items: Item[] }[] = [
   {
     label: "Project",
     items: [
-      { href: "/app", label: "Overview", icon: LayoutDashboard, match: (p) => p === "/app" },
+      { href: "/app", label: "Oversight", icon: Inbox, match: (p) => p === "/app" },
+      { href: "/app/live", label: "Live", icon: Activity, match: (p) => p.startsWith("/app/live") },
       { href: "/app/services", label: "Services", icon: Server, match: (p) => p === "/app/services" || p.startsWith("/app/services/") },
     ],
   },
