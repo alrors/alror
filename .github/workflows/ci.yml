@@ -50,8 +50,8 @@ jobs:
       - run: npm run lint
       - name: Shared risk rules match internal/risk (run node scripts/sync-rules.mjs to fix)
         run: node ../../scripts/sync-rules.mjs --check
-      - name: GitHub App, shared risk fixtures, onboarding and rollout regression tests
-        run: node --conditions=react-server --import tsx --test tests/github.test.ts tests/decision.test.ts tests/rollout-tree.test.ts tests/onboarding.test.ts
+      - name: GitHub App, shared risk fixtures, onboarding, rollout and incident ranking tests
+        run: node --conditions=react-server --import tsx --test tests/github.test.ts tests/decision.test.ts tests/rollout-tree.test.ts tests/onboarding.test.ts tests/incidents.test.ts
       - run: npm run build
 
   web-image:
