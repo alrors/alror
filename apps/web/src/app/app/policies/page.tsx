@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { FileCode2 } from "lucide-react";
+import { InfoTip } from "@/components/console/overview/float";
 import { PolicyEditor } from "@/components/console/policy-editor";
 import { TrustRampCard } from "@/components/console/trust-ramp";
 import { Card, Pill, tableCell, tableHead } from "@/components/console/primitives";
@@ -54,11 +55,13 @@ export default async function PoliciesPage() {
 
       <div className="flex items-start gap-3 rounded-lg border border-con-line bg-con-panel px-4 py-3 text-[13px] text-con-fg2">
         <FileCode2 size={16} className="mt-0.5 shrink-0 text-con-fg3" />
-        <span>
-          {admin ? "Changes are saved to the organization policy and audit-logged. " : "Only owners and admins can change the policy. "}
-          The CLI and every runner read it from <code className="font-mono text-con-fg">GET /api/v1/config</code> on their next run;{" "}
-          <code className="font-mono text-con-fg">alror config pull</code> writes it to alror.yaml and{" "}
-          <code className="font-mono text-con-fg">alror config push</code> replaces it. {updatedLabel}
+        <span className="min-w-0">
+          {admin ? "Used by the CLI and every runner on their next run." : "Only owners and admins can change the policy."}{" "}
+          <InfoTip label="where the policy is used" align="start">
+            Saved to the organization policy and audit-logged. The CLI and runners read it from GET /api/v1/config on their next run; alror config pull writes it to
+            alror.yaml and alror config push replaces it.
+          </InfoTip>{" "}
+          <span className="text-con-fg3">{updatedLabel}</span>
         </span>
       </div>
 
