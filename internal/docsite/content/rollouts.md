@@ -56,4 +56,4 @@ When a step fails with `auto_rollback` on, the engine asks the driver to roll ba
 | `rollback_requested` | The driver accepted the rollback; restored traffic was not observed |
 | `rollback_failed` | The driver returned an error. Traffic may still be on the canary: the state is unknown. Status is `failed`, and `alror deploy` / `alror rollback` exit `4` |
 
-An interrupted rollout (Ctrl-C, a lost runner lease) still runs the rollback, with its own two-minute timeout.
+An interrupted rollout (Ctrl-C, `SIGTERM`, a lost runner lease) still runs the rollback, with its own two-minute timeout, and is recorded as failed with a plain reason such as "Stopped (interrupt or SIGTERM); canary rolled back".

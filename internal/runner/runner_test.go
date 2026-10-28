@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -326,7 +328,7 @@ func TestHardStopAbortsJobAndReportsFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := f.Job(j.ID)
-	if got.Status != api.JobFailed || !strings.Contains(got.Error, "interrupted") {
+	if got.Status != api.JobFailed || !strings.Contains(got.Error, "Stopped (interrupt or SIGTERM)") {
 		t.Fatalf("job = %+v", got)
 	}
 	if d := f.Deployment(got.DeploymentID); d.Status != domain.StatusFailed {
@@ -431,6 +433,59 @@ func TestHeartbeatKeepsTheLease(t *testing.T) {
 	}
 	if beats < 2 {
 		t.Fatalf("heartbeats = %d", beats)
+	}
+}
+
+func TestStaleHeartbeatAbortsWithoutFinishing(t *testing.T) {
+	f, _, rn, lb := setup(t)
+	// Every heartbeat fails with 503 (workspace unreachable); everything else works.
+	flaky := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/heartbeat") {
+			http.Error(w, `{"error":{"code":"unavailable","message":"down"}}`, http.StatusServiceUnavailable)
+			return
+		}
+		f.ServeHTTP(w, r)
+	}))
+	t.Cleanup(flaky.Close)
+	rn.Client = api.New(flaky.URL, apitest.DefaultKey, api.WithRetries(1, time.Millisecond))
+	rn.HeartbeatInterval = 10 * time.Millisecond
+	var offset atomic.Int64
+	rn.Now = func() time.Time { return time.Now().Add(time.Duration(offset.Load())) }
+	rn.Wait = func(ctx context.Context, _ time.Duration, _ func(float64)) error {
+		offset.Add(int64(3 * time.Minute)) // the partition outlasts the 2 min lease
+		<-ctx.Done()
+		return ctx.Err()
+	}
+	j := f.Enqueue(api.JobDeploy, map[string]any{"service": "checkout-api", "image": "app:2"})
+	done := make(chan error)
+	go func() { done <- rn.Run(context.Background(), true) }()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatalf("runner did not abort the job:\n%s", lb)
+	}
+	for _, r := range f.Requests() {
+		if strings.HasSuffix(r.Path, "/finish") {
+			t.Fatal("a runner whose lease expired must not call finish")
+		}
+	}
+	if got := f.Job(j.ID); got.FinishedAt != nil {
+		t.Fatalf("job = %+v", got)
+	}
+	var dep *domain.Deployment
+	for _, r := range f.Requests() {
+		if r.Method == "PUT" {
+			dep = f.Deployment(strings.TrimPrefix(r.Path, "/api/v1/deployments/"))
+		}
+	}
+	if dep == nil || dep.Status != domain.StatusFailed || !strings.HasPrefix(dep.Reason, "Stopped (runner lease lost)") {
+		t.Fatalf("deployment = %+v", dep)
+	}
+	if !strings.Contains(lb.String(), "no heartbeat accepted") {
+		t.Fatalf("log:\n%s", lb)
 	}
 }
 

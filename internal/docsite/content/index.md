@@ -21,6 +21,6 @@ merge ──▶ risk score ──▶ rollout plan ──▶ canary 5% ─▶ bak
 
 - **Rules decide, AI explains.** Every risk point and every rollback comes from an auditable rule or a statistical test.
 - **Keep your CI.** Alror runs as one step after your build.
-- **Fail safe.** Too little data never passes a step, and Ctrl-C rolls the canary back.
+- **Fail safe.** Too little data never passes a step, and Ctrl-C or `SIGTERM` rolls the canary back.
 
 Start with the [Quickstart](/quickstart).

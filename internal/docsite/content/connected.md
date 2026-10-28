@@ -47,6 +47,7 @@ When a server and a key resolve, every command runs connected: `risk`, `deploy`,
 
 - `alror.yaml` is optional when connected. If present, its `services[].paths` are used for git path mapping; the workspace wins on everything else.
 - The deploy header shows where state lives: `state: acme workspace (http://localhost:3000) · env production` or `state: .alror/`.
+- `alror deploy`, `alror rollback` and `alror status <id>` end with the release's console page (`<server>/app/deployments/<id>`), and their `--json` output includes it as `console_url`. Slack messages link to the same page.
 - `alror deploy --env staging` records the target environment (default `production`), and each deployment records its source: `cli`, `ci` (when `CI` or `GITHUB_ACTIONS` is set), `console` or `runner`. Local `.alror/` files do not store either.
 - The workspace owns `updated_at`; the CLI takes the timestamps the server returns.
 - `alror doctor` prints `connected to acme at http://localhost:3000`, checks that the key is valid and lists its scopes.
@@ -72,7 +73,7 @@ alror runner --once                   # one long-poll; run a job if one arrives,
 - **Rollback jobs** load the deployment and roll it back through its driver.
 - A release that the engine **rolls back** is still a job with status `done`: the rollback is an outcome, not a failure. Jobs are `failed` only when they could not run (bad payload, driver error, unknown service).
 - **Leases:** while a job runs, the runner sends a heartbeat every 30 s. A claimed job with no heartbeat for 2 minutes is requeued for another runner. If a heartbeat returns 409 (the lease was lost to another runner), the runner aborts the job, the engine rolls the canary back, and the runner does not report an outcome.
-- **Stopping:** Ctrl-C or `SIGTERM` stops claiming and lets the current job finish. A second Ctrl-C aborts it, and the engine rolls the canary back.
+- **Stopping:** Ctrl-C stops claiming and lets the current job finish. A second Ctrl-C aborts it, and the engine rolls the canary back. `SIGTERM` (systemd stop, pod eviction) aborts at once and rolls back.
 - **Workspace down:** the runner retries with exponential backoff (1 s up to 30 s) and logs when the workspace is reachable again. A rejected key or a missing `jobs:run` scope stops it.
 - Logs are one line per event, with no animations. Add `--json` for JSON lines.
 
