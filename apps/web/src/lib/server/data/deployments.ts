@@ -263,6 +263,22 @@ function parseTime(v: string | undefined, fallback: Date): Date {
   return t;
 }
 
+/**
+ * How long a pending/rolling deployment blocks a new release of the same
+ * service and environment without being written to. A live run saves on every
+ * step and verdict, so a longer silence means its client died; the window
+ * stretches to the deployment's longest bake so a slow step is not mistaken
+ * for a crash.
+ */
+export const ACTIVE_RELEASE_WINDOW_MS = 30 * 60_000;
+const BAKE_SLACK_MS = 5 * 60_000;
+
+function activeWindowMs(plan: unknown): number {
+  const steps = (plan as { steps?: { bake?: unknown }[] | null } | null)?.steps ?? [];
+  const longestBakeMs = Math.max(0, ...steps.map((s) => (typeof s?.bake === "number" ? s.bake / 1e6 : 0)));
+  return Math.max(ACTIVE_RELEASE_WINDOW_MS, longestBakeMs + BAKE_SLACK_MS);
+}
+
 /** Default source when neither the body nor the X-Alror-Source header names one. */
 function defaultSource(ctx: OrgCtx): DeploymentSource {
   return ctx.actor.type === "user" ? "console" : "cli";
@@ -312,6 +328,37 @@ export async function upsertDeployment(ctx: OrgCtx, input: DeploymentInput, opts
     } else {
       const [env] = await tx.select({ name: environments.name }).from(environments).where(eq(environments.id, environmentId)).limit(1);
       environmentName = env?.name ?? null;
+    }
+
+    // One release per service and environment at a time: a second one would fight
+    // the first over the traffic split. Only new, still-running records are
+    // checked (an update of an existing id, e.g. a retried POST, is the same
+    // release). The advisory lock serialises concurrent inserts for the pair.
+    if (!mine && !isTerminal(input.status) && !opts.trustTimestamps) {
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`deploy:${ctx.orgId}:${svc.id}:${environmentId}`}, 0))`);
+      const active = await tx
+        .select({ id: deployments.id, status: deployments.status, plan: deployments.plan, updatedAt: deployments.updatedAt })
+        .from(deployments)
+        .where(
+          and(
+            eq(deployments.orgId, ctx.orgId),
+            eq(deployments.serviceId, svc.id),
+            eq(deployments.environmentId, environmentId),
+            inArray(deployments.status, ["pending", "rolling"]),
+          ),
+        )
+        .orderBy(desc(deployments.updatedAt))
+        .limit(20);
+      const running = active.find((a) => now.getTime() - a.updatedAt.getTime() < activeWindowMs(a.plan));
+      if (running) {
+        throw new ApiError(
+          409,
+          "conflict",
+          `${svc.name} already has a release in progress in ${environmentName ?? "this environment"}: ${running.id} (${running.status}). No traffic was changed.`,
+          { deployment_id: running.id, status: running.status },
+          `Wait for ${running.id} to finish, or roll it back (alror rollback ${running.id}).`,
+        );
+      }
     }
 
     const explicitSource = input.source ?? opts.sourceHint;
