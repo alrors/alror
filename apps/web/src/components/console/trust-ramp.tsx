@@ -152,7 +152,7 @@ function Settings({ settings, admin }: { settings: TrustRampSettings; admin: boo
             {field("window_hours", "Confirmation window", "hours")}
           </div>
           <p className="text-[12px] leading-relaxed text-con-fg3">
-            A recommendation is confirmed when the release is rolled back, or replaced after an alert, within the window, or when a person marks it correct. A false alarm resets the ramp.
+            A recommendation is confirmed when the release is rolled back, or replaced after an incident, within the window, or when a person marks it correct. A false alarm resets the ramp.
           </p>
           {admin && (
             <div className="flex items-center gap-3">
