@@ -96,7 +96,7 @@ Runs deploys and rollbacks queued from the Alror console, inside your own infras
 | `--watch-interval D` | Poll interval per Rollout (default `watch.interval`, else `15s`) |
 | `--watch-state PATH` | File that remembers handled image changes across restarts (default `watch.state`, else `.alror/watch.json`) |
 
-Ctrl-C stops claiming and lets the current job finish; a second Ctrl-C aborts it, and the canary is rolled back. A rolled-back release is job status `done`.
+Ctrl-C stops claiming and lets the current job finish; a second Ctrl-C, or `SIGTERM`, aborts it, and the canary is rolled back. A runner that cannot renew its claim for two minutes stops the job the same way, since the workspace has requeued it. A rolled-back release is job status `done`.
 
 With `--local --watch` the runner only watches: no workspace is needed, and releases are recorded in `.alror/`. With `--once` it polls each Rollout once and waits for any release it started. Services that cannot be watched (for example on the `simulated` or `ecs` target) are listed in the log; if none can be watched, a watch-only runner exits `1`. See [Release detection](/connected#release-detection-experimental).
 

@@ -33,8 +33,8 @@ func runnerCmd() *cobra.Command {
 		Use:   "runner",
 		Short: "Run deploys and rollbacks queued from the Alror console, in your own infrastructure",
 		Long: "Claims jobs with POST /jobs/claim (long-poll), runs them with the rollout\n" +
-			"engine against the Alror workspace, and reports each outcome. Ctrl-C (SIGINT or\n" +
-			"SIGTERM) stops claiming and lets the current job finish; a second Ctrl-C aborts\n" +
+			"engine against the Alror workspace, and reports each outcome. Ctrl-C stops\n" +
+			"claiming and lets the current job finish; a second Ctrl-C, or SIGTERM, aborts\n" +
 			"it, which rolls the canary back. Needs an API key with the jobs:run scope.\n\n" +
 			"--watch (experimental) also watches the Argo Rollouts of services with\n" +
 			"detect: true (or --watch-service) and starts one verified release when\n" +
@@ -223,13 +223,23 @@ func runLocalWatch(local *config.Config, wf watchFlags, once bool) error {
 	return nil
 }
 
-// trapSignals stops on the first SIGINT/SIGTERM and aborts on the second.
+// trapSignals handles shutdown. The first SIGINT (Ctrl-C) drains: it stops
+// claiming and lets the current job finish; a second one aborts it. SIGTERM
+// (systemd stop, pod eviction, CI cancel) aborts at once, because the
+// process is usually killed soon after and an unfinished canary must be
+// rolled back while there is still time.
 func trapSignals(log *runnerLog, stop, abort context.CancelFunc, stopMsg string) func() {
 	sigs := make(chan os.Signal, 2)
 	signal.Notify(sigs, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		n := 0
-		for range sigs {
+		for s := range sigs {
+			if s == syscall.SIGTERM {
+				log.line(runner.Error, "SIGTERM: stopping now; the current job is aborted and the engine rolls the canary back")
+				stop()
+				abort()
+				continue
+			}
 			n++
 			if n == 1 {
 				log.line(runner.Warn, stopMsg)

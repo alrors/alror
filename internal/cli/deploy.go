@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/mattn/go-isatty"
@@ -138,10 +139,7 @@ func runDeploy(o deployOpts) error {
 			fmt.Println(ui.Fainter.Render("Simulated target with synthetic metrics: bakes shortened to seconds (--full-bakes keeps real timings)."))
 		}
 	}
-	var notifier notify.Notifier = notify.Nop{}
-	if cfg.Notify.SlackWebhook != "" {
-		notifier = notify.Slack{Webhook: cfg.Notify.SlackWebhook}
-	}
+	notifier := notify.For(cfg.Notify.SlackWebhook, ws.server())
 
 	d := &domain.Deployment{
 		ID: store.NewID(), Service: svc.Name, Image: o.image, Ref: o.ref,
@@ -171,8 +169,9 @@ func runDeploy(o deployOpts) error {
 		obs.header(drv.Name(), prov.Name(), cfg.Policy.AutoRollback)
 	}
 
-	// 3. Run. Ctrl-C rolls the canary back instead of leaving it half-shifted.
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	// 3. Run. Ctrl-C or SIGTERM (CI cancel, pod eviction) rolls the canary
+	// back instead of leaving it half-shifted.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	start := time.Now()
 	runErr := eng.Run(ctx, d)
@@ -371,6 +370,14 @@ func (o *liveObserver) Event(e domain.Event) {
 	case domain.EventError:
 		fmt.Printf("%s  %s\n", ts, ui.Fail(e.Message))
 	}
+}
+
+// Warn implements rollout.Warner. It goes to stderr so --json output stays parseable.
+func (o *liveObserver) Warn(msg string) {
+	if !o.quiet {
+		o.endProgress()
+	}
+	fmt.Fprintln(os.Stderr, ui.WarnLine(msg))
 }
 
 func (o *liveObserver) Progress(step int, f float64) {

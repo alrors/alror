@@ -11,6 +11,7 @@ import (
 	"github.com/alrors/alror/internal/api"
 	"github.com/alrors/alror/internal/config"
 	"github.com/alrors/alror/internal/credentials"
+	"github.com/alrors/alror/internal/notify"
 	"github.com/alrors/alror/internal/store"
 )
 
@@ -41,6 +42,19 @@ func (w *workspace) stateLabel() string {
 		return who.Org.Slug + " workspace (" + w.conn.res.Server + ")"
 	}
 	return "workspace (" + w.conn.res.Server + ")"
+}
+
+// server is the connected workspace URL, or "" in local mode.
+func (w *workspace) server() string {
+	if w == nil || w.conn == nil {
+		return ""
+	}
+	return w.conn.res.Server
+}
+
+// consoleURL is the console page of a deployment, or "" in local mode.
+func (w *workspace) consoleURL(deploymentID string) string {
+	return notify.ConsoleURL(w.server(), deploymentID)
 }
 
 // configSource names where services and policy came from, for error messages.

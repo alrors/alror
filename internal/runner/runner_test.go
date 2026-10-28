@@ -250,7 +250,7 @@ func TestHardStopAbortsJobAndReportsFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := f.Job(j.ID)
-	if got.Status != api.JobFailed || !strings.Contains(got.Error, "interrupted") {
+	if got.Status != api.JobFailed || !strings.Contains(got.Error, "Stopped (interrupt or SIGTERM)") {
 		t.Fatalf("job = %+v", got)
 	}
 	if d := f.Deployment(got.DeploymentID); d.Status != domain.StatusFailed {

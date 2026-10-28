@@ -428,10 +428,11 @@ func (w *Watcher) release(det detection) error {
 	if err := rollout.Preflight(cfg, svc, prov.Name()); err != nil {
 		return err
 	}
-	var notifier notify.Notifier = notify.Nop{}
-	if cfg.Notify.SlackWebhook != "" {
-		notifier = notify.Slack{Webhook: cfg.Notify.SlackWebhook}
+	server := ""
+	if w.Client != nil {
+		server = w.Client.Server()
 	}
+	notifier := notify.For(cfg.Notify.SlackWebhook, server)
 	d := &domain.Deployment{
 		ID: det.id, Service: svc.Name, Image: det.image, Ref: det.commit,
 		Risk: report, Plan: plan, Status: domain.StatusPending, CreatedAt: time.Now().UTC(),

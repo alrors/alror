@@ -12,6 +12,7 @@ import (
 	"github.com/alrors/alror/internal/domain"
 	"github.com/alrors/alror/internal/driver"
 	"github.com/alrors/alror/internal/metrics"
+	"github.com/alrors/alror/internal/notify"
 	"github.com/alrors/alror/internal/store"
 	"github.com/alrors/alror/internal/verify"
 )
@@ -60,6 +61,8 @@ type setup struct {
 	allowSyn bool
 	auto     bool
 	ctx      context.Context
+	notifier notify.Notifier
+	obs      Observer
 }
 
 func runWith(t *testing.T, s setup) (*domain.Deployment, []domain.Event, error) {
@@ -76,14 +79,25 @@ func runWith(t *testing.T, s setup) (*domain.Deployment, []domain.Event, error) 
 	if s.prov == nil {
 		s.prov = metrics.NewSynthetic(nil)
 	}
-	if s.ctx == nil {
-		s.ctx = context.Background()
-	}
 	report := domain.RiskReport{Score: 20, Level: s.level}
 	d := &domain.Deployment{ID: store.NewID(), Service: "checkout-api", Image: "img:2", Risk: report, Plan: PlanFor(report), CreatedAt: time.Now()}
-	eng := &Engine{Cfg: cfg, Store: st, Driver: s.drv, Metrics: s.prov, Wait: noWait,
+	wait := noWait
+	if s.ctx != nil {
+		wait = func(ctx context.Context, _ time.Duration, tick func(float64)) error {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			tick(1)
+			return nil
+		}
+	}
+	eng := &Engine{Cfg: cfg, Store: st, Driver: s.drv, Metrics: s.prov, Wait: wait, Notifier: s.notifier, Observer: s.obs,
 		Verifier: verify.Verifier{MaxRegression: cfg.Policy.MaxRegression, Alpha: cfg.Policy.Alpha}}
-	runErr := eng.Run(s.ctx, d)
+	ctx := s.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	runErr := eng.Run(ctx, d)
 	events, _ := st.Events(d.ID)
 	return d, events, runErr
 }
@@ -242,8 +256,12 @@ func TestInterruptedRolloutStillRollsBack(t *testing.T) {
 	report := domain.RiskReport{Level: domain.LevelLow}
 	d := &domain.Deployment{ID: store.NewID(), Service: "checkout-api", Image: "img:2", Risk: report, Plan: PlanFor(report)}
 	eng := &Engine{Cfg: cfg, Store: st, Driver: f, Metrics: metrics.NewSynthetic(nil), Wait: cfgWait}
-	if err := eng.Run(ctx, d); err == nil {
-		t.Fatal("interrupted run should return an error")
+	err := eng.Run(ctx, d)
+	if !errors.Is(err, ErrInterrupted) || !errors.Is(err, context.Canceled) {
+		t.Fatalf("interrupted run should return ErrInterrupted wrapping the cancellation, got %v", err)
+	}
+	if want := "Stopped (interrupt or SIGTERM); canary rolled back (simulated)"; d.Reason != want {
+		t.Fatalf("reason = %q, want %q", d.Reason, want)
 	}
 	if f.rollbackCtxWasCancelled || d.Recovery != domain.RecoverySimulated {
 		t.Fatalf("rollback must run with a live context: cancelled=%v recovery=%s", f.rollbackCtxWasCancelled, d.Recovery)

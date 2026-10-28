@@ -337,10 +337,7 @@ func (rn *Runner) deploy(ctx context.Context, job *api.Job) (string, error) {
 	if rollout.CompressSimulatedBakes(svc.Target, prov.Name(), cfg.Policy.BakeScale, false, p.FullBakes) {
 		cfg.Policy.BakeScale = rollout.FastBakeScale
 	}
-	var notifier notify.Notifier = notify.Nop{}
-	if cfg.Notify.SlackWebhook != "" {
-		notifier = notify.Slack{Webhook: cfg.Notify.SlackWebhook}
-	}
+	notifier := notify.For(cfg.Notify.SlackWebhook, rn.Client.Server())
 	d := &domain.Deployment{
 		ID: store.NewID(), Service: svc.Name, Image: p.Image, Ref: p.Ref,
 		Environment: p.Environment, Source: "runner",
@@ -429,6 +426,9 @@ type observer struct {
 }
 
 func (o *observer) Progress(int, float64) {}
+
+// Warn implements rollout.Warner.
+func (o *observer) Warn(msg string) { o.log(Warn, fmt.Sprintf("%s · %s", o.d.ID, msg)) }
 
 func (o *observer) Event(e domain.Event) {
 	id := o.d.ID
