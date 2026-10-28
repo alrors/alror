@@ -56,9 +56,10 @@ test("driver failures do not claim successful traffic restoration", () => {
  const tree = buildRolloutTree(d, events, now);
  const notes = tree.stages.flatMap(s => s.children).filter(c => c.kind === "note").map(c => c.text).join(" ");
  assert.equal(tree.outcome, "failed");
- assert.match(notes, /restoration is unconfirmed/);
+ assert.match(notes, /Rollout stopped\.$/);
+ assert.doesNotMatch(notes, /returned to stable|stable version/);
  assert.doesNotMatch(notes, /traffic returned to stable/);
- assert.match(headline(d, events, tree, {}, now), /restoration is unconfirmed/);
+ assert.doesNotMatch(headline(d, events, tree, {}, now), /stable version|returned/);
 });
 test("missing events preserve terminal status without inventing history or manual rollback", () => {
  for (const status of ["promoted", "failed", "rolled_back"] as const) {
@@ -91,10 +92,9 @@ test("rollback headlines claim only what the recorded recovery proves", () => {
  assert.match(story({ recovery: "rollback_simulated" }), /Traffic went back to the stable version \(simulated\)\.$/);
  assert.match(story({ recovery: "rollback_requested" }), /Rollback requested; traffic split not confirmed\.$/);
  assert.match(story({ recovery: "rollback_failed" }), /Rollback failed; production state unknown\. Check the target now\.$/);
- assert.match(story({}), /Traffic went back to the stable version\.$/, "rows from before recovery was stored keep their wording");
- const newer = story({ created_at: "2026-11-02T12:00:00Z", updated_at: "2026-11-02T12:01:00Z" });
- assert.match(newer, /^Rolled back at 5%/);
- assert.doesNotMatch(newer, /stable version|Traffic/, "no recovery reported: no traffic claim");
+ const unreported = story({});
+ assert.match(unreported, /^Rolled back at 5%/);
+ assert.doesNotMatch(unreported, /stable version|Traffic/, "no recovery reported: no traffic claim, whatever the row's age");
 });
 test("rollback tree notes and the failed-rollback badge follow recovery", () => {
  const events: DeployEvent[] = [step(5), verdict(5, false), { at, kind: "rolled_back", weight: 5, message: "regression" }];

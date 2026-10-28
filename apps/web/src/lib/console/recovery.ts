@@ -5,19 +5,14 @@
 import type { Deployment, Recovery } from "./types";
 
 /**
- * Deployments created before the workspace stored `recovery` came from clients
- * whose result was dropped, so they keep the older wording. Anything newer
- * without a recovery reported no rollback result, and the console claims none.
+ * A reported Recovery, or "unreported" when no rollback result was recorded
+ * (older clients, or no rollback attempted). Without evidence the console
+ * claims nothing about traffic.
  */
-export const RECOVERY_REPORTED_SINCE = Date.parse("2026-10-29T00:00:00Z");
+export type RecoveryState = Recovery | "unreported";
 
-/** A reported Recovery, "legacy" (an older row, result unknown) or "unreported" (no rollback result). */
-export type RecoveryState = Recovery | "legacy" | "unreported";
-
-export function recoveryState(d: Pick<Deployment, "recovery" | "created_at">): RecoveryState {
-  if (d.recovery) return d.recovery;
-  const created = Date.parse(d.created_at);
-  return Number.isFinite(created) && created < RECOVERY_REPORTED_SINCE ? "legacy" : "unreported";
+export function recoveryState(d: Pick<Deployment, "recovery">): RecoveryState {
+  return d.recovery ?? "unreported";
 }
 
 /** The sentence about traffic after a rollback; empty when nothing can be claimed. */
@@ -25,11 +20,10 @@ export const RECOVERY_SENTENCE: Record<RecoveryState, string> = {
   rollback_simulated: "Traffic went back to the stable version (simulated).",
   rollback_requested: "Rollback requested; traffic split not confirmed.",
   rollback_failed: "Rollback failed; production state unknown. Check the target now.",
-  legacy: "Traffic went back to the stable version.",
   unreported: "",
 };
 
-export function recoverySentence(d: Pick<Deployment, "recovery" | "created_at">): string {
+export function recoverySentence(d: Pick<Deployment, "recovery">): string {
   return RECOVERY_SENTENCE[recoveryState(d)];
 }
 

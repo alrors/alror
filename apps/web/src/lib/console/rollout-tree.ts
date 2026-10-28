@@ -39,7 +39,6 @@ const ROLLED_BACK_NOTE: Record<RecoveryState, string> = {
   rollback_simulated: "rolled back · traffic returned to stable (simulated)",
   rollback_requested: "rolled back · rollback requested, traffic split not confirmed",
   rollback_failed: "rollback failed · production state unknown",
-  legacy: "rolled back · traffic returned to stable",
   unreported: "rolled back",
 };
 
@@ -48,7 +47,6 @@ const STOPPED_NOTE: Record<RecoveryState, string> = {
   rollback_simulated: "Rollout stopped. Traffic went back to the stable version (simulated).",
   rollback_requested: "Rollout stopped. Rollback requested; traffic split not confirmed.",
   rollback_failed: "Rollout stopped. Rollback failed; production state unknown. Check the target now.",
-  legacy: "Rollout stopped. Rollback was attempted; traffic restoration is unconfirmed.",
   unreported: "Rollout stopped.",
 };
 

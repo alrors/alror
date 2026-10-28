@@ -96,12 +96,11 @@ function StageCard({ s, compact }: { s: StageNode; compact?: boolean }) {
   );
 }
 
-/** Outcome copy after a rollback: only a simulated target (or an older record) claims traffic is back. */
+/** Outcome copy after a rollback: only a simulated target claims traffic is back. */
 const RETURNED_COPY: Record<RecoveryState, { title: string; body: string }> = {
   rollback_simulated: { title: "Returned to stable (simulated)", body: "The simulated target moved all traffic back to the stable version." },
   rollback_requested: { title: "Rollback requested", body: "The target accepted the rollback; the traffic split was not confirmed." },
   rollback_failed: { title: "Rollback failed", body: "Production state unknown. Check the target now." },
-  legacy: { title: "Returned to stable", body: "Rollback completed. This release is no longer receiving traffic." },
   unreported: { title: "Rolled back", body: "No rollback result was reported; confirm the traffic split on the target." },
 };
 

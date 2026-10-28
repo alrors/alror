@@ -142,9 +142,7 @@ export function headline(d: Deployment, events: DeployEvent[], tree: RolloutTree
     }
     case "failed": {
       const err = [...events].reverse().find((e) => e.kind === "error");
-      // Older rows never recorded the rollback result; newer ones without one attempted no rollback.
-      const outcome = recovery === "legacy" ? " Rollback was attempted; traffic restoration is unconfirmed." : after;
-      return `Failed${err?.weight ? ` at ${err.weight}%` : ""}: ${err?.message ?? d.reason ?? "the rollout stopped with an error"}.${outcome}`;
+      return `Failed${err?.weight ? ` at ${err.weight}%` : ""}: ${err?.message ?? d.reason ?? "the rollout stopped with an error"}.${after}`;
     }
     default:
       return "Waiting to start: the rollout has not shifted any traffic yet.";
