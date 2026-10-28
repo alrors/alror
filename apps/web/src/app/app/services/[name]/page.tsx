@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { Activity, Archive, ArchiveRestore, Gauge, RotateCcw, Server, ShieldCheck, Tag } from "lucide-react";
 import { ServicePaths, ServiceRiskTrend, ServiceTimeline, ServiceTopology } from "@/components/console/service-board";
 import { COLORS, LegendItem, StackedBars } from "@/components/console/charts";
-import { ConfirmAction } from "@/components/console/confirm-action";
+import { UndoableAction } from "@/components/console/undoable-action";
 import { CopyButton } from "@/components/console/copy-button";
 import { DeployButton } from "@/components/console/deploy-dialog";
 import { JobsTable } from "@/components/console/jobs-table";
@@ -107,13 +107,12 @@ export default async function ServicePage({ params, searchParams }: PageProps<"/
             />
           )}
           {admin && svc && (
-            <ConfirmAction
+            <UndoableAction
               action={setArchived}
               fields={{ name, archived: archived ? "false" : "true" }}
+              undoFields={{ name, archived: archived ? "true" : "false" }}
               label={archived ? "Restore" : "Archive"}
-              confirmLabel={archived ? "Restore" : "Archive"}
-              prompt={archived ? undefined : "Archived services cannot be deployed."}
-              tone={archived ? "secondary" : "danger"}
+              done={archived ? `${name} restored` : `${name} archived`}
               icon={archived ? <ArchiveRestore size={14} /> : <Archive size={14} />}
             />
           )}
