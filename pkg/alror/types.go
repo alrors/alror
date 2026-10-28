@@ -48,11 +48,17 @@ const (
 	StatusPending = domain.StatusPending
 	// StatusRolling means a canary is taking a share of traffic.
 	StatusRolling = domain.StatusRolling
-	// StatusPromoted means every step verified and the release has all traffic.
+	// StatusPromoted means promotion to 100% was applied (simulated) or requested
+	// (real targets). Check Deployment.Telemetry and the verdicts' Evidence for
+	// how much it proves; shadow mode can promote despite failed verdicts.
 	StatusPromoted = domain.StatusPromoted
-	// StatusRolledBack means a step failed verification (or an operator asked) and traffic returned to stable.
+	// StatusRolledBack means a step failed (a regression, or insufficient or
+	// invalid data) or an operator asked, and the driver's rollback succeeded.
+	// Deployment.Recovery says whether restoration was simulated or only requested.
 	StatusRolledBack = domain.StatusRolledBack
-	// StatusFailed means a driver or provider error stopped the rollout; a rollback was attempted.
+	// StatusFailed means an error stopped the rollout and a rollback was
+	// attempted. Deployment.Recovery is RecoveryFailed when that rollback also
+	// failed and the traffic state is unknown.
 	StatusFailed = domain.StatusFailed
 )
 
@@ -80,6 +86,24 @@ const (
 	EventRolledBack = domain.EventRolledBack
 	// EventError records a driver or provider error.
 	EventError = domain.EventError
+)
+
+// Outcome classifies a Verdict or MetricResult.
+type Outcome = domain.Outcome
+
+// Verdict and metric outcomes. Only OutcomePass lets a step pass.
+const (
+	OutcomePass             = domain.OutcomePass
+	OutcomeRegression       = domain.OutcomeRegression
+	OutcomeInsufficientData = domain.OutcomeInsufficientData
+	OutcomeInvalidData      = domain.OutcomeInvalidData
+)
+
+// Deployment.Recovery values: the result of the last rollback attempt.
+const (
+	RecoverySimulated = domain.RecoverySimulated
+	RecoveryRequested = domain.RecoveryRequested
+	RecoveryFailed    = domain.RecoveryFailed
 )
 
 // Config is the alror.yaml shape, also returned by GET /config: project,
