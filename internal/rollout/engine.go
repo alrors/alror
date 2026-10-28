@@ -117,8 +117,8 @@ func (e *Engine) Run(ctx context.Context, d *domain.Deployment) error {
 
 	d.Status = domain.StatusRolling
 	e.emit(d, domain.Event{Kind: domain.EventCreated, Message: fmt.Sprintf(
-		"Risk %d (%s) · %s plan with %d steps · target %s · telemetry %s",
-		d.Risk.Score, d.Risk.Level, d.Plan.Strategy, len(d.Plan.Steps), describeTarget(d.Target), describeTelemetry(d.Telemetry))})
+		"Risk %d (%s) · %s plan with %d steps · target %s · telemetry %s%s",
+		d.Risk.Score, d.Risk.Level, d.Plan.Strategy, len(d.Plan.Steps), describeTarget(d.Target), describeTelemetry(d.Telemetry), describeBakeScale(e.Cfg.Policy.BakeScale))})
 
 	// Record on the target which deployment controls it before the image
 	// changes, so release detection never starts a second release for it.
@@ -154,7 +154,7 @@ func (e *Engine) Run(ctx context.Context, d *domain.Deployment) error {
 		if err := e.Driver.SetWeight(ctx, svc, i, step.Weight); err != nil {
 			return e.fail(ctx, d, svc, err)
 		}
-		e.emit(d, domain.Event{Kind: domain.EventStep, Weight: step.Weight, Routing: routing, Message: stepMessage(step, routing)})
+		e.emit(d, domain.Event{Kind: domain.EventStep, Weight: step.Weight, Routing: routing, Message: stepMessage(step, routing, e.Cfg.Bake(step.Bake))})
 
 		if err := e.Wait(ctx, e.Cfg.Bake(step.Bake), func(f float64) {
 			if e.Observer != nil {
@@ -332,14 +332,18 @@ func describeTelemetry(name string) string {
 	return name
 }
 
-func stepMessage(step domain.Step, routing string) string {
+func stepMessage(step domain.Step, routing string, bake time.Duration) string {
+	b := bake.Round(time.Second)
+	if b <= 0 && bake > 0 {
+		b = bake.Round(time.Millisecond)
+	}
 	switch routing {
 	case domain.RoutingSimulated:
-		return fmt.Sprintf("Canary at %d%% (simulated) · baking %s", step.Weight, step.Bake)
+		return fmt.Sprintf("Canary at %d%% (simulated) · baking %s", step.Weight, b)
 	case domain.RoutingObserved:
-		return fmt.Sprintf("Canary at %d%% (observed) · baking %s", step.Weight, step.Bake)
+		return fmt.Sprintf("Canary at %d%% (observed) · baking %s", step.Weight, b)
 	default:
-		return fmt.Sprintf("Canary %d%% requested · applied split not observed · baking %s", step.Weight, step.Bake)
+		return fmt.Sprintf("Canary %d%% requested · applied split not observed · baking %s", step.Weight, b)
 	}
 }
 
@@ -391,4 +395,12 @@ func realWait(ctx context.Context, d time.Duration, tick func(float64)) error {
 			tick(f)
 		}
 	}
+}
+
+// describeBakeScale notes shortened or lengthened bakes in the created event.
+func describeBakeScale(scale float64) string {
+	if scale <= 0 || scale == 1 {
+		return ""
+	}
+	return fmt.Sprintf(" · bakes ×%g", scale)
 }

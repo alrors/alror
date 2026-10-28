@@ -31,7 +31,7 @@ type deployOpts struct {
 	env                       string
 	riskOverride              int
 	regress                   []string
-	fast, shadow              bool
+	fast, shadow, fullBakes   bool
 }
 
 func deployCmd() *cobra.Command {
@@ -53,6 +53,7 @@ func deployCmd() *cobra.Command {
 	f.StringSliceVar(&o.regress, "regress", nil, "synthetic metrics only: make the canary worse, e.g. error_rate=1.8")
 	f.BoolVar(&o.fast, "fast", false, "compress bake times (demo mode)")
 	f.BoolVar(&o.shadow, "shadow", false, "shadow mode: recommend rollbacks but never act")
+	f.BoolVar(&o.fullBakes, "full-bakes", false, "simulated target: keep full bake times instead of compressing them")
 	_ = cmd.MarkFlagRequired("service")
 	_ = cmd.MarkFlagRequired("image")
 	return cmd
@@ -71,7 +72,7 @@ func runDeploy(o deployOpts) error {
 	// thresholds and bake scale for this service; --fast and --shadow still win.
 	cfg.UseServicePolicy(svc.Name)
 	if o.fast {
-		cfg.Policy.BakeScale = 0.003
+		cfg.Policy.BakeScale = rollout.FastBakeScale
 	}
 	// The service's rollback_mode (set by the portal's trust ramp) wins over
 	// the policy default; --shadow can still force recommend-only.
@@ -131,6 +132,12 @@ func runDeploy(o deployOpts) error {
 	if err := rollout.Preflight(cfg, svc, prov.Name()); err != nil {
 		return err
 	}
+	if rollout.CompressSimulatedBakes(svc.Target, prov.Name(), cfg.Policy.BakeScale, o.fast, o.fullBakes) {
+		cfg.Policy.BakeScale = rollout.FastBakeScale
+		if !g.json {
+			fmt.Println(ui.Fainter.Render("Simulated target with synthetic metrics: bakes shortened to seconds (--full-bakes keeps real timings)."))
+		}
+	}
 	var notifier notify.Notifier = notify.Nop{}
 	if cfg.Notify.SlackWebhook != "" {
 		notifier = notify.Slack{Webhook: cfg.Notify.SlackWebhook}
@@ -151,7 +158,7 @@ func runDeploy(o deployOpts) error {
 	if err := st.Save(d); err != nil {
 		return fmt.Errorf("record deployment: %w", err)
 	}
-	obs := &liveObserver{d: d, quiet: g.json, tty: isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())}
+	obs := &liveObserver{d: d, bakeScale: cfg.Policy.BakeScale, quiet: g.json, tty: isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())}
 	eng := &rollout.Engine{
 		Cfg: cfg, Store: st, Driver: drv, Metrics: prov, Notifier: notifier, Observer: obs,
 		Verifier: verify.Verifier{MaxRegression: cfg.Policy.MaxRegression, MaxIncrease: cfg.Policy.MaxIncrease, Alpha: cfg.Policy.Alpha},
@@ -231,6 +238,15 @@ type liveObserver struct {
 	tty         bool   // live progress bars only make sense on a terminal
 	prevWeight  int    // canary traffic before the current step, for the shift animation
 	state       string // where state lives: ".alror/" or "acme workspace (http://…)"
+	bakeScale   float64
+}
+
+// bake is the time a step really bakes (the plan's bake times the bake scale).
+func (o *liveObserver) bake(d time.Duration) time.Duration {
+	if o.bakeScale <= 0 {
+		return d
+	}
+	return time.Duration(float64(d) * o.bakeScale).Round(time.Second)
 }
 
 func (o *liveObserver) header(driverName, metricsName string, auto bool) {
@@ -362,7 +378,7 @@ func (o *liveObserver) Progress(step int, f float64) {
 		return
 	}
 	o.inProgress = true
-	bake := o.d.Plan.Steps[step].Bake
+	bake := o.bake(o.d.Plan.Steps[step].Bake)
 	left := time.Duration(float64(bake) * (1 - f)).Round(time.Second)
 	fmt.Printf("\r        %s %s %s %s\x1b[K", ui.SpinFrame(), ui.Bar(f, 30), ui.Dim.Render(fmt.Sprintf("%3.0f%%", f*100)),
 		ui.Fainter.Render(fmt.Sprintf("baking at %d%% · %s of %s left", o.d.Plan.Steps[step].Weight, left, bake)))
