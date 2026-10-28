@@ -471,8 +471,69 @@ export const githubDecisions = pgTable("github_decisions", {
   index("github_decisions_org_head_idx").on(t.orgId, t.headSha),
   index("github_decisions_org_merge_idx").on(t.orgId, t.mergeSha),
 ]);
-export type StoredRisk = { score: number; level: "low" | "medium" | "high"; factors: { name: string; detail: string; points: number }[]; services: string[]; ai_authored: boolean; rules_version: number };
+export type StoredRisk = {
+  score: number; level: "low" | "medium" | "high"; factors: { name: string; detail: string; points: number }[]; services: string[]; ai_authored: boolean; rules_version: number;
+  /** The org's learned factor weights in effect when scored (tuning); absent = the shared rules unchanged. */
+  weights?: Record<string, number>;
+};
 export type StoredPlan = { strategy: string; steps: { weight: number; bake: number }[] };
+
+// ---------------------------------------------------------------------------
+// Tuning: proposed per-service verification thresholds and learned risk weights (src/lib/server/tuning).
+// ---------------------------------------------------------------------------
+
+export const TUNING_KINDS = ["service_policy", "risk_weights"] as const;
+export const TUNING_STATUSES = ["open", "accepted", "dismissed", "superseded"] as const;
+export type TuningKind = (typeof TUNING_KINDS)[number];
+export type TuningStatus = (typeof TUNING_STATUSES)[number];
+
+/** Per-org tuning settings and the factor weights accepted so far (served as risk.weights by GET /config). */
+export const tuningSettings = pgTable("tuning_settings", {
+  orgId: uuid("org_id")
+    .primaryKey()
+    .references(() => orgs.id, { onDelete: "cascade" }),
+  /** Apply new proposals without a person. Off by default. */
+  autoApply: boolean("auto_apply").notNull().default(false),
+  /** Floors and ceilings (TuningBounds); null = the built-in defaults. */
+  bounds: jsonb("bounds").$type<Record<string, unknown> | null>(),
+  /** Accepted multipliers per rules.json factor key; {} = the shared rules unchanged. */
+  riskWeights: jsonb("risk_weights").$type<Record<string, number>>().notNull().default({}),
+  lastRunAt: ts("last_run_at"),
+  updatedAt: ts("updated_at").notNull().defaultNow(),
+  updatedBy: uuid("updated_by").references(() => users.id, { onDelete: "set null" }),
+});
+
+/** One proposal with its evidence. Nothing changes until it is accepted (or auto-applied when the org opted in). */
+export const tuningProposals = pgTable(
+  "tuning_proposals",
+  {
+    id: id(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => orgs.id, { onDelete: "cascade" }),
+    kind: text("kind").$type<TuningKind>().notNull(),
+    /** service_policy only. */
+    serviceId: uuid("service_id").references(() => services.id, { onDelete: "cascade" }),
+    service: text("service"),
+    status: text("status").$type<TuningStatus>().notNull().default("open"),
+    summary: text("summary").notNull(),
+    /** Values in effect when proposed; accepting checks they are still current. */
+    before: jsonb("before").$type<Record<string, unknown>>().notNull(),
+    after: jsonb("after").$type<Record<string, unknown>>().notNull(),
+    /** Data window, sample counts, per-item statistics and expected effect. */
+    evidence: jsonb("evidence").$type<Record<string, unknown>>().notNull(),
+    autoApplied: boolean("auto_applied").notNull().default(false),
+    createdAt: createdAt(),
+    decidedAt: ts("decided_at"),
+    decidedBy: uuid("decided_by").references(() => users.id, { onDelete: "set null" }),
+    decidedLabel: text("decided_label"),
+  },
+  (t) => [
+    index("tuning_proposals_org_status_idx").on(t.orgId, t.status, t.createdAt.desc()),
+    check("tuning_proposals_kind_check", oneOf("kind", TUNING_KINDS)),
+    check("tuning_proposals_status_check", oneOf("status", TUNING_STATUSES)),
+  ],
+);
 
 // ---------------------------------------------------------------------------
 // Learn: courses of YouTube lectures on /learn, managed by platform admins in /admin/learn.

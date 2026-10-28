@@ -11,7 +11,7 @@ const NS_PER_SECOND = 1_000_000_000;
 /** Column values for a decision, in the Go domain shapes (plan bake in nanoseconds) the CLI reads back. */
 export function storedDecision(d: RiskDecision): { risk: StoredRisk; plan: StoredPlan } {
   return {
-    risk: { ...d.risk, rules_version: d.rulesVersion },
+    risk: { ...d.risk, rules_version: d.rulesVersion, ...(d.weights && Object.keys(d.weights).length ? { weights: d.weights } : {}) },
     plan: { strategy: d.plan.strategy, steps: d.plan.steps.map((s) => ({ weight: s.weight, bake: s.bake_seconds * NS_PER_SECOND })) },
   };
 }
@@ -20,7 +20,9 @@ export function storedDecision(d: RiskDecision): { risk: StoredRisk; plan: Store
 export type CommitDecision = {
   sha: string; head_sha: string; merge_sha: string | null; matched: "head" | "merge";
   repository: string; pull_number: number; url: string; outcome: string; mode: string;
-  rules_version: number; risk: Omit<StoredRisk, "rules_version">; plan: StoredPlan; reasons: string[]; updated_at: string;
+  rules_version: number; risk: Omit<StoredRisk, "rules_version" | "weights">; plan: StoredPlan; reasons: string[]; updated_at: string;
+  /** The org's learned factor weights the score was computed with; absent when the shared rules were used unchanged. */
+  weights?: Record<string, number>;
 };
 
 /**
@@ -40,10 +42,11 @@ export async function getCommitDecision(ctx: OrgCtx, rawSha: string): Promise<Co
   const row = rows[0];
   if (!row?.d.risk || !row.d.plan) throw notFound("No decision is stored for this commit.");
   const { d, repository } = row;
-  const { rules_version, ...risk } = d.risk!;
+  const { rules_version, weights, ...risk } = d.risk!;
   return {
     sha: d.headSha.startsWith(sha) ? d.headSha : d.mergeSha!, head_sha: d.headSha, merge_sha: d.mergeSha,
     matched: d.headSha.startsWith(sha) ? "head" : "merge", repository, pull_number: d.pullNumber, url: d.url,
     outcome: d.outcome, mode: d.mode, rules_version, risk, plan: d.plan!, reasons: d.reasons, updated_at: d.updatedAt.toISOString(),
+    ...(weights && Object.keys(weights).length ? { weights } : {}),
   };
 }
