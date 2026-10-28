@@ -36,7 +36,16 @@ Scores the diff between `--base` (default `origin/main`, then `main`) and `HEAD`
 | `--shadow` | Recommend rollbacks without acting |
 | `--env` | Target environment (default `production`); recorded in connected mode, ignored in local mode |
 
-Exit codes: `0` promoted, `2` rolled back, `1` error.
+Before anything is recorded, `deploy` checks the [capability matrix](/targets): an unsupported target (such as `ecs`) is refused, and so is the `synthetic` metrics provider on a non-simulated target unless `policy.allow_synthetic_telemetry` is set (both exit `1`).
+
+| Exit code | Meaning |
+| --- | --- |
+| `0` | Promoted |
+| `1` | Error (including refused targets and telemetry); any rollback that was needed succeeded |
+| `2` | Rolled back: a stage showed a regression, or insufficient or invalid data |
+| `4` | Rollback failed: the driver returned an error while rolling back, so traffic may still be on the canary. Status is `failed` and `recovery` is `rollback_failed` |
+
+With `--json`, `deployment.target`, `deployment.telemetry` and `deployment.recovery` say how much the outcome proves. Each verdict has `outcome` (`pass`, `regression`, `insufficient_data` or `invalid_data`) and `evidence` (`synthetic` or `measured`); each metric result has a `status` with the same values, plus `abs_delta`, `canary_samples` and `baseline_samples`. Step events have `routing`: `simulated`, `requested` or `observed`.
 
 ## `alror status [id]`
 
@@ -48,11 +57,15 @@ Scores a pull request and posts an **Alror / change-risk** check run, plus a sti
 
 ## `alror rollback <id>`
 
-Reverses a deployment through its target driver. `--reason` is recorded in the log.
+Reverses a deployment through its target driver. `--reason` is recorded in the log. On a real target the CLI reports that the rollback command was accepted, not that traffic was restored. If the driver returns an error, the status is left unchanged, `recovery` becomes `rollback_failed` and the command exits `4`.
+
+## `alror capabilities`
+
+Prints the capability matrix: for every target and operation, and every metrics provider, whether it is verified, experimental, simulated or unsupported. `--json` prints it as data. See [Targets and metrics](/targets).
 
 ## `alror doctor`
 
-Checks git, `alror.yaml`, the state directory, target tools (for example `kubectl`) and metrics connectivity. When connected, it also checks that the workspace is reachable, that the key is valid and which scopes it has.
+Checks git, `alror.yaml`, the state directory, target tools (for example `kubectl`) and metrics connectivity. It reports unsupported targets and non-simulated targets configured with synthetic telemetry as problems. When connected, it also checks that the workspace is reachable, that the key is valid and which scopes it has.
 
 ## `alror login`
 

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -17,6 +18,7 @@ import (
 	"github.com/alrors/alror/internal/credentials"
 	"github.com/alrors/alror/internal/docsite"
 	"github.com/alrors/alror/internal/metrics"
+	"github.com/alrors/alror/internal/rollout"
 )
 
 func doctorCmd() *cobra.Command {
@@ -78,11 +80,15 @@ func doctorCmd() *cobra.Command {
 				switch s.Target {
 				case "kubernetes":
 					_, kerr := exec.LookPath("kubectl")
-					check(kerr == nil, s.Name+": kubectl found", s.Name+": kubectl not found (needed for the kubernetes target)")
-				case "ecs":
-					fmt.Println(ui.WarnLine(s.Name + ": ECS target is planned for phase 2"))
+					check(kerr == nil, s.Name+": kubectl found (kubernetes target is experimental)", s.Name+": kubectl not found (needed for the kubernetes target)")
+				case "simulated", "":
+					fmt.Println(ui.OK(s.Name + ": simulated target (nothing is deployed)"))
 				default:
-					fmt.Println(ui.OK(s.Name + ": simulated target"))
+					// ecs and unknown targets: deploys and rollbacks are refused.
+					check(false, "", s.Name+": target "+s.Target+" is unsupported (see `alror capabilities`)")
+				}
+				if err := rollout.Preflight(cfg, s, cfg.Metrics.Provider); err != nil && errors.Is(err, rollout.ErrSyntheticTelemetry) {
+					check(false, "", s.Name+": "+err.Error())
 				}
 			}
 

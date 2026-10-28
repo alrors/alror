@@ -35,10 +35,10 @@ Alror is open source. Teams merge more changes than ever, many written by agents
 
 - [x] **Change risk scoring.** A 0–100 score from named, auditable factors: critical services, sensitive paths, migrations, missing tests, agent-authored commits, recent rollbacks. ([Docs](internal/docsite/content/risk-scoring.md))
 - [x] **Risk-sized canaries.** Low risk goes 25% → 100%. High risk goes 1% → 5% → 25% → 50% → 100% with longer bakes. ([Docs](internal/docsite/content/rollouts.md))
-- [x] **Statistical verification.** Each stage compares canary and baseline with a Mann-Whitney U test **and** an effect-size threshold, so noise doesn't trigger rollbacks. ([Docs](internal/docsite/content/rollouts.md))
-- [x] **Automatic rollback.** A regression shifts traffic back in seconds, with a plain-English reason, and `alror deploy` exits with code `2` so CI goes red. ([Docs](internal/docsite/content/rollouts.md))
+- [x] **Statistical verification.** Each stage compares canary and baseline with a Mann-Whitney U test **and** an effect-size threshold (absolute for zero baselines), so noise doesn't trigger rollbacks. Missing, sparse or non-finite telemetry never passes. ([Docs](internal/docsite/content/rollouts.md))
+- [x] **Automatic rollback.** A failed or inconclusive stage asks the target to roll back, with a plain-English reason. `alror deploy` exits with code `2` on a rollback and `4` when the rollback itself fails. ([Docs](internal/docsite/content/rollouts.md))
 - [x] **GitHub checks.** A risk check run and a sticky comment on every pull request, plus `check` and `deploy` actions. ([Docs](internal/docsite/content/github.md))
-- [x] **Targets and metrics.** Kubernetes via Argo Rollouts, Amazon ECS (beta), Prometheus, Datadog, Slack. ([Docs](internal/docsite/content/targets.md))
+- [x] **Targets and metrics.** A simulated target, Kubernetes via Argo Rollouts (experimental), Prometheus and Datadog (experimental), Slack. Amazon ECS is not supported. See the [capability matrix](#capability-matrix). ([Docs](internal/docsite/content/targets.md))
 - [x] **Workspace console.** Live rollouts, release stories, insights, policies, API keys, audit log and a plugin marketplace. ([Docs](internal/docsite/content/console.md))
 - [x] **Runner.** `alror runner` executes deploys and rollbacks queued from the console inside your own infrastructure. ([Docs](internal/docsite/content/connected.md))
 - [x] **SDKs.** Go and TypeScript clients for the workspace API. ([Docs](#client-libraries))
@@ -63,7 +63,7 @@ The docs live in [`internal/docsite/content`](internal/docsite/content) and are 
 | [Quickstart](internal/docsite/content/quickstart.md) | Install, `alror init`, your first verified rollout |
 | [Configuration](internal/docsite/content/configuration.md) | `alror.yaml`, services, policy and plans |
 | [Risk scoring](internal/docsite/content/risk-scoring.md) · [Rollouts](internal/docsite/content/rollouts.md) | How changes are scored and verified |
-| [Targets and metrics](internal/docsite/content/targets.md) | Kubernetes, ECS, Prometheus, Datadog |
+| [Targets and metrics](internal/docsite/content/targets.md) | Capability matrix, Kubernetes, Prometheus, Datadog |
 | [GitHub](internal/docsite/content/github.md) | Check runs, PR comments, actions |
 | [Connected mode](internal/docsite/content/connected.md) | `alror login`, the workspace API and `alror runner` |
 | [CLI reference](internal/docsite/content/cli.md) | Every command and flag |
@@ -80,15 +80,33 @@ The docs live in [`internal/docsite/content`](internal/docsite/content) and are 
 Alror is a release engine plus a workspace. The engine runs inside the `alror` CLI, usually as one step in CI, or inside `alror runner` for deploys started from the console. It needs nothing hosted: in local mode its whole state is `alror.yaml` and plain JSON under `.alror/`.
 
 <p align="center">
-  <img src="docs/images/architecture.svg" alt="Architecture: pull requests, CI and the console feed the Alror engine (risk scorer, planner and rollout engine, verifier, state), which shifts traffic on Kubernetes or ECS, reads Prometheus or Datadog metrics and reports to Slack and GitHub" width="100%" />
+  <img src="docs/images/architecture.svg" alt="Architecture: pull requests, CI and the console feed the Alror engine (risk scorer, planner and rollout engine, verifier, state), which requests traffic changes on Kubernetes (ECS is not supported), reads Prometheus or Datadog metrics and reports to Slack and GitHub" width="100%" />
 </p>
 
 - **Risk scorer** ([`internal/risk`](internal/risk)) reads the git diff and history and returns a score with every factor that moved it.
 - **Planner and rollout engine** ([`internal/rollout`](internal/rollout)) pick the canary steps and bakes from the score and drive the state machine.
 - **Verifier** ([`internal/verify`](internal/verify)) compares canary and baseline samples per metric and decides pass or roll back.
-- **Drivers** ([`internal/driver`](internal/driver)) shift traffic: Argo Rollouts on Kubernetes, ECS target-group weights, or a simulated target for trying it out.
+- **Drivers** ([`internal/driver`](internal/driver)) prepare the new image once, then request traffic changes: Argo Rollouts on Kubernetes (experimental), or a simulated target for trying it out.
 - **Metrics providers** ([`internal/metrics`](internal/metrics)) query Prometheus or Datadog, or generate synthetic samples.
 - **Workspace** ([`apps/web`](apps/web)) is a Next.js app with the website, the console and the `/api/v1` REST API, on PostgreSQL and Redis. The CLI connects to it with an API key.
+
+## Capability matrix
+
+What each target and metrics provider can really do. `alror capabilities` prints the same matrix; [Targets and metrics](internal/docsite/content/targets.md) explains the levels. Experimental operations are reported as *requested*, never as observed; unsupported ones are refused; synthetic telemetry is refused for non-simulated targets unless `policy.allow_synthetic_telemetry` is set.
+
+<!-- capability-matrix:start -->
+| Target | Prepare image | Shift traffic | Promote | Rollback | Observe traffic | Notes |
+| --- | --- | --- | --- | --- | --- | --- |
+| `simulated` | simulated | simulated | simulated | simulated | simulated | Records weights in memory. For demos and tests; nothing is deployed. |
+| `kubernetes` | experimental | experimental | experimental | experimental | unsupported | Argo Rollouts via `kubectl argo rollouts`: set image once, then promote/abort. The Rollout's own steps decide the real weights; Alror's step weights are requests and are not read back. |
+| `ecs` | unsupported | unsupported | unsupported | unsupported | unsupported | Not implemented. Deploys and rollbacks to an ecs target are refused. |
+
+| Metrics provider | Maturity | Notes |
+| --- | --- | --- |
+| `synthetic` | simulated | Generated samples. Never production verification; refused for non-simulated targets unless `policy.allow_synthetic_telemetry` is set. |
+| `prometheus` | experimental | Real query_range data. Verdicts depend on your queries; empty or non-finite results never pass. |
+| `datadog` | experimental | Real metrics API data. Verdicts depend on your queries; empty or non-finite results never pass. |
+<!-- capability-matrix:end -->
 
 ## Install
 

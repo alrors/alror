@@ -84,6 +84,12 @@ func renderDeployment(d *domain.Deployment, events []domain.Event) string {
 	fmt.Fprintf(&b, "%s   risk %s %s\n\n", ui.Status(d.Status, d.Weight),
 		ui.LevelStyle(d.Risk.Level).Render(fmt.Sprint(d.Risk.Score)), ui.Meter(d.Risk.Score, 12))
 	fmt.Fprintln(&b, ui.Stages(d.Plan, d.StepIndex, d.Status))
+	if d.Target != "" || d.Telemetry != "" {
+		fmt.Fprintf(&b, "\n%s\n", ui.Fainter.Render(fmt.Sprintf("target %s · telemetry %s", targetLabel(d.Target), providerLabel(d.Telemetry))))
+	}
+	if d.Recovery == domain.RecoveryFailed {
+		fmt.Fprintf(&b, "\n%s\n", ui.Fail(ui.Red.Render("Rollback failed: traffic state unknown. Check the target before retrying.")))
+	}
 	if d.Reason != "" {
 		fmt.Fprintf(&b, "\n%s\n", ui.Dim.Render(d.Reason))
 	}
@@ -96,7 +102,9 @@ func renderDeployment(d *domain.Deployment, events []domain.Event) string {
 		case domain.EventRolledBack, domain.EventError:
 			icon = ui.Red.Render("✗")
 		case domain.EventVerdict:
-			if e.Verdict != nil && e.Verdict.Pass {
+			if e.Verdict != nil && e.Verdict.Pass && e.Verdict.Evidence == domain.EvidenceSynthetic {
+				icon = ui.Dim.Render("●") // passed, but only on synthetic telemetry
+			} else if e.Verdict != nil && e.Verdict.Pass {
 				icon = ui.Green.Render("●")
 			} else {
 				icon = ui.Amber.Render("●")
@@ -141,7 +149,12 @@ func rollbackCmd() *cobra.Command {
 			if g.json {
 				return printJSON(d)
 			}
-			fmt.Println(ui.OK(fmt.Sprintf("Rolled back %s %s", ui.Bold.Render(d.Service), ui.Dim.Render(d.ID))))
+			if d.Recovery == domain.RecoverySimulated {
+				fmt.Println(ui.OK(fmt.Sprintf("Rolled back %s %s (simulated)", ui.Bold.Render(d.Service), ui.Dim.Render(d.ID))))
+			} else {
+				fmt.Println(ui.OK(fmt.Sprintf("Rollback command accepted for %s %s", ui.Bold.Render(d.Service), ui.Dim.Render(d.ID))))
+				fmt.Println(ui.WarnLine("the restored traffic split was not observed; confirm it on the target"))
+			}
 			return nil
 		},
 	}

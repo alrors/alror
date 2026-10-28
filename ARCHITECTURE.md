@@ -41,7 +41,7 @@ The API is specified in [docs/platform-contract.md](docs/platform-contract.md).
 
 1. **Rules decide, AI explains.** Every risk point comes from a named factor. Every rollback comes from a statistical test against a threshold. A language model may summarise, but it never gates a release.
 2. **Keep the customer's CI.** Alror is one step after the build, not a pipeline platform.
-3. **Fail safe.** Missing data never passes a step. Ctrl-C and driver errors roll the canary back. CI can tell a rollback (exit 2) from a crash (exit 1).
+3. **Fail safe, report honestly.** Missing, sparse or non-finite data never passes a step. Ctrl-C and driver errors trigger a rollback, and a rollback that errors is reported as `rollback_failed`, never as restoration. CI can tell a rollback (exit 2) and a failed rollback (exit 4) from a crash (exit 1). Requested traffic changes are not reported as observed; see the capability matrix in `internal/capability`.
 4. **Boring state.** Plain JSON and JSONL files, written atomically, readable by humans and tools.
 5. **Nothing phones home.** No network calls happen unless you configure a metrics provider, a Slack webhook or a real target. Docs and assets are embedded.
 
@@ -52,18 +52,19 @@ pending ──▶ rolling ─┬─ every step passes ────────�
                      ├─ a step fails, auto_rollback: true ─▶ rolled_back
                      ├─ a step fails, shadow mode ──────────▶ continue, recommendation logged
                      └─ driver or provider error ───────────▶ failed (rollback attempted)
+                        (a rollback that errors ─▶ failed, recovery: rollback_failed, exit 4)
 ```
 
-Each step runs in this order:
+Before the first step, `rollout.Preflight` checks the capability matrix (unsupported targets and synthetic telemetry on real targets are refused) and `driver.Prepare(image)` applies the image once. Each step then runs in this order:
 
-1. **Shift:** `driver.SetWeight(weight)` moves canary traffic to the step's weight.
+1. **Shift:** `driver.SetWeight(step, weight)` requests the step's canary weight. The event records it as `simulated` or `requested`; no target reads the split back yet.
 2. **Bake:** wait for `step.Bake × policy.bake_scale`.
 3. **Sample:** for each metric, the provider returns canary and baseline series for the bake window.
-4. **Judge:** the verifier returns a verdict. A metric fails only when it is both:
-   - worse than the baseline by more than `policy.max_regression[metric]`, and
+4. **Judge:** the verifier returns a verdict with an outcome of `pass`, `regression`, `insufficient_data` or `invalid_data`. A metric regresses only when it is both:
+   - worse than the baseline by more than `policy.max_regression[metric]` (relative), or, for a zero baseline, by more than `policy.max_increase[metric]` (absolute), and
    - statistically worse (one-sided Mann-Whitney U, p < `policy.alpha`).
 
-   Fewer than 8 samples per side never passes.
+   Empty telemetry, a missing metric, fewer than 8 samples per side, or NaN/Inf values never pass.
 5. **Decide:** continue, roll back, or (in shadow mode) log a recommendation.
 
 The engine saves the deployment and appends an event on every transition, so an interrupted run leaves an accurate record.
@@ -157,7 +158,8 @@ alror/
 │   ├── rollout/             planner (risk → plan) and engine (state machine)
 │   ├── verify/              Mann-Whitney U test and per-metric verdicts
 │   ├── metrics/             Provider interface: synthetic, Prometheus, Datadog
-│   ├── driver/              Driver interface: simulated, Kubernetes (Argo Rollouts), ECS (phase 2)
+│   ├── driver/              Driver interface: simulated, Kubernetes (Argo Rollouts, experimental)
+│   ├── capability/          capability matrix: verified / experimental / simulated / unsupported
 │   ├── store/               Store interface: FS (.alror/) and Remote (workspace API)
 │   ├── api/                 typed client for the workspace API; api/apitest: in-memory fake
 │   ├── credentials/         saved login and server/key precedence
@@ -187,8 +189,9 @@ IDs are `dep_<UTC timestamp>_<6 hex>`. They sort by time, and every command acce
 
 ```go
 type Driver interface {            // internal/driver
-    SetWeight(ctx, svc, image, weight) error
-    Promote(ctx, svc, image) error
+    Prepare(ctx, svc, image) error          // once, before the first step
+    SetWeight(ctx, svc, step, weight) error // never changes the image
+    Promote(ctx, svc) error
     Rollback(ctx, svc) error
 }
 

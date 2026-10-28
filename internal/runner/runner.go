@@ -326,6 +326,11 @@ func (rn *Runner) deploy(ctx context.Context, job *api.Job) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	// Refuse unsupported targets and synthetic telemetry on real targets
+	// before anything is recorded or any traffic moves.
+	if err := rollout.Preflight(cfg, svc, prov.Name()); err != nil {
+		return "", err
+	}
 	var notifier notify.Notifier = notify.Nop{}
 	if cfg.Notify.SlackWebhook != "" {
 		notifier = notify.Slack{Webhook: cfg.Notify.SlackWebhook}
@@ -345,7 +350,7 @@ func (rn *Runner) deploy(ctx context.Context, job *api.Job) (string, error) {
 	eng := &rollout.Engine{
 		Cfg: cfg, Store: rn.Store, Driver: drv, Metrics: prov, Notifier: notifier, Wait: rn.Wait,
 		Observer: &observer{rn: rn, d: d},
-		Verifier: verify.Verifier{MaxRegression: cfg.Policy.MaxRegression, Alpha: cfg.Policy.Alpha},
+		Verifier: verify.Verifier{MaxRegression: cfg.Policy.MaxRegression, MaxIncrease: cfg.Policy.MaxIncrease, Alpha: cfg.Policy.Alpha},
 	}
 	runErr := eng.Run(ctx, d)
 	if err := rn.Store.Save(d); err != nil { // the engine ignores write errors; make sure the outcome lands
@@ -426,7 +431,7 @@ func (o *observer) Event(e domain.Event) {
 		o.rn.Log(Info, fmt.Sprintf("%s · %s", id, e.Message))
 	case domain.EventVerdict:
 		if e.Verdict != nil && e.Verdict.Pass {
-			o.rn.Log(OK, fmt.Sprintf("%s · %d%% verified · %s", id, e.Weight, e.Message))
+			o.rn.Log(OK, fmt.Sprintf("%s · %d%% passed (%s telemetry) · %s", id, e.Weight, orUnknown(e.Verdict.Evidence), e.Message))
 		} else {
 			o.rn.Log(Warn, fmt.Sprintf("%s · %s", id, e.Message))
 		}
@@ -437,6 +442,13 @@ func (o *observer) Event(e domain.Event) {
 	case domain.EventError:
 		o.rn.Log(Error, fmt.Sprintf("%s · %s", id, e.Message))
 	}
+}
+
+func orUnknown(s string) string {
+	if s == "" {
+		return "unlabelled"
+	}
+	return s
 }
 
 func describe(j *api.Job) string {

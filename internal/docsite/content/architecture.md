@@ -23,7 +23,8 @@ The full design is in `ARCHITECTURE.md` at the root of the repository. In short:
 | `internal/rollout` | Planner and engine (state machine) |
 | `internal/verify` | Mann-Whitney U test and per-metric verdicts |
 | `internal/metrics` | Synthetic, Prometheus and Datadog providers |
-| `internal/driver` | Simulated, Kubernetes (Argo Rollouts) and ECS (phase 2) |
+| `internal/driver` | Simulated and Kubernetes (Argo Rollouts, experimental). ECS is unsupported |
+| `internal/capability` | The capability matrix: what each target and metrics provider can do |
 | `internal/store` | File-system persistence |
 | `internal/notify` | Slack webhook |
 | `internal/cli` | Commands and the terminal UI |

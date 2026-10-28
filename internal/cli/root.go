@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/alrors/alror/internal/cli/ui"
+	"github.com/alrors/alror/internal/rollout"
 )
 
 // Version is set at build time with -ldflags "-X github.com/alrors/alror/internal/cli.Version=…".
@@ -78,7 +79,7 @@ func run(args []string) int {
 	root.PersistentFlags().BoolVar(&g.local, "local", false, "force local mode: alror.yaml and .alror/ even when a server is configured")
 
 	root.AddCommand(initCmd(), riskCmd(), deployCmd(), statusCmd(), rollbackCmd(), githubCmd(), doctorCmd(), docsCmd(), versionCmd(),
-		loginCmd(), logoutCmd(), whoamiCmd(), runnerCmd(), configCmd())
+		loginCmd(), logoutCmd(), whoamiCmd(), runnerCmd(), configCmd(), capabilitiesCmd())
 
 	root.SetArgs(args)
 	if err := root.Execute(); err != nil {
@@ -88,6 +89,12 @@ func run(args []string) int {
 		if errors.Is(err, errRiskGate) {
 			fmt.Fprintln(os.Stderr, ui.Fail(err.Error()))
 			return 3
+		}
+		if errors.Is(err, rollout.ErrRollbackFailed) {
+			// Distinct from 1: a rollback was needed and did not succeed,
+			// so traffic may still be on the canary.
+			fmt.Fprintln(os.Stderr, ui.Fail(err.Error()))
+			return 4
 		}
 		fmt.Fprintln(os.Stderr, ui.Fail(err.Error()))
 		return 1

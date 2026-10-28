@@ -13,6 +13,7 @@ import (
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
 
+	"github.com/alrors/alror/internal/capability"
 	"github.com/alrors/alror/internal/cli/ui"
 	"github.com/alrors/alror/internal/domain"
 	"github.com/alrors/alror/internal/driver"
@@ -101,6 +102,11 @@ func runDeploy(o deployOpts) error {
 			return err
 		}
 	}
+	// Unsupported targets and synthetic telemetry on a real target stop here,
+	// before a deployment is recorded or traffic moves.
+	if err := rollout.Preflight(cfg, svc, prov.Name()); err != nil {
+		return err
+	}
 	var notifier notify.Notifier = notify.Nop{}
 	if cfg.Notify.SlackWebhook != "" {
 		notifier = notify.Slack{Webhook: cfg.Notify.SlackWebhook}
@@ -124,7 +130,7 @@ func runDeploy(o deployOpts) error {
 	obs := &liveObserver{d: d, quiet: g.json, tty: isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())}
 	eng := &rollout.Engine{
 		Cfg: cfg, Store: st, Driver: drv, Metrics: prov, Notifier: notifier, Observer: obs,
-		Verifier: verify.Verifier{MaxRegression: cfg.Policy.MaxRegression, Alpha: cfg.Policy.Alpha},
+		Verifier: verify.Verifier{MaxRegression: cfg.Policy.MaxRegression, MaxIncrease: cfg.Policy.MaxIncrease, Alpha: cfg.Policy.Alpha},
 	}
 
 	if !g.json {
@@ -222,10 +228,54 @@ func (o *liveObserver) header(driverName, metricsName string, auto bool) {
 		lines = append(lines, ui.Fainter.Render(fmt.Sprintf("     %+d  %s · %s", f.Points, f.Name, f.Detail)))
 	}
 	lines = append(lines, "", ui.Stages(o.d.Plan, -1, domain.StatusPending), "",
-		ui.Fainter.Render(fmt.Sprintf("target %s · metrics %s · ", driverName, metricsName))+mode,
+		ui.Fainter.Render(fmt.Sprintf("target %s · metrics %s · ", targetLabel(driverName), providerLabel(metricsName)))+mode,
 		ui.Fainter.Render("state: "+o.state+envNote(o.d.Environment)))
+	if p, ok := capability.ProviderFor(metricsName); ok && p.Maturity == capability.Simulated {
+		lines = append(lines, ui.Amber.Render("synthetic telemetry: verdicts are simulated, not production verification"))
+	}
 	ui.Reveal(ui.Box(strings.Join(lines, "\n"), "Release"), 14*time.Millisecond)
 	fmt.Println()
+}
+
+// targetLabel and providerLabel append the capability-matrix maturity,
+// e.g. "kubernetes (experimental)".
+func targetLabel(name string) string {
+	if t, ok := capability.TargetFor(name); ok {
+		return fmt.Sprintf("%s (%s)", name, t.Overall())
+	}
+	return name
+}
+
+func providerLabel(name string) string {
+	if p, ok := capability.ProviderFor(name); ok {
+		return fmt.Sprintf("%s (%s)", name, p.Maturity)
+	}
+	return name
+}
+
+// routingLabel qualifies a traffic animation with what was actually known:
+// the bar shows the requested weight, not a measured split.
+func routingLabel(routing, label string) string {
+	switch routing {
+	case domain.RoutingSimulated:
+		return label + " (simulated)"
+	case domain.RoutingRequested:
+		return label + " (requested, not observed)"
+	}
+	return label
+}
+
+// metricLine formats one metric result for the live log. A zero baseline
+// shows the absolute change; unmeasured metrics say why instead of a delta.
+func metricLine(r domain.MetricResult) string {
+	switch r.Status {
+	case domain.OutcomeInsufficientData, domain.OutcomeInvalidData:
+		return fmt.Sprintf("%-12s %s", r.Metric, strings.ReplaceAll(string(r.Status), "_", " "))
+	}
+	if r.Baseline <= 0 && r.CanarySamples > 0 {
+		return fmt.Sprintf("%-12s %8.3g vs %-8.3g %+6.3g abs  p=%.3f", r.Metric, r.Canary, r.Baseline, r.AbsDelta, r.PValue)
+	}
+	return fmt.Sprintf("%-12s %8.3g vs %-8.3g %+6.1f%%  p=%.3f", r.Metric, r.Canary, r.Baseline, r.Delta*100, r.PValue)
 }
 
 func (o *liveObserver) Event(e domain.Event) {
@@ -241,7 +291,7 @@ func (o *liveObserver) Event(e domain.Event) {
 	switch e.Kind {
 	case domain.EventStep:
 		fmt.Printf("%s  %s\n", ts, ui.Stages(o.d.Plan, o.d.StepIndex, domain.StatusRolling))
-		ui.Sweep("          ", o.prevWeight, e.Weight, 30, "traffic on canary")
+		ui.Sweep("          ", o.prevWeight, e.Weight, 30, routingLabel(e.Routing, "traffic on canary"))
 		o.prevWeight = e.Weight
 	case domain.EventVerdict:
 		if e.Verdict == nil {
@@ -250,24 +300,33 @@ func (o *liveObserver) Event(e domain.Event) {
 		}
 		o.lastVerdict = e.Verdict
 		ui.Hold("Comparing canary vs baseline · Mann-Whitney U", 450*time.Millisecond)
+		if e.Verdict.Evidence == domain.EvidenceSynthetic {
+			fmt.Printf("          %s\n", ui.Fainter.Render("synthetic telemetry · simulated verdict"))
+		}
 		for _, r := range e.Verdict.Results {
 			if ui.Animated() {
 				time.Sleep(90 * time.Millisecond)
 			}
-			line := fmt.Sprintf("%-12s %8.3g vs %-8.3g %+6.1f%%  p=%.3f", r.Metric, r.Canary, r.Baseline, r.Delta*100, r.PValue)
-			if r.Pass {
+			line := metricLine(r)
+			switch {
+			case r.Pass:
 				fmt.Printf("          %s\n", ui.OK(ui.Dim.Render(line)))
-			} else {
+			case r.Status == domain.OutcomeInsufficientData || r.Status == domain.OutcomeInvalidData:
+				fmt.Printf("          %s\n", ui.WarnLine(line+"  "+r.Reason))
+			default:
 				fmt.Printf("          %s\n", ui.Fail(ui.Red.Render(line)+"  "+ui.Dim.Render(r.Reason)))
 			}
 		}
+		if !e.Verdict.Pass && e.Verdict.Outcome != domain.OutcomeRegression && e.Verdict.Outcome != "" {
+			fmt.Printf("          %s\n", ui.WarnLine("no regression was measured, but the data cannot pass this step"))
+		}
 	case domain.EventPromoted:
 		fmt.Printf("%s  %s\n", ts, ui.Stages(o.d.Plan, len(o.d.Plan.Steps), domain.StatusPromoted))
-		ui.Sweep("          ", o.prevWeight, 100, 30, "promoted to all traffic")
+		ui.Sweep("          ", o.prevWeight, 100, 30, routingLabel(e.Routing, "promoted to all traffic"))
 		fmt.Printf("          %s\n", ui.OK(ui.Bold.Render(e.Message)))
 	case domain.EventRolledBack:
 		fmt.Printf("%s  %s\n", ts, ui.Stages(o.d.Plan, o.d.StepIndex, domain.StatusRolledBack))
-		ui.Sweep("          ", o.prevWeight, 0, 30, "traffic back on stable")
+		ui.Sweep("          ", o.prevWeight, 0, 30, routingLabel(e.Routing, "traffic back on stable"))
 		fmt.Printf("          %s\n", ui.Fail(ui.Bold.Render(e.Message)))
 	case domain.EventError:
 		fmt.Printf("%s  %s\n", ts, ui.Fail(e.Message))

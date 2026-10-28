@@ -136,11 +136,9 @@ func TestFailurePaths(t *testing.T) {
 	}
 
 	got := f.Job(ecs.ID)
-	if got.Status != api.JobFailed || got.DeploymentID == "" || !strings.Contains(got.Error, "not implemented") {
-		t.Fatalf("driver failure should fail the job with the deployment id: %+v", got)
-	}
-	if d := f.Deployment(got.DeploymentID); d == nil || d.Status != domain.StatusFailed {
-		t.Fatalf("deployment should be failed: %+v", d)
+	// ecs is unsupported: the job fails before a deployment is recorded or traffic moves.
+	if got.Status != api.JobFailed || got.DeploymentID != "" || !strings.Contains(got.Error, "unsupported") {
+		t.Fatalf("unsupported target should fail the job up front: %+v", got)
 	}
 	if got := f.Job(missing.ID); got.Status != api.JobFailed || !strings.Contains(got.Error, "not found") {
 		t.Fatalf("missing deployment: %+v", got)

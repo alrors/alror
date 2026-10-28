@@ -50,6 +50,16 @@ type Metrics struct {
 type Policy struct {
 	// MaxRegression is the relative increase (0.25 = +25%) tolerated per metric.
 	MaxRegression map[string]float64 `yaml:"max_regression" json:"max_regression"`
+	// MaxIncrease is the absolute increase, in the metric's own units,
+	// tolerated when the baseline median is zero and a relative change is
+	// undefined. Unset metrics use the verifier's defaults (error_rate 0.01,
+	// otherwise 0: any significant increase over a zero baseline fails).
+	MaxIncrease map[string]float64 `yaml:"max_increase,omitempty" json:"max_increase,omitempty"`
+	// AllowSyntheticTelemetry lets a non-simulated target run with the
+	// synthetic metrics provider. Off by default: generated samples are not
+	// production verification, so such a deploy is refused before traffic
+	// moves. When on, every verdict is still labelled synthetic.
+	AllowSyntheticTelemetry bool `yaml:"allow_synthetic_telemetry,omitempty" json:"allow_synthetic_telemetry,omitempty"`
 	// Alpha is the significance level for the statistical test.
 	Alpha float64 `yaml:"alpha" json:"alpha"`
 	// AutoRollback enables rollback without a human. False = shadow mode (recommend only).
