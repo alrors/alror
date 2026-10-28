@@ -238,6 +238,18 @@ export async function disablePlugin(ctx: OrgCtx, id: string): Promise<void> {
   });
 }
 
+/**
+ * Turns a disabled plugin back on with the settings it kept (the Undo after
+ * Disable). Same path as saving its configuration, so the policy change is
+ * re-applied and audited as plugin.enable. Slack's webhook is cleared on
+ * disable, so Slack needs its webhook entered again instead.
+ */
+export async function enablePlugin(ctx: OrgCtx, id: string): Promise<{ created: boolean; enabled: boolean }> {
+  requireAdmin(ctx);
+  const row = await installedRow(ctx, id, db);
+  return installPlugin(ctx, id, row.config ?? {});
+}
+
 /** Removes the plugin and its settings, and reverts its policy change. */
 export async function uninstallPlugin(ctx: OrgCtx, id: string): Promise<void> {
   requireAdmin(ctx);
