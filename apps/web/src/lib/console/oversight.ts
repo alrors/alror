@@ -5,6 +5,7 @@ import { DAY, median, restoreMs } from "./analytics";
 import { metricLabel, metricUnitValue, span, weekdayLabel } from "./format";
 import { jobPhase, jobTarget, type JobLike } from "./jobs";
 import { SEVERITY_RANK, type Severity } from "./overview";
+import { rampProgress, type RampEvaluation, type ShadowFeedback } from "./trust-ramp";
 import type { DeployEvent, Deployment, MetricResult } from "./types";
 import { decisionPath } from "../server/github/report";
 import type { DecisionView } from "../server/github/types";
@@ -178,7 +179,8 @@ export type InboxKind =
   | "borderline"
   | "stalled"
   | "queued"
-  | "incident";
+  | "incident"
+  | "ready_for_auto";
 
 export type InboxLink = { label: string; href: string; external?: boolean };
 
@@ -199,6 +201,8 @@ export type InboxItem = {
   secondary?: InboxLink;
   /** Offer a rollback through the job queue. */
   rollback?: { id: string; service: string };
+  /** Offer "Correct" / "False alarm" on a shadow recommendation (trust ramp). */
+  feedback?: { id: string; current: ShadowFeedback | null };
 };
 
 export function sortInbox(items: InboxItem[]): InboxItem[] {
@@ -301,7 +305,14 @@ export function isManualRollback(events: DeployEvent[]): boolean {
  * recommendations, and passing results close to their limit. Only the newest release of
  * each service and environment counts: a newer release supersedes the problem.
  */
-export function releaseInbox(deps: Deployment[], events: Map<string, DeployEvent[]>, limits: Record<string, number>, now: number): InboxItem[] {
+export function releaseInbox(
+  deps: Deployment[],
+  events: Map<string, DeployEvent[]>,
+  limits: Record<string, number>,
+  now: number,
+  /** Shadow recommendations a person already judged: they no longer need anyone. */
+  judged: Map<string, ShadowFeedback> = new Map(),
+): InboxItem[] {
   const out: InboxItem[] = [];
   const seen = new Set<string>();
   const sorted = [...deps].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
@@ -344,8 +355,18 @@ export function releaseInbox(deps: Deployment[], events: Map<string, DeployEvent
     }
     const recs = recommendations(ev);
     if (recs.length && d.status !== "rolled_back") {
+      if (judged.has(d.id)) continue;
       const last = recs[recs.length - 1];
-      out.push({ ...base, key: `rec-${d.id}-${recs.length}`, kind: "recommendation", severity: "high", at: last.at, reason: `Shadow mode recommended a rollback and kept going: ${last.message}`, rollback: { id: d.id, service: d.service } });
+      out.push({
+        ...base,
+        key: `rec-${d.id}-${recs.length}`,
+        kind: "recommendation",
+        severity: "high",
+        at: last.at,
+        reason: `Shadow mode recommended a rollback and kept going: ${last.message}`,
+        rollback: { id: d.id, service: d.service },
+        feedback: { id: d.id, current: null },
+      });
       continue;
     }
     if (d.status === "promoted" || live) {
@@ -400,6 +421,22 @@ export function jobInbox(open: InboxJob[], failed: InboxJob[], deps: Deployment[
     });
   }
   return out;
+}
+
+/** Services the trust ramp says are ready to leave shadow mode. */
+export function rampInbox(evals: RampEvaluation[]): InboxItem[] {
+  return evals
+    .filter((e) => e.eligible && e.eligible_since)
+    .map((e) => ({
+      key: `ramp-${e.service}-${e.evidence.join(".")}`,
+      kind: "ready_for_auto" as const,
+      severity: "medium" as const,
+      subject: e.service,
+      owner: "trust ramp",
+      at: e.eligible_since!,
+      reason: `Ready for automatic rollback: ${rampProgress(e)}. ${e.why.replace(/: ready for automatic rollback\.$/, ".")}`,
+      primary: { label: "Review in Policies", href: "/app/policies#trust-ramp" },
+    }));
 }
 
 /* ------------------------------- What Alror did ------------------------------- */

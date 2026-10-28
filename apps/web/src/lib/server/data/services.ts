@@ -2,6 +2,7 @@ import "server-only";
 import { and, asc, eq, isNull } from "drizzle-orm";
 import { requireAdmin, type OrgCtx } from "../context";
 import { db, type Tx } from "../db";
+import type { RollbackMode } from "@/lib/console/trust-ramp";
 import { services, type Target } from "../db/schema";
 import { conflict, invalid, notFound } from "../errors";
 import { writeAudit } from "./audit";
@@ -15,6 +16,10 @@ export type Service = {
   namespace: string;
   critical: boolean;
   policy_override: Record<string, unknown> | null;
+  /** Trust ramp override; null follows the org's policy.auto_rollback. */
+  rollback_mode: RollbackMode | null;
+  /** When the trust ramp last restarted (demotion to shadow). */
+  ramp_reset_at: string | null;
   created_at: string;
   archived_at: string | null;
 };
@@ -27,6 +32,8 @@ export type ServiceInput = {
   namespace?: string;
   critical?: boolean;
   policy_override?: Record<string, unknown> | null;
+  /** Only changed when given (alror config push with services[].rollback_mode). */
+  rollback_mode?: RollbackMode | null;
 };
 
 const toService = (r: typeof services.$inferSelect): Service => ({
@@ -38,6 +45,8 @@ const toService = (r: typeof services.$inferSelect): Service => ({
   namespace: r.namespace,
   critical: r.critical,
   policy_override: r.policyOverride ?? null,
+  rollback_mode: r.rollbackMode ?? null,
+  ramp_reset_at: r.rampResetAt?.toISOString() ?? null,
   created_at: r.createdAt.toISOString(),
   archived_at: r.archivedAt?.toISOString() ?? null,
 });
@@ -128,6 +137,7 @@ export async function upsertServiceByName(ctx: OrgCtx, input: ServiceInput, tx: 
     namespace: input.namespace ?? "",
     critical: input.critical ?? false,
     archivedAt: null,
+    ...(input.rollback_mode !== undefined && { rollbackMode: input.rollback_mode }),
   };
   const before = await getService(ctx, input.name, tx);
   const [r] = await tx

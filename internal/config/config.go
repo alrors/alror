@@ -40,6 +40,10 @@ type Service struct {
 	// Detect enrols the service in release detection: `alror runner --watch`
 	// starts a release when its Rollout's image changes outside Alror.
 	Detect bool `yaml:"detect,omitempty" json:"detect,omitempty"`
+	// RollbackMode overrides policy.auto_rollback for this service: "auto"
+	// rolls back without a human, "shadow" only recommends. Empty follows the
+	// policy. The portal's trust ramp sets it per service.
+	RollbackMode string `yaml:"rollback_mode,omitempty" json:"rollback_mode,omitempty"`
 }
 
 // Watch configures release detection in `alror runner` (experimental). It
@@ -56,6 +60,12 @@ type Watch struct {
 	// restarts (default .alror/watch.json next to alror.yaml).
 	State string `yaml:"state,omitempty"`
 }
+
+// Rollback modes for Service.RollbackMode.
+const (
+	RollbackAuto   = "auto"
+	RollbackShadow = "shadow"
+)
 
 // Metrics selects and configures the metrics provider used for verification.
 type Metrics struct {
@@ -209,8 +219,25 @@ func (c *Config) Validate() error {
 			return fmt.Errorf("alror.yaml: duplicate service %q", s.Name)
 		}
 		seen[s.Name] = true
+		switch s.RollbackMode {
+		case "", RollbackAuto, RollbackShadow:
+		default:
+			return fmt.Errorf("alror.yaml: service %q: rollback_mode must be auto or shadow, got %q", s.Name, s.RollbackMode)
+		}
 	}
 	return nil
+}
+
+// AutoRollbackFor reports whether a deploy of svc may roll back without a
+// human: the service's rollback_mode when set, otherwise policy.auto_rollback.
+func (c *Config) AutoRollbackFor(svc Service) bool {
+	switch svc.RollbackMode {
+	case RollbackAuto:
+		return true
+	case RollbackShadow:
+		return false
+	}
+	return c.Policy.AutoRollback
 }
 
 // Service returns the service with the given name.

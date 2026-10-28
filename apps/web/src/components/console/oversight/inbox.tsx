@@ -2,9 +2,10 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { AlarmClock, ArrowUpRight, CircleAlert, CircleCheck, GitPullRequest, OctagonAlert, RotateCcw, Siren, Timer, TriangleAlert, X } from "lucide-react";
+import { AlarmClock, ArrowUpRight, CircleAlert, CircleCheck, GitPullRequest, OctagonAlert, RotateCcw, ShieldCheck, Siren, Timer, TriangleAlert, X } from "lucide-react";
 import { LaneRollback } from "@/components/console/overview/lane-rollback";
 import { useLocalValue } from "@/components/console/overview/store";
+import { RecommendationFeedback } from "@/components/console/trust-ramp";
 import { Count, GHOST_BUTTON, PAD_X, Panel, SMALL_BUTTON } from "@/components/console/overview/ui";
 import { ago } from "@/lib/console/format";
 import type { InboxItem, InboxKind, InboxLink } from "@/lib/console/oversight";
@@ -31,6 +32,7 @@ const KIND_ICON: Partial<Record<InboxKind, typeof CircleAlert>> = {
   queued: Timer,
   rollback_job_failed: RotateCcw,
   incident: Siren,
+  ready_for_auto: ShieldCheck,
 };
 
 function parse(raw: string | null): Record<string, number> {
@@ -86,7 +88,7 @@ export function NeedsYou({ items, now, canRollBack }: { items: InboxItem[]; now:
           {visible.length > 0 && <Count className={critical ? "bg-con-bad/15 text-con-bad" : undefined}>{visible.length}</Count>}
         </h2>
       }
-      tip="Pull requests the merge gate sent to a person or has waited on too long, open incidents from your alerts, releases whose rollback is unconfirmed or whose verdict had too little data or passed close to its limit, shadow-mode rollback recommendations, and stalled runner jobs. Snooze hides an item on this device for a day; dismiss hides it until it changes."
+      tip="Pull requests the merge gate sent to a person or has waited on too long, open incidents from your alerts, releases whose rollback is unconfirmed or whose verdict had too little data or passed close to its limit, shadow-mode rollback recommendations (mark them correct or a false alarm for the trust ramp), services ready for automatic rollback, and stalled runner jobs. Snooze hides an item on this device for a day; dismiss hides it until it changes."
       tipAlign="end"
       aside={
         hiddenCount > 0 ? (
@@ -151,6 +153,7 @@ export function NeedsYou({ items, now, canRollBack }: { items: InboxItem[]; now:
                         <ItemLink link={it.primary} className={cn(SMALL_BUTTON, GHOST_BUTTON)} />
                         {it.secondary && <ItemLink link={it.secondary} className={cn(SMALL_BUTTON, "text-con-fg3 hover:bg-con-hover hover:text-con-fg")} />}
                         {canRollBack && it.rollback && <LaneRollback id={it.rollback.id} service={it.rollback.service} />}
+                        {canRollBack && it.feedback && <RecommendationFeedback id={it.feedback.id} current={it.feedback.current} />}
                         <time dateTime={it.at} className="ml-auto text-[11.5px] tabular-nums text-con-fg3" title="How long this has needed attention">
                           {ago(it.at, now)}
                         </time>

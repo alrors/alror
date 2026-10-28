@@ -70,6 +70,9 @@ func runDeploy(o deployOpts) error {
 	if o.fast {
 		cfg.Policy.BakeScale = 0.003
 	}
+	// The service's rollback_mode (set by the portal's trust ramp) wins over
+	// the policy default; --shadow can still force recommend-only.
+	cfg.Policy.AutoRollback = cfg.AutoRollbackFor(svc)
 	if o.shadow {
 		cfg.Policy.AutoRollback = false
 	}

@@ -128,6 +128,12 @@ export const ConfigBody = z.object({
         cluster: z.string().optional(),
         namespace: z.string().optional(),
         critical: z.boolean().optional(),
+        // Per-service rollback mode (trust ramp). Absent or "" leaves the server's value unchanged.
+        rollback_mode: z
+          .enum(["auto", "shadow"])
+          .or(z.literal(""))
+          .optional()
+          .transform((v) => (v ? v : undefined)),
       }),
     )
     .nullish()

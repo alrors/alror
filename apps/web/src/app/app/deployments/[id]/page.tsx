@@ -11,6 +11,9 @@ import { headline } from "@/components/console/release-story";
 import { ReleaseVerdicts } from "@/components/console/release-verdicts";
 import { RolloutTreeView } from "@/components/console/rollout-tree";
 import { ReleaseWhyCard } from "@/components/console/oversight/release-why";
+import { RecommendationFeedback } from "@/components/console/trust-ramp";
+import { isAdminRole } from "@/lib/server/context";
+import { recommendationFor } from "@/lib/server/data/trust-ramp";
 import { explainRelease } from "@/lib/console/oversight";
 import { AiBadge, Card, Field, LevelBadge, StatusBadge } from "@/components/console/primitives";
 import { cn } from "@/lib/site";
@@ -30,11 +33,15 @@ export async function generateMetadata({ params }: PageProps<"/app/deployments/[
   return { title: d ? `${d.service} ${d.ref ?? ""}`.trim() : "Deployment" };
 }
 
+const REC_LABEL = { confirmed: "confirmed", false_alarm: "false alarm", pending: "watching", unconfirmed: "needs a verdict" } as const;
+
 export default async function DeploymentPage({ params }: PageProps<"/app/deployments/[id]">) {
   const { id } = await params;
   const [d, events, all, config] = await Promise.all([getDeployment(id), getEvents(id), listDeployments(), readProjectConfig()]);
   if (!d) notFound();
-  const jobs = await jobsForDeployment(await requireCtx(), d.id);
+  const ctx = await requireCtx();
+  const [jobs, shadow] = await Promise.all([jobsForDeployment(ctx, d.id), recommendationFor(ctx, d.id)]);
+  const admin = ctx.actor.type === "user" && isAdminRole(ctx.actor.role);
 
   const now = anchorNow(all);
   const tree = buildRolloutTree(d, events, now);
@@ -76,6 +83,31 @@ export default async function DeploymentPage({ params }: PageProps<"/app/deploym
       </div>
 
       <ReleaseWhyCard why={why} />
+
+      {shadow && (
+        <section
+          aria-labelledby="shadow-rec"
+          className={cn(
+            "con-fade-up flex flex-col gap-3 rounded-lg border bg-con-panel px-5 py-4 sm:flex-row sm:items-center sm:justify-between",
+            shadow.rec.outcome === "confirmed" ? "border-con-line" : shadow.rec.outcome === "false_alarm" ? "border-con-line" : "border-con-warn/35",
+          )}
+          style={{ animationDelay: "45ms" }}
+        >
+          <div className="min-w-0">
+            <h2 id="shadow-rec" className="text-[12px] font-medium uppercase tracking-wide text-con-fg3">
+              Shadow recommendation · {REC_LABEL[shadow.rec.outcome]}
+            </h2>
+            <p className="mt-1.5 text-[13.5px] leading-relaxed text-con-fg">Alror would have rolled this release back. {shadow.rec.detail}</p>
+            <p className="mt-1 text-[12px] text-con-fg3">
+              Counts toward the {shadow.rec.service} trust ramp.{" "}
+              <Link href="/app/policies#trust-ramp" className="text-con-fg2 hover:text-con-fg">
+                See progress
+              </Link>
+            </p>
+          </div>
+          {admin && <RecommendationFeedback id={d.id} current={shadow.rec.feedback} className="shrink-0" />}
+        </section>
+      )}
 
       {/* The story in one sentence. */}
       <section

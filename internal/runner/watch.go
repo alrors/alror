@@ -403,6 +403,11 @@ func (w *Watcher) release(det detection) error {
 	if !ok {
 		return fmt.Errorf("service %q is no longer configured", det.svc.Name)
 	}
+	// The service's rollback_mode (trust ramp) wins over the policy default.
+	// Work on a copy: cfg may be the watcher's shared config.
+	own := *cfg
+	own.Policy.AutoRollback = own.AutoRollbackFor(svc)
+	cfg = &own
 	report, plan := w.score(ctx, cfg, svc, det.commit)
 	detail := fmt.Sprintf("Rollout %s changed from %s to %s outside Alror", rolloutName(svc), orNone(det.previous), det.image)
 	if det.commit != "" {

@@ -2,6 +2,7 @@ import "server-only";
 import { isAdminRole, type OrgCtx } from "../context";
 import { db } from "../db";
 import type { Target } from "../db/schema";
+import type { RollbackMode } from "@/lib/console/trust-ramp";
 import { forbidden } from "../errors";
 import { writeAudit } from "./audit";
 import { getOrg } from "./orgs";
@@ -11,7 +12,16 @@ import { listServices, upsertServiceByName } from "./services";
 /** The alror.yaml shape served by GET /config (Go internal/config.Config, JSON tags). */
 export type ConfigJSON = {
   project: string;
-  services: { name: string; paths: string[]; target: string; cluster: string; namespace: string; critical: boolean }[];
+  services: {
+    name: string;
+    paths: string[];
+    target: string;
+    cluster: string;
+    namespace: string;
+    critical: boolean;
+    /** Per-service override of policy.auto_rollback (trust ramp). Omitted when the service follows the policy. */
+    rollback_mode?: RollbackMode;
+  }[];
   metrics: { provider: string; url?: string; queries?: Record<string, string> };
   policy: {
     max_regression: Record<string, number>;
@@ -26,7 +36,7 @@ export type ConfigJSON = {
 
 export type ConfigInput = {
   project?: string;
-  services?: { name: string; paths?: string[]; target?: Target; cluster?: string; namespace?: string; critical?: boolean }[];
+  services?: { name: string; paths?: string[]; target?: Target; cluster?: string; namespace?: string; critical?: boolean; rollback_mode?: RollbackMode }[];
   metrics?: { provider: string; url?: string; queries?: Record<string, string> };
   policy?: {
     max_regression?: Record<string, number>;
@@ -52,6 +62,7 @@ export async function getConfig(ctx: OrgCtx): Promise<ConfigJSON> {
       cluster: s.cluster,
       namespace: s.namespace,
       critical: s.critical,
+      ...(s.rollback_mode ? { rollback_mode: s.rollback_mode } : {}),
     })),
     metrics,
     policy: {
@@ -100,7 +111,14 @@ export async function putConfig(ctx: OrgCtx, input: ConfigInput): Promise<Config
         { tx, authorized: true },
       );
     }
-    await writeAudit(ctx, "config.push", "config", { services_created: created, services_updated: updated }, tx);
+    const modes = Object.fromEntries((input.services ?? []).flatMap((s) => (s.rollback_mode ? [[s.name, s.rollback_mode]] : [])));
+    await writeAudit(
+      ctx,
+      "config.push",
+      "config",
+      { services_created: created, services_updated: updated, ...(Object.keys(modes).length ? { rollback_modes: modes } : {}) },
+      tx,
+    );
   });
   return getConfig(ctx);
 }

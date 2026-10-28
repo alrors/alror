@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { FileCode2 } from "lucide-react";
 import { PolicyEditor } from "@/components/console/policy-editor";
+import { TrustRampCard } from "@/components/console/trust-ramp";
 import { Card, Pill, tableCell, tableHead } from "@/components/console/primitives";
 import { requireSession } from "@/lib/console/auth";
 import { ago, requestTime } from "@/lib/console/format";
@@ -11,6 +12,7 @@ import { ctxFor } from "@/lib/server/auth/accounts";
 import { isAdminRole } from "@/lib/server/context";
 import { listAudit, type AuditEntry } from "@/lib/server/data/audit";
 import { DEFAULT_POLICY, getPolicy } from "@/lib/server/data/policy";
+import { loadTrustRamp } from "@/lib/server/data/trust-ramp";
 import { cn } from "@/lib/site";
 
 export const metadata: Metadata = { title: "Policies" };
@@ -20,12 +22,13 @@ export default async function PoliciesPage() {
   const ctx = ctxFor(session);
   const admin = isAdminRole(session.role);
   // The audit log is for owners and admins (as on Settings, Audit log); members see the policy row's updated_by.
-  const [c, policy, history] = await Promise.all([
+  const now = requestTime();
+  const [c, policy, history, ramp] = await Promise.all([
     readProjectConfig(),
     getPolicy(ctx),
     admin ? listAudit(ctx, { action: "policy.update", limit: 5 }) : Promise.resolve([] as AuditEntry[]),
+    loadTrustRamp(ctx, now),
   ]);
-  const now = requestTime();
   const touched = Date.parse(policy.updated_at) > 0;
   const lastAudit = history[0];
   const who = lastAudit?.actor_label || policy.updated_by;
@@ -75,6 +78,8 @@ export default async function PoliciesPage() {
           plans: plansFromStored(policy.plans),
         }}
       />
+
+      <TrustRampCard services={ramp.services} settings={ramp.settings} orgAutoRollback={ramp.orgAutoRollback} admin={admin} />
 
       {admin && (
         <Card
@@ -176,6 +181,11 @@ const FIELD_LABEL: Record<string, string> = {
   plans: "rollout plans",
   metrics: "metrics provider",
   slack_webhook: "Slack webhook",
+  trust_ramp: "trust ramp",
+  "trust_ramp.auto_graduate": "trust ramp graduation",
+  "trust_ramp.required_confirmed": "confirmations needed",
+  "trust_ramp.false_alarm_days": "false-alarm window (days)",
+  "trust_ramp.window_hours": "confirmation window (hours)",
 };
 
 const short = (v: unknown): string => {
@@ -190,8 +200,9 @@ function describeChanges(meta: Record<string, unknown>): string {
   if (changes && typeof changes === "object") {
     const parts = Object.entries(changes).map(([k, v]) => {
       const label = FIELD_LABEL[k] ?? k;
-      const f = short(v?.from);
-      const t = short(v?.to);
+      const graduation = (x: unknown) => (x ? "automatic" : "propose only");
+      const f = k === "trust_ramp.auto_graduate" ? graduation(v?.from) : short(v?.from);
+      const t = k === "trust_ramp.auto_graduate" ? graduation(v?.to) : short(v?.to);
       return f && t ? `${label} ${f} → ${t}` : label;
     });
     if (parts.length) return `Changed ${parts.join(", ")}.`;

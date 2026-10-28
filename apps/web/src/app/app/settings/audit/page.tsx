@@ -19,6 +19,7 @@ const CATEGORIES: { value: string; label: string }[] = [
   { value: "job", label: "Jobs" },
   { value: "service", label: "Services" },
   { value: "policy", label: "Policy" },
+  { value: "trust_ramp", label: "Trust ramp" },
   { value: "config", label: "Config" },
   { value: "environment", label: "Environments" },
   { value: "member", label: "Members" },
