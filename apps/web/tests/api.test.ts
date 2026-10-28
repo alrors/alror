@@ -593,7 +593,7 @@ describe("contract decisions (v1.1)", () => {
     const bad = await keyA.post("/api/v1/deployments", deployment(depId("env002"), "api", { environment: "moon" }));
     assert.equal(bad.status, 422);
     assert.equal((bad.body.error as Json).code, "unknown_environment");
-    assert.equal((await keyA.get("/api/v1/deployments?environment=staging")).body.length, 1);
+    assert.equal((await keyA.get("/api/v1/deployments?environment=staging&service=api")).body.length, 1);
 
     const runner = await keyA.req("POST", "/api/v1/deployments", deployment(depId("src001")), { "x-alror-source": "runner" });
     assert.equal(runner.body.source, "runner", "X-Alror-Source header");
