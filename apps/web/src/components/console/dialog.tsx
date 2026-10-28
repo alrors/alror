@@ -1,12 +1,15 @@
 "use client";
 
 import { useEffect, useId, useRef } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { cn } from "@/lib/site";
 
 /**
  * Modal dialog: dimmed backdrop, Escape and backdrop click close it, focus moves
- * into the panel on open and back to the opener on close.
+ * into the panel on open and back to the opener on close. Rendered into
+ * document.body so a parent that clips or transforms (collapsible cards,
+ * animated sections) can never hide or offset it.
  */
 export function Dialog({
   open,
@@ -45,8 +48,8 @@ export function Dialog({
     };
   }, [open, onClose]);
 
-  if (!open) return null;
-  return (
+  if (!open || typeof document === "undefined") return null;
+  return createPortal(
     <div className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto px-4 py-[10vh]" role="dialog" aria-modal="true" aria-labelledby={titleId}>
       <button type="button" aria-label="Close dialog" tabIndex={-1} className="con-fade fixed inset-0 cursor-default bg-black/70" onClick={onClose} />
       <div
@@ -66,6 +69,7 @@ export function Dialog({
         </div>
         <div className="px-5 py-4">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
