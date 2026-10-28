@@ -194,7 +194,7 @@ export default async function ServicePage({ params, searchParams }: PageProps<"/
         description="Last 30 days"
         aside={
           <span className="flex gap-4">
-            <LegendItem color={COLORS.promoted} label="Promoted" />
+            <LegendItem color={COLORS.neutral} label="Promoted" />
             <LegendItem color={COLORS.bad} label="Rolled back or failed" />
           </span>
         }
@@ -206,7 +206,7 @@ export default async function ServicePage({ params, searchParams }: PageProps<"/
             label: dayLabel(b.day),
             title: `${weekdayLabel(b.day)}: ${b.promoted} promoted, ${b.bad} rolled back or failed${b.other ? `, ${b.other} in progress` : ""}`,
             segments: [
-              { name: "Promoted", value: b.promoted, color: COLORS.promoted },
+              { name: "Promoted", value: b.promoted, color: COLORS.neutral },
               { name: "In progress", value: b.other, color: COLORS.info },
               { name: "Rolled back", value: b.bad, color: COLORS.bad },
             ],

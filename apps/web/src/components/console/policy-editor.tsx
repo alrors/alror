@@ -168,7 +168,7 @@ export function PolicyEditor({
                     ro && "cursor-default",
                   )}
                 >
-                  <input type="radio" name="mode" checked={s.auto === o.v} onChange={() => set({ auto: o.v })} className="mt-1 accent-con-brand" />
+                  <input type="radio" name="mode" checked={s.auto === o.v} onChange={() => set({ auto: o.v })} className="mt-1 accent-[#ededed]" />
                   <span>
                     <span className="block text-[14px] font-medium text-con-fg">{o.title}</span>
                     <span className="block text-[12px] text-con-fg2">{o.body}</span>

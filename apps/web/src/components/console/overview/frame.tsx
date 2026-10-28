@@ -336,7 +336,7 @@ export function CustomizeMenu() {
                         className={cn(
                           "grid h-4 w-4 shrink-0 place-items-center rounded-[4px] border transition-colors duration-150",
                           on
-                            ? "border-con-brand bg-con-brand text-con-brand-ink"
+                            ? "border-con-fg2 bg-con-fg2 text-black"
                             : "border-con-line-hover",
                         )}
                       >

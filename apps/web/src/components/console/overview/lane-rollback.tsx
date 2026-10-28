@@ -37,7 +37,7 @@ export function LaneRollback({ id, service, className }: { id: string; service: 
           <button type="button" onClick={() => setConfirming(false)} className={cn(small, "border border-con-line text-con-fg2 hover:bg-con-hover hover:text-con-fg")}>
             Cancel
           </button>
-          <button ref={confirmRef} type="submit" className={cn(small, "bg-con-bad text-black hover:bg-con-bad-text")} aria-label={`Confirm rollback of ${service}`}>
+          <button ref={confirmRef} type="submit" className={cn(small, "bg-con-bad text-black hover:bg-[#f46a6e]")} aria-label={`Confirm rollback of ${service}`}>
             <RotateCcw size={12} />
             Confirm
           </button>
@@ -48,7 +48,7 @@ export function LaneRollback({ id, service, className }: { id: string; service: 
           disabled={pending}
           onClick={() => setConfirming(true)}
           aria-label={`Roll back ${service}`}
-          className={cn(small, "border border-con-bad-edge bg-con-bad-soft text-con-bad-text hover:border-con-bad/70 hover:bg-con-bad/20")}
+          className={cn(small, "border border-con-bad/35 text-con-bad hover:border-con-bad/70 hover:bg-con-bad/[0.06]")}
         >
           {pending ? <Spinner size={12} /> : <RotateCcw size={12} />}
           {pending ? "Queueing" : "Roll back"}

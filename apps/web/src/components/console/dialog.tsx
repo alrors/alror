@@ -48,10 +48,10 @@ export function Dialog({
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto px-4 py-[10vh]" role="dialog" aria-modal="true" aria-labelledby={titleId}>
-      <button type="button" aria-label="Close dialog" tabIndex={-1} className="con-fade fixed inset-0 cursor-default bg-[#05080d]/75" onClick={onClose} />
+      <button type="button" aria-label="Close dialog" tabIndex={-1} className="con-fade fixed inset-0 cursor-default bg-black/70" onClick={onClose} />
       <div
         ref={panel}
-        className={cn("con-scale-in con-surface relative w-full max-w-[480px] rounded-lg border border-con-line-hover bg-con-panel shadow-[0_24px_60px_-20px_rgb(0_0_0/0.8)]", className)}
+        className={cn("con-scale-in relative w-full max-w-[480px] rounded-lg border border-con-line bg-con-panel shadow-[0_24px_60px_-20px_rgb(0_0_0/0.8)]", className)}
       >
         <div className="flex items-start justify-between gap-4 border-b border-con-line px-5 py-4">
           <div className="min-w-0">

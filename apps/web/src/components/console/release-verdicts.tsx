@@ -34,7 +34,7 @@ function MetricChart({ r, seed, limit }: { r: MetricResult; seed: string; limit?
     <LineChart
       height={130}
       series={[
-        { name: "baseline", values: series(r.baseline, `${seed}:b`, n, spread), color: COLORS.neutralLight, dashed: true },
+        { name: "baseline", values: series(r.baseline, `${seed}:b`, n, spread), color: "#737373", dashed: true },
         { name: "canary", values: series(r.canary, `${seed}:c`, n, spread), color, area: true },
       ]}
       threshold={limit !== undefined ? { value: r.baseline * (1 + limit), label: `limit +${Math.round(limit * 100)}%` } : undefined}
@@ -47,7 +47,7 @@ function MetricChart({ r, seed, limit }: { r: MetricResult; seed: string; limit?
       legend={
         <>
           <LegendItem color={color} label="Canary" value={metricUnitValue(r.metric, r.canary)} />
-          <LegendItem color={COLORS.neutralLight} dashed label="Baseline" value={metricUnitValue(r.metric, r.baseline)} />
+          <LegendItem color="#737373" dashed label="Baseline" value={metricUnitValue(r.metric, r.baseline)} />
         </>
       }
     />
@@ -62,7 +62,7 @@ function MetricCard({ r, limit, alpha, seed, delay }: { r: MetricResult; limit?:
   const deltaW = Math.min(100, (Math.max(0, r.delta) / scale) * 100);
   const limitX = limit !== undefined ? (limit / scale) * 100 : null;
   return (
-    <div className={cn("rounded-md border p-4", r.pass ? "border-con-line" : "border-con-bad-edge bg-con-bad-soft")}>
+    <div className={cn("rounded-md border p-4", r.pass ? "border-con-line" : "border-con-bad/40")}>
       <div className="flex items-baseline justify-between gap-2">
         <span className="text-[14px] font-medium text-con-fg">{metricLabel(r.metric)}</span>
         <span className={cn("inline-flex items-center gap-1.5 text-[12px] font-medium", r.pass ? "text-con-fg2" : "text-con-bad")}>

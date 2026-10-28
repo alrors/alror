@@ -93,7 +93,7 @@ export function ShellProgress() {
   return (
     <div aria-hidden className="pointer-events-none fixed inset-x-0 top-0 z-[90] h-[2px]">
       <div
-        className="h-full bg-con-brand transition-[width,opacity] duration-200 ease-out motion-reduce:transition-none"
+        className="h-full bg-con-fg/70 transition-[width,opacity] duration-200 ease-out motion-reduce:transition-none"
         style={{ width: `${width}%`, opacity: visible ? 1 : 0 }}
       />
     </div>

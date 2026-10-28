@@ -134,109 +134,34 @@ summary::-webkit-details-marker {
   }
 }
 
-/* ---------- Console colour system ----------
- * Dark blue-black surfaces, one brand colour (mint), secondary accents for
- * categories and chart series, and a status set (solid + soft tint + edge + text).
- * Keep components on these tokens; the matching hex values for SVG/JS live in
- * src/components/console/palette.ts. Text tokens meet WCAG AA (4.5:1) on bg,
- * panel, raised and row surfaces; the "-text" status tokens meet AA on their tint.
- */
+/* ---------- Console (appended): flat enterprise-dark tokens ---------- */
 
 @theme inline {
-  /* Surfaces, darkest to lightest. */
-  --color-con-bg: #0b0f17;
-  --color-con-panel: #111722;
-  --color-con-raised: #161d2a;
-  --color-con-hover: #161e2b;
-  --color-con-row: #1b2332;
-  --color-con-line: #232c3b;
-  --color-con-line-hover: #34405a;
-
-  /* Text. */
-  --color-con-fg: #e8edf5;
-  --color-con-fg2: #a3aec2;
-  --color-con-fg3: #8691a5;
-  --color-con-spark: #4a5670;
-
-  /* Brand: mint. Primary buttons, active nav, focus, selected tabs, key numbers. */
-  --color-con-brand: #35e08f;
-  --color-con-brand-hover: #22c47a;
-  --color-con-brand-ink: #04120b;
-  --color-con-brand-soft: rgb(53 224 143 / 0.12);
-  --color-con-brand-edge: rgb(53 224 143 / 0.34);
-  --color-con-brand-text: #6ff0b0;
-
-  /* Accents: categories, chart series, badges. */
-  --color-con-accent-mint: #35e08f;
-  --color-con-accent-lilac: #a78bfa;
-  --color-con-accent-lilac-soft: #c3b3ff;
-  --color-con-accent-sky: #60a5fa;
-  --color-con-accent-sky-soft: #8fd3ff;
-  --color-con-accent-butter: #fbd34d;
-  --color-con-accent-butter-soft: #ffd84d;
-  --color-con-accent-orchid: #f0abfc;
-  --color-con-accent-coral: #ff6b6b;
-
-  /* Status: solid, soft tint (~13%), edge (border), readable text on the tint. */
+  --color-con-bg: #121212;
+  --color-con-panel: #171717;
+  --color-con-line: #2e2e2e;
+  --color-con-line-hover: #3e3e3e;
+  --color-con-row: #242424;
+  --color-con-hover: #1c1c1c;
+  --color-con-fg: #ededed;
+  --color-con-fg2: #a1a1a1;
+  --color-con-fg3: #737373;
+  --color-con-spark: #525252;
   --color-con-good: #35e08f;
-  --color-con-good-soft: rgb(53 224 143 / 0.13);
-  --color-con-good-edge: rgb(53 224 143 / 0.32);
-  --color-con-good-text: #6ff0b0;
-  --color-con-warn: #f5c04a;
-  --color-con-warn-soft: rgb(245 192 74 / 0.13);
-  --color-con-warn-edge: rgb(245 192 74 / 0.34);
-  --color-con-warn-text: #ffd779;
-  --color-con-bad: #ff6b6b;
-  --color-con-bad-soft: rgb(255 107 107 / 0.13);
-  --color-con-bad-edge: rgb(255 107 107 / 0.36);
-  --color-con-bad-text: #ff9a94;
-  --color-con-info: #60a5fa;
-  --color-con-info-soft: rgb(96 165 250 / 0.14);
-  --color-con-info-edge: rgb(96 165 250 / 0.36);
-  --color-con-info-text: #9cc8ff;
-  --color-con-idle: #8691a5;
-  --color-con-idle-soft: rgb(134 145 165 / 0.14);
-  --color-con-idle-edge: rgb(134 145 165 / 0.3);
-  --color-con-idle-text: #c4ccda;
+  --color-con-bad: #f2555a;
+  --color-con-warn: #f5a524;
+  --color-con-info: #3b82f6;
 }
 
 .con-scroll {
   scrollbar-width: thin;
-  scrollbar-color: #34405a transparent;
+  scrollbar-color: #3e3e3e transparent;
 }
 
 .con-dots {
-  background-color: #0b0f17;
-  background-image: radial-gradient(#1f2838 1px, transparent 1px);
+  background-color: #121212;
+  background-image: radial-gradient(#2a2a2a 1px, transparent 1px);
   background-size: 16px 16px;
-}
-
-/* Panel surface: a faint top highlight and a soft vertical gradient for depth. No glow. */
-.con-surface {
-  background-image: linear-gradient(180deg, rgb(255 255 255 / 0.018), rgb(255 255 255 / 0) 96px);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.035);
-}
-
-/* Every console card (rounded panel) gets the same faint top-down gradient. */
-.bg-con-panel.rounded-lg:not(.con-surface) {
-  background-image: linear-gradient(180deg, rgb(255 255 255 / 0.018), rgb(255 255 255 / 0) 96px);
-}
-
-/* Thin category accent along the top edge of a tile or section (set --con-accent). */
-.con-accent-top {
-  position: relative;
-}
-.con-accent-top::before {
-  content: "";
-  position: absolute;
-  inset: -1px -1px auto -1px;
-  height: 2px;
-  border-radius: inherit;
-  border-bottom-left-radius: 0;
-  border-bottom-right-radius: 0;
-  background: var(--con-accent, var(--color-con-line-hover));
-  opacity: 0.85;
-  pointer-events: none;
 }
 
 /* ---------- Console motion kit (shared; subtle, no glow, no blinking) ---------- */
@@ -332,7 +257,7 @@ summary::-webkit-details-marker {
 /* Loading placeholders. */
 .con-skeleton {
   border-radius: 6px;
-  background: linear-gradient(90deg, #161e2b 25%, #1f2939 37%, #161e2b 63%);
+  background: linear-gradient(90deg, #1c1c1c 25%, #262626 37%, #1c1c1c 63%);
   background-size: 200% 100%;
   animation: con-shimmer 1.4s ease-in-out infinite;
 }

@@ -53,7 +53,7 @@ export function SetupPull({ repositoryId, fullName }: { repositoryId: string; fu
     <button type="button" onClick={detect} disabled={detecting || opening} className={buttonClass.secondary}><ScanSearch size={14} />{detecting ? "Reading repository…" : proposal ? "Detect again" : "Detect services"}</button>
 
     {proposal && <div className="space-y-4">
-      {proposal.existingConfig && <p className="rounded-md border border-con-warn-edge bg-con-warn-soft px-3 py-2 text-[12px] text-con-fg2">This repository already has an alror.yaml. The pull request proposes a replacement for you to compare.</p>}
+      {proposal.existingConfig && <p className="rounded-md border border-con-warn/40 px-3 py-2 text-[12px] text-con-fg2">This repository already has an alror.yaml. The pull request proposes a replacement for you to compare.</p>}
       <p className="text-[12px] text-con-fg3">Project <code className="font-mono text-con-fg2">{proposal.project.value}</code> · {rows.filter((r) => r.include).length} of {rows.length} services selected · metrics start as synthetic (shadow mode, no automatic rollback).</p>
       {rows.map((row, index) => {
         const d = detected.get(row.id);

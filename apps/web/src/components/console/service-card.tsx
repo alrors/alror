@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { CircleCheck, CircleDashed, Loader, RotateCcw } from "lucide-react";
-import { COLORS, Sparkline } from "@/components/console/charts";
+import { Sparkline } from "@/components/console/charts";
 import { Pill, RiskValue, tableCell, tableHead } from "@/components/console/primitives";
 import type { ServiceRow } from "@/lib/console/analytics";
 import { ago, pct } from "@/lib/console/format";
@@ -79,7 +79,7 @@ export function ServiceCard({ r, now }: { r: ServiceListRow; now: number }) {
           values={r.daily}
           className="mt-4 h-8"
           label={`${r.recent.length} deploys in the last 30 days`}
-          dot={r.health === "rolled_back" ? COLORS.bad : COLORS.fg}
+          dot={r.health === "rolled_back" ? "#f2555a" : "#ededed"}
         />
         <div className="mt-3 grid grid-cols-4 gap-3">
           <Stat label="Deploys" title="Releases started in the last 30 days">

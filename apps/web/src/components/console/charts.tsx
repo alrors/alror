@@ -8,32 +8,20 @@ import { cn } from "@/lib/site";
 import { BarPlot, DotsPlot, LinePlot, type LegendEntry } from "./charts/plots";
 import { areaPath, hashId, linePath, makeTicks, niceScale } from "./charts/scale";
 import { rules as riskRules } from "@/lib/server/decision/score";
-import { ACCENT, SERIES, STATUS, SURFACE } from "./palette";
 
 export { niceScale };
 
-/** Chart colours; hex mirror of the console tokens (see ./palette.ts). */
 export const COLORS = {
-  good: STATUS.good,
-  bad: STATUS.bad,
-  warn: STATUS.warn,
-  info: STATUS.info,
-  /** Successful outcomes in volume charts: a deeper mint, so the bulk of the bars stays calm. */
-  promoted: "#2b9468",
-  neutral: "#55627d",
-  neutralLight: SURFACE.fg2,
-  fg: SURFACE.fg,
-  grid: "#1c2433",
-  axis: "#2c3648",
-  lilac: ACCENT.lilac,
-  sky: ACCENT.sky,
-  butter: ACCENT.butter,
-  mint: ACCENT.mint,
-  coral: ACCENT.coral,
+  good: "#35e08f",
+  bad: "#f2555a",
+  warn: "#f5a524",
+  info: "#3b82f6",
+  neutral: "#525252",
+  neutralLight: "#a1a1a1",
+  fg: "#ededed",
+  grid: "#242424",
+  axis: "#3a3a3a",
 };
-
-/** Categorical series palette, in order (colour-blind friendly; pair with a legend). */
-export const SERIES_COLORS = SERIES;
 
 /* ---------------------------------- Sparkline ---------------------------------- */
 
@@ -307,9 +295,9 @@ export function RiskGauge({ score, color }: { score: number; color: string }) {
   return (
     <svg viewBox="0 0 200 112" className="w-full max-w-[240px]" role="img" aria-label={`Risk ${score} of 100`}>
       {/* Zones from the shared risk rules: low, medium, high */}
-      <path d={arc(0, medium - 0.6)} stroke={SURFACE.row} strokeWidth={14} fill="none" />
-      <path d={arc(medium + 0.6, high - 0.6)} stroke={SURFACE.row} strokeWidth={14} fill="none" />
-      <path d={arc(high + 0.6, 100)} stroke={SURFACE.row} strokeWidth={14} fill="none" />
+      <path d={arc(0, medium - 0.6)} stroke="#262626" strokeWidth={14} fill="none" />
+      <path d={arc(medium + 0.6, high - 0.6)} stroke="#262626" strokeWidth={14} fill="none" />
+      <path d={arc(high + 0.6, 100)} stroke="#262626" strokeWidth={14} fill="none" />
       {s > 0 && <path d={arc(0, s)} stroke={color} strokeWidth={14} fill="none" pathLength={1} className="con-draw" />}
       {[medium, high].map((t) => {
         const a = Math.PI * (1 - t / 100);
@@ -320,7 +308,7 @@ export function RiskGauge({ score, color }: { score: number; color: string }) {
             y1={100 - 66 * Math.sin(a)}
             x2={100 + 94 * Math.cos(a)}
             y2={100 - 94 * Math.sin(a)}
-            stroke={SURFACE.panel}
+            stroke="#171717"
             strokeWidth={2.5}
           />
         );
@@ -434,7 +422,7 @@ export function Donut({
   return (
     <div className={cn("relative shrink-0", className)} style={{ width: size, height: size }} role="img" aria-label={label}>
       <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90" aria-hidden>
-        <circle cx="50" cy="50" r={r} fill="none" stroke={SURFACE.row} strokeWidth={thickness} />
+        <circle cx="50" cy="50" r={r} fill="none" stroke="#242424" strokeWidth={thickness} />
         {total > 0 &&
           shown.map((p) => {
             const len = (p.value / total) * 100;
