@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Search } from "lucide-react";
-import { ConfirmAction } from "@/components/console/confirm-action";
+import { UndoableAction } from "@/components/console/undoable-action";
 import { FilterForm } from "@/components/console/filter-form";
 import { Pagination, hrefWith } from "@/components/console/pagination";
 import { Card, EmptyState } from "@/components/console/primitives";
@@ -251,7 +251,15 @@ export default async function ServicesPage({ searchParams }: PageProps<"/app/ser
                 <Link href={`/app/services/${encodeURIComponent(s.name)}`} className="min-w-0 truncate text-[13px] text-con-fg2 hover:text-con-fg">
                   {s.name}
                 </Link>
-                {admin && <ConfirmAction action={setArchived} fields={{ name: s.name, archived: "false" }} label="Restore" tone="secondary" />}
+                {admin && (
+                  <UndoableAction
+                    action={setArchived}
+                    fields={{ name: s.name, archived: "false" }}
+                    undoFields={{ name: s.name, archived: "true" }}
+                    label="Restore"
+                    done={`${s.name} restored`}
+                  />
+                )}
               </li>
             ))}
           </ul>

@@ -52,14 +52,17 @@ export function ConfirmAction({
         <input key={k} type="hidden" name={k} value={v} />
       ))}
       {confirming ? (
-        <span className="con-fade inline-flex items-center gap-2">
-          {prompt && <span className="hidden text-[12px] text-con-fg2 sm:inline">{prompt}</span>}
-          <button type="button" onClick={() => setConfirming(false)} className={buttonClass.secondary}>
-            Cancel
-          </button>
-          <button type="submit" className={tone === "danger" ? buttonClass.danger : buttonClass.secondary}>
-            {confirmLabel ?? label}
-          </button>
+        <span role="alert" className="con-fade flex max-w-[min(100%,420px)] flex-wrap items-center justify-end gap-2">
+          {/* The prompt says what happens; it is shown on every screen size. */}
+          {prompt && <span className="min-w-0 basis-full text-right text-[12px] leading-snug text-con-fg2 sm:basis-auto sm:flex-1">{prompt}</span>}
+          <span className="flex gap-2">
+            <button type="button" onClick={() => setConfirming(false)} className={cn(buttonClass.secondary, "h-11 sm:h-8")}>
+              Cancel
+            </button>
+            <button type="submit" className={cn(tone === "danger" ? buttonClass.danger : buttonClass.secondary, "h-11 sm:h-8")}>
+              {confirmLabel ?? label}
+            </button>
+          </span>
         </span>
       ) : (
         <button

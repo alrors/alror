@@ -3,10 +3,11 @@
 import { useActionState, useEffect, useState } from "react";
 import Link from "next/link";
 import { Check, ChevronDown, CircleSlash, ShieldCheck } from "lucide-react";
-import { judgeRecommendation, saveRampSettings, switchRollbackMode, type RampSettingsResult } from "@/app/app/trust-ramp-actions";
+import { judgeRecommendation, saveRampSettings, switchRollbackMode, undoRollbackMode, type RampSettingsResult } from "@/app/app/trust-ramp-actions";
 import { Spinner } from "@/components/console/loader";
+import { InfoTip } from "@/components/console/overview/float";
 import { Card, FormStatus, Pill, buttonClass, inputClass } from "@/components/console/primitives";
-import { toast, toastActionError } from "@/components/console/shell-toast";
+import { toast, toastActionError, undoToast } from "@/components/console/shell-toast";
 import type { ActionResult } from "@/lib/console/action-result";
 import { RAMP_LIMITS, rampProgress, type RampEvaluation, type RampStatus, type ShadowFeedback, type TrustRampSettings } from "@/lib/console/trust-ramp";
 import { cn } from "@/lib/site";
@@ -37,37 +38,77 @@ function Progress({ e }: { e: RampEvaluation }) {
   );
 }
 
-/** Accessible on/off switch that submits the new mode. */
+/**
+ * Accessible on/off switch for one service. Shadow → automatic runs at once with
+ * Undo; automatic → shadow turns auto-rollback off and restarts the ramp, so it
+ * asks first.
+ */
 function ModeSwitch({ e, disabled }: { e: RampEvaluation; disabled: boolean }) {
-  const [state, action, pending] = useActionState<ActionResult, FormData>(switchRollbackMode, undefined);
-  useEffect(() => {
-    if (state?.ok && state.message) toast.success(state.message);
-    else if (state?.error) toastActionError(state.error);
-  }, [state]);
   const on = e.mode === "auto";
   const next = on ? "shadow" : "auto";
+  // What Undo puts back: the service's own override, or null when it followed the org default.
+  const previous = e.explicit ? e.mode : null;
+  const [confirming, setConfirming] = useState(false);
+  const [, action, pending] = useActionState<ActionResult, FormData>(async (prev, fd) => {
+    const r = await switchRollbackMode(prev, fd);
+    if (r?.error) toastActionError(r.error);
+    else if (r?.ok && next === "auto")
+      undoToast(r.message ?? `${e.service} now rolls back automatically`, () => undoRollbackMode(e.service, previous), { description: "From its next deploy." });
+    else if (r?.ok && r.message) toast.success(r.message);
+    return r;
+  }, undefined);
+  const earned = e.confirmed > 0 ? `; its ${e.confirmed} earned confirmation${e.confirmed === 1 ? "" : "s"} can't be restored` : "";
   return (
-    <form action={action} className="inline-flex items-center gap-2">
+    <form
+      action={(fd) => {
+        setConfirming(false);
+        action(fd);
+      }}
+      className="flex flex-wrap items-center justify-end gap-2"
+    >
       <input type="hidden" name="service" value={e.service} />
       <input type="hidden" name="mode" value={next} />
-      {pending && <Spinner size={12} />}
-      <button
-        type="submit"
-        role="switch"
-        aria-checked={on}
-        aria-label={`Automatic rollback for ${e.service}`}
-        title={disabled ? "Only owners and admins can change this" : on ? "Switch back to shadow mode (restarts the ramp)" : e.eligible ? "Graduate to automatic rollback" : "Switch to automatic rollback before the ramp completes"}
-        disabled={disabled || pending}
-        className={cn(
-          "relative h-[18px] w-8 shrink-0 rounded-full border outline-none transition-colors duration-200 focus-visible:ring-1 focus-visible:ring-con-line-hover disabled:cursor-not-allowed disabled:opacity-50",
-          on ? "border-con-good/50 bg-con-good/30" : "border-con-line bg-con-row",
-        )}
-      >
-        <span
-          aria-hidden
-          className={cn("absolute top-[2px] h-3 w-3 rounded-full transition-[left,background-color] duration-200 ease-out", on ? "left-[16px] bg-con-good" : "left-[2px] bg-con-fg3")}
-        />
-      </button>
+      {confirming ? (
+        <div role="alert" className="con-fade flex w-full flex-wrap items-center justify-end gap-2 md:max-w-[340px]">
+          <p className="min-w-0 flex-1 basis-56 text-[12.5px] leading-snug text-con-fg">
+            Stop automatic rollback for {e.service}? Failed checks will only be logged and its trust ramp restarts from zero{earned}.
+          </p>
+          <span className="flex gap-2">
+            <button type="button" onClick={() => setConfirming(false)} className={cn(buttonClass.secondary, "h-11 sm:h-8")}>
+              Cancel
+            </button>
+            <button type="submit" className={cn(buttonClass.danger, "h-11 sm:h-8")}>
+              Switch to shadow
+            </button>
+          </span>
+        </div>
+      ) : (
+        <>
+          {pending && <Spinner size={12} />}
+          <button
+            type={on ? "button" : "submit"}
+            onClick={on ? () => setConfirming(true) : undefined}
+            role="switch"
+            aria-checked={on}
+            aria-label={`Automatic rollback for ${e.service}`}
+            title={disabled ? "Only owners and admins can change this" : on ? "Switch back to shadow mode (restarts the ramp)" : e.eligible ? "Graduate to automatic rollback" : "Switch to automatic rollback before the ramp completes"}
+            disabled={disabled || pending}
+            className="group/switch grid h-11 w-14 shrink-0 place-items-center rounded-md outline-none disabled:cursor-not-allowed disabled:opacity-50 sm:h-7 sm:w-10"
+          >
+            <span
+              aria-hidden
+              className={cn(
+                "relative h-[18px] w-8 rounded-full border transition-colors duration-200 group-focus-visible/switch:ring-1 group-focus-visible/switch:ring-con-line-hover",
+                on ? "border-con-good/50 bg-con-good/30" : "border-con-line bg-con-row",
+              )}
+            >
+              <span
+                className={cn("absolute top-[2px] h-3 w-3 rounded-full transition-[left,background-color] duration-200 ease-out", on ? "left-[16px] bg-con-good" : "left-[2px] bg-con-fg3")}
+              />
+            </span>
+          </button>
+        </>
+      )}
     </form>
   );
 }
@@ -194,12 +235,15 @@ export function TrustRampCard({
           <h2 className="flex items-center gap-2 text-[15px] font-semibold text-con-fg">
             <ShieldCheck size={15} className="text-con-fg3" />
             Trust ramp
+            <InfoTip label="trust ramp" align="start">
+              Services earn automatic rollback after {settings.required_confirmed} confirmed shadow {settings.required_confirmed === 1 ? "recommendation" : "recommendations"} and no false
+              alarms in {settings.false_alarm_days} days. {settings.auto_graduate ? "Eligible services graduate automatically." : "Graduation is proposed; a person decides."} New
+              services follow the organization default ({orgAutoRollback ? "automatic" : "shadow"}).
+            </InfoTip>
             {ready > 0 && <Pill className="text-con-info">{ready} ready</Pill>}
           </h2>
         }
-        description={`Services earn automatic rollback after ${settings.required_confirmed} confirmed shadow ${settings.required_confirmed === 1 ? "recommendation" : "recommendations"} and no false alarms in ${settings.false_alarm_days} days. ${
-          settings.auto_graduate ? "Eligible services graduate automatically." : "Graduation is proposed; a person decides."
-        } New services follow the organization default (${orgAutoRollback ? "automatic" : "shadow"}).`}
+        description="Per-service rollback mode, earned in shadow."
         flush
       >
         {sorted.length === 0 ? (

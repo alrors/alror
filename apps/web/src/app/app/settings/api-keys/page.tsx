@@ -105,7 +105,7 @@ export default async function ApiKeysPage({ searchParams }: PageProps<"/app/sett
                         {k.revoked_at ? (
                           <Pill className="text-con-fg3">Revoked</Pill>
                         ) : (
-                          <ConfirmAction action={revokeApiKey} fields={{ id: k.id }} label="Revoke" prompt="Clients using it stop working." />
+                          <ConfirmAction action={revokeApiKey} fields={{ id: k.id }} label="Revoke" prompt="Clients using it stop working. This can't be undone." />
                         )}
                       </td>
                     </tr>
