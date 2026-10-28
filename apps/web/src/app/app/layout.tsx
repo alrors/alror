@@ -99,7 +99,7 @@ export default async function ConsoleLayout({ children }: LayoutProps<"/app">) {
       <div className="flex min-h-0 flex-1">
         <Sidebar docsUrl={DOCS_URL} rolling={rolling} initialCollapsed={collapsed} />
         <main data-scroller className="con-scroll min-h-0 min-w-0 flex-1 overflow-y-auto">
-          <div className="mx-auto w-full max-w-[1400px] px-4 py-5 sm:px-8 sm:py-6">
+          <div className="w-full px-3 py-4 sm:px-5 sm:py-5">
             <ShellBreadcrumbs depService={depService} />
             {children}
           </div>

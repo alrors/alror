@@ -19,7 +19,7 @@ export const COLORS = {
   neutral: "#525252",
   neutralLight: "#a1a1a1",
   fg: "#ededed",
-  grid: "#242424",
+  grid: "#1c1c1c",
   axis: "#3a3a3a",
 };
 
@@ -295,9 +295,9 @@ export function RiskGauge({ score, color }: { score: number; color: string }) {
   return (
     <svg viewBox="0 0 200 112" className="w-full max-w-[240px]" role="img" aria-label={`Risk ${score} of 100`}>
       {/* Zones from the shared risk rules: low, medium, high */}
-      <path d={arc(0, medium - 0.6)} stroke="#262626" strokeWidth={14} fill="none" />
-      <path d={arc(medium + 0.6, high - 0.6)} stroke="#262626" strokeWidth={14} fill="none" />
-      <path d={arc(high + 0.6, 100)} stroke="#262626" strokeWidth={14} fill="none" />
+      <path d={arc(0, medium - 0.6)} stroke="#1e1e1e" strokeWidth={14} fill="none" />
+      <path d={arc(medium + 0.6, high - 0.6)} stroke="#1e1e1e" strokeWidth={14} fill="none" />
+      <path d={arc(high + 0.6, 100)} stroke="#1e1e1e" strokeWidth={14} fill="none" />
       {s > 0 && <path d={arc(0, s)} stroke={color} strokeWidth={14} fill="none" pathLength={1} className="con-draw" />}
       {[medium, high].map((t) => {
         const a = Math.PI * (1 - t / 100);
@@ -308,7 +308,7 @@ export function RiskGauge({ score, color }: { score: number; color: string }) {
             y1={100 - 66 * Math.sin(a)}
             x2={100 + 94 * Math.cos(a)}
             y2={100 - 94 * Math.sin(a)}
-            stroke="#171717"
+            stroke="#111111"
             strokeWidth={2.5}
           />
         );
@@ -422,7 +422,7 @@ export function Donut({
   return (
     <div className={cn("relative shrink-0", className)} style={{ width: size, height: size }} role="img" aria-label={label}>
       <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90" aria-hidden>
-        <circle cx="50" cy="50" r={r} fill="none" stroke="#242424" strokeWidth={thickness} />
+        <circle cx="50" cy="50" r={r} fill="none" stroke="#1c1c1c" strokeWidth={thickness} />
         {total > 0 &&
           shown.map((p) => {
             const len = (p.value / total) * 100;

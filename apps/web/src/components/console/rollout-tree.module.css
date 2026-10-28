@@ -1,7 +1,7 @@
 .graph {
   --rail: #404045;
   --branch: #8d8d96;
-  --node-bg: var(--color-con-panel, #171717);
+  --node-bg: var(--color-con-panel, #111111);
   color: var(--color-con-fg, #ededed);
   min-width: 0;
 }
