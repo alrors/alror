@@ -244,12 +244,20 @@ func Receipt(d *domain.Deployment, v *domain.Verdict, elapsed time.Duration) str
 	rule := line(grey, strings.TrimSpace(strings.Repeat("- ", width/2)), "")
 	blank := line(ink, "", "")
 
-	headline, outLabel, outValue := "VERIFIED", "Promoted", "→ 100%"
+	// Not "verified": no target reads back the traffic split it applied, and
+	// shadow mode can promote despite failed verdicts.
+	headline, outLabel, outValue := "PROMOTED", "Promoted", "→ 100%"
+	if d.Telemetry == "synthetic" || d.Target == "simulated" {
+		headline = "PROMOTED · SIMULATED"
+	}
 	switch d.Status {
 	case domain.StatusRolledBack:
 		headline, outLabel, outValue = "ROLLED BACK", "Reverted at", fmt.Sprintf("%d%%", d.Weight)
 	case domain.StatusFailed:
 		headline, outLabel, outValue = "FAILED", "Stopped at", fmt.Sprintf("%d%%", d.Weight)
+		if d.Recovery == domain.RecoveryFailed {
+			headline = "ROLLBACK FAILED · STATE UNKNOWN"
+		}
 	}
 
 	lines := []string{

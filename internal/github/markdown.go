@@ -121,14 +121,28 @@ func ReceiptMarkdown(d *domain.Deployment, v *domain.Verdict, elapsed time.Durat
 			b.WriteString("> ✅ **Promoted.** The release reached 100% traffic.\n\n")
 		}
 	case domain.StatusRolledBack:
-		fmt.Fprintf(&b, "> ↩️ **Rolled back.** The rollout stopped at %d%%; the rollback operation completed.\n\n", d.Weight)
+		if d.Recovery == domain.RecoveryRequested {
+			fmt.Fprintf(&b, "> ↩️ **Rolled back.** The rollout stopped at %d%%; the driver accepted the rollback command, but the restored traffic split was not observed.\n\n", d.Weight)
+		} else {
+			fmt.Fprintf(&b, "> ↩️ **Rolled back.** The rollout stopped at %d%%; the rollback operation completed.\n\n", d.Weight)
+		}
 	case domain.StatusFailed:
-		b.WriteString("> ❌ **Deployment failed.** Check the workflow logs and confirm the current traffic state before retrying.\n\n")
+		if d.Recovery == domain.RecoveryFailed {
+			b.WriteString("> 🛑 **Rollback failed.** A rollback was attempted and returned an error: the canary may still be serving traffic. Confirm the current traffic state on the target now.\n\n")
+		} else {
+			b.WriteString("> ❌ **Deployment failed.** Check the workflow logs and confirm the current traffic state before retrying.\n\n")
+		}
 	default:
 		fmt.Fprintf(&b, "> ℹ️ **%s.** No terminal deployment outcome was recorded.\n\n", escape(string(d.Status)))
 	}
 	if o.Shadow {
 		b.WriteString("> **Shadow mode:** metric failures do not trigger automatic rollback.\n\n")
+	}
+	if d.Telemetry == "synthetic" || o.Metrics == "synthetic" {
+		b.WriteString("> **Synthetic telemetry:** verdicts were computed from generated samples. This is not production verification.\n\n")
+	}
+	if d.Target == "simulated" || o.Driver == "simulated" {
+		b.WriteString("> **Simulated target:** no infrastructure was changed.\n\n")
 	}
 	b.WriteString("| Release | Details |\n| --- | --- |\n")
 	fmt.Fprintf(&b, "| Status | %s |\n| Environment | %s |\n| Image / artifact | %s |\n| Ref | %s |\n| Risk | %d/100 · %s |\n| Deployment ID | %s |\n| Duration | %s |\n| Last rollout stage | %d%% |\n",
@@ -205,7 +219,13 @@ func ReceiptMarkdown(d *domain.Deployment, v *domain.Verdict, elapsed time.Durat
 
 func writeVerdict(b *strings.Builder, v *domain.Verdict) {
 	result := "✅ Passed"
-	if !v.Pass {
+	switch {
+	case v.Pass:
+	case v.Outcome == domain.OutcomeInsufficientData:
+		result = "⚠️ Failed: insufficient data"
+	case v.Outcome == domain.OutcomeInvalidData:
+		result = "⚠️ Failed: invalid data"
+	default:
 		result = "❌ Failed"
 	}
 	fmt.Fprintf(b, "**%s** — %s\n\n", result, escape(v.Summary))
@@ -220,10 +240,22 @@ func writeVerdict(b *strings.Builder, v *domain.Verdict) {
 			break
 		}
 		result := "Passed"
-		if !r.Pass {
+		switch {
+		case r.Pass:
+		case r.Status == domain.OutcomeInsufficientData:
+			result = "Insufficient data"
+		case r.Status == domain.OutcomeInvalidData:
+			result = "Invalid data"
+		default:
 			result = "Failed"
 		}
-		fmt.Fprintf(b, "| %s | %.4g | %.4g | %+.1f%% | %.3g | %s | %s |\n", escape(r.Metric), r.Canary, r.Baseline, r.Delta*100, r.PValue, result, orDash(r.Reason))
+		change := fmt.Sprintf("%+.1f%%", r.Delta*100)
+		if r.Status == domain.OutcomeInsufficientData || r.Status == domain.OutcomeInvalidData {
+			change = "—"
+		} else if r.Baseline <= 0 && r.Status != "" {
+			change = fmt.Sprintf("%+.4g (absolute)", r.AbsDelta)
+		}
+		fmt.Fprintf(b, "| %s | %.4g | %.4g | %s | %.3g | %s | %s |\n", escape(r.Metric), r.Canary, r.Baseline, change, r.PValue, result, orDash(r.Reason))
 	}
 	b.WriteString("\nValues use the metrics provider's units. Relative change compares canary with baseline.\n\n")
 }

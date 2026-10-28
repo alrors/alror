@@ -79,7 +79,7 @@ alror runner --once                   # one long-poll; run a job if one arrives,
 14:02:11  · runner prod-runner-1 · acme workspace (http://localhost:3000) · concurrency 1
 14:02:30  · job 3f2a91c0 claimed · deploy checkout-api registry/checkout:1.42 → production
 14:02:30  · dep_20261002T140230_a1b2c3 · checkout-api registry/checkout:1.42 · risk 50 (medium) · 5%→25%→50%→100% on kubernetes
-14:12:31  ✓ dep_20261002T140230_a1b2c3 · 5% verified · No regression across 2 metrics
+14:12:31  ✓ dep_20261002T140230_a1b2c3 · 5% passed (measured telemetry) · No regression across 2 metrics
 …
 14:42:33  ✓ job 3f2a91c0 done in 40m3s · dep_20261002T140230_a1b2c3
 ```

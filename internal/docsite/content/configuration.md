@@ -7,7 +7,7 @@ project: shop
 services:
   - name: checkout-api
     paths: [services/checkout/]
-    target: kubernetes        # simulated | kubernetes | ecs
+    target: kubernetes        # simulated | kubernetes (ecs is unsupported)
     cluster: prod-eu
     namespace: checkout
     critical: true
@@ -38,7 +38,10 @@ notify:
 | `services[].paths` | Path prefixes that belong to the service. Used for blast radius. |
 | `services[].critical` | Adds risk whenever the service is touched. |
 | `metrics.queries` | `{{service}}` and `{{track}}` (`canary` or `baseline`) are substituted. |
-| `policy.max_regression` | Relative increase tolerated per metric (0.25 means +25%). |
+| `services[].target` | `simulated` or `kubernetes` (experimental). `ecs` is unsupported and refused. See the [capability matrix](/targets). |
+| `policy.max_regression` | Relative increase tolerated per metric (0.25 means +25%), used when the baseline median is positive. |
+| `policy.max_increase` | Absolute increase tolerated per metric when the baseline median is zero, in the metric's units. Defaults: `error_rate` 0.01, others 0. |
+| `policy.allow_synthetic_telemetry` | `true` lets a non-simulated target run with the `synthetic` provider; verdicts stay labelled synthetic. Default `false`: such deploys are refused. Local `alror.yaml` only for now. |
 | `policy.alpha` | Significance level for the Mann-Whitney test. |
 | `policy.auto_rollback` | `false` is shadow mode: recommend, never act. |
 | `policy.bake_scale` | Multiplies every bake time. `init` sets 0.003 for simulated demos. |

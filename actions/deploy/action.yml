@@ -84,5 +84,6 @@ runs:
       run: |
         args=(deploy -s "$ALROR_SERVICE" -i "$ALROR_IMAGE" --ref "$ALROR_REF")
         if [ "$ALROR_SHADOW" = "true" ]; then args+=(--shadow); fi
-        # Exit code 2 means "rolled back": fail the job so the bad release is visible.
+        # Exit code 2 means "rolled back" and 4 "rollback failed, traffic state unknown":
+        # both fail the job so the bad release is visible.
         alror "${args[@]}"

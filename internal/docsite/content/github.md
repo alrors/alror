@@ -78,7 +78,7 @@ The action keeps one deployment comment per service and recorded environment, se
 | `reason` | Rollback or failure reason, when available |
 | `duration` | Elapsed rollout time, such as `2m15s` |
 
-A rollback still exits with code `2`, which fails the job. Reporting errors produce warnings and preserve the deployment outcome. Receipts are emitted after the rollout engine returns; installation/configuration errors before a deployment starts, or a forcibly terminated runner, may only have workflow logs.
+A rollback still exits with code `2`, which fails the job; a rollback that itself failed exits with `4` (traffic state unknown). Receipts label synthetic telemetry and simulated targets, and say when a rollback was only requested rather than observed. Reporting errors produce warnings and preserve the deployment outcome. Receipts are emitted after the rollout engine returns; installation/configuration errors before a deployment starts, or a forcibly terminated runner, may only have workflow logs.
 
 When testing unreleased action changes, set `version` to the matching CLI commit or branch. The default `latest` installs the latest released CLI, which may not include new report features yet.
 

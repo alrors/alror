@@ -2,9 +2,12 @@ package rollout
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 	"time"
 
+	"github.com/alrors/alror/internal/capability"
 	"github.com/alrors/alror/internal/config"
 	"github.com/alrors/alror/internal/domain"
 	"github.com/alrors/alror/internal/driver"
@@ -14,20 +17,36 @@ import (
 	"github.com/alrors/alror/internal/verify"
 )
 
+// ErrRollbackFailed means a rollback was needed and the driver returned an
+// error. Traffic may still be on the canary: the recovery state is unknown.
+// `alror deploy` and `alror rollback` exit with code 4 for it.
+var ErrRollbackFailed = errors.New("rollback failed; traffic state unknown")
+
+// ErrSyntheticTelemetry refuses a non-simulated target verified only by the
+// synthetic metrics provider (unless policy.allow_synthetic_telemetry is set).
+var ErrSyntheticTelemetry = errors.New("synthetic telemetry cannot verify a real target")
+
+// rollbackTimeout bounds a rollback that runs after the rollout's context
+// was cancelled (Ctrl-C, lost lease): the rollback itself must still run.
+const rollbackTimeout = 2 * time.Minute
+
 // Observer receives live updates; the CLI uses it to draw progress.
 type Observer interface {
 	Event(domain.Event)
 	Progress(step int, fraction float64)
 }
 
-// Engine executes a deployment's plan: shift traffic, bake, verify, decide.
+// Engine executes a deployment's plan: prepare, shift traffic, bake, verify, decide.
 //
 // State machine:
 //
 //	pending → rolling ─┬─ step passes ─→ next step … → promoted
-//	                   ├─ step fails, auto_rollback ─→ rolled_back
+//	                   ├─ step fails, auto_rollback ─→ rolled_back   (rollback failed → failed, recovery rollback_failed)
 //	                   ├─ step fails, shadow mode ──→ continue (recommendation logged)
-//	                   └─ driver error ─────────────→ failed (rollback attempted)
+//	                   └─ driver error ─────────────→ failed (rollback attempted; its result is recorded in recovery)
+//
+// A step "fails" on a measured regression and also on insufficient or
+// invalid data: no verdict passes without evidence.
 type Engine struct {
 	Cfg      *config.Config
 	Store    store.Store
@@ -39,6 +58,32 @@ type Engine struct {
 
 	// Wait blocks for a bake period, reporting progress. Tests replace it.
 	Wait func(ctx context.Context, d time.Duration, tick func(fraction float64)) error
+}
+
+// Preflight checks a service's target and metrics provider against the
+// capability matrix before a deployment is recorded or traffic moves. It
+// rejects unsupported targets and, for a non-simulated target, synthetic
+// telemetry unless policy.allow_synthetic_telemetry is set.
+func Preflight(cfg *config.Config, svc config.Service, provider string) error {
+	t, ok := capability.TargetFor(svc.Target)
+	if !ok {
+		return fmt.Errorf("unknown target %q for %s", svc.Target, svc.Name)
+	}
+	for _, op := range []capability.Operation{capability.OpPrepare, capability.OpShift, capability.OpPromote, capability.OpRollback} {
+		if err := t.Check(op); err != nil {
+			return fmt.Errorf("%s: %w", svc.Name, err)
+		}
+	}
+	p, ok := capability.ProviderFor(provider)
+	if !ok || p.Maturity == capability.Unsupported {
+		return fmt.Errorf("metrics provider %q is not supported", provider)
+	}
+	if p.Maturity == capability.Simulated && t.Name != "simulated" && !cfg.Policy.AllowSyntheticTelemetry {
+		return fmt.Errorf("%w: %s targets %s but metrics.provider is %s; configure prometheus or datadog, "+
+			"or set policy.allow_synthetic_telemetry: true to run with verdicts labelled synthetic",
+			ErrSyntheticTelemetry, svc.Name, t.Name, p.Name)
+	}
+	return nil
 }
 
 // Run drives the deployment to a terminal status. It persists every
@@ -54,29 +99,47 @@ func (e *Engine) Run(ctx context.Context, d *domain.Deployment) error {
 	if e.Wait == nil {
 		e.Wait = realWait
 	}
+	d.Target = targetName(svc)
+	if e.Metrics != nil {
+		d.Telemetry = e.Metrics.Name()
+	}
+	if err := Preflight(e.Cfg, svc, d.Telemetry); err != nil {
+		d.Status, d.Reason = domain.StatusFailed, err.Error()+" · no traffic was changed"
+		e.emit(d, domain.Event{Kind: domain.EventError, Message: d.Reason})
+		return err
+	}
+	routing := routingFor(d.Target)
+	synthetic := d.Telemetry == "synthetic"
 
 	d.Status = domain.StatusRolling
 	e.emit(d, domain.Event{Kind: domain.EventCreated, Message: fmt.Sprintf(
-		"Risk %d (%s) · %s plan with %d steps", d.Risk.Score, d.Risk.Level, d.Plan.Strategy, len(d.Plan.Steps))})
+		"Risk %d (%s) · %s plan with %d steps · target %s · telemetry %s",
+		d.Risk.Score, d.Risk.Level, d.Plan.Strategy, len(d.Plan.Steps), describeTarget(d.Target), describeTelemetry(d.Telemetry))})
 
+	// The image is prepared once, independent of the first step's weight.
+	if err := e.Driver.Prepare(ctx, svc, d.Image); err != nil {
+		return e.fail(ctx, d, svc, fmt.Errorf("prepare image: %w", err))
+	}
+
+	allPassed := true
 	for i, step := range d.Plan.Steps {
 		d.StepIndex, d.Weight = i, step.Weight
 
 		if step.Weight >= 100 {
-			if err := e.Driver.Promote(ctx, svc, d.Image); err != nil {
+			if err := e.Driver.Promote(ctx, svc); err != nil {
 				return e.fail(ctx, d, svc, err)
 			}
 			d.Status = domain.StatusPromoted
-			msg := fmt.Sprintf("Verified at every step · promoted %s to 100%%", d.Service)
-			e.emit(d, domain.Event{Kind: domain.EventPromoted, Weight: 100, Message: msg})
+			msg := promotedMessage(d.Service, routing, synthetic, allPassed)
+			e.emit(d, domain.Event{Kind: domain.EventPromoted, Weight: 100, Message: msg, Routing: routing})
 			_ = e.Notifier.Notify(ctx, d, msg)
 			return nil
 		}
 
-		if err := e.Driver.SetWeight(ctx, svc, d.Image, step.Weight); err != nil {
+		if err := e.Driver.SetWeight(ctx, svc, i, step.Weight); err != nil {
 			return e.fail(ctx, d, svc, err)
 		}
-		e.emit(d, domain.Event{Kind: domain.EventStep, Weight: step.Weight, Message: fmt.Sprintf("Canary at %d%% · baking %s", step.Weight, step.Bake)})
+		e.emit(d, domain.Event{Kind: domain.EventStep, Weight: step.Weight, Routing: routing, Message: stepMessage(step, routing)})
 
 		if err := e.Wait(ctx, e.Cfg.Bake(step.Bake), func(f float64) {
 			if e.Observer != nil {
@@ -90,45 +153,58 @@ func (e *Engine) Run(ctx context.Context, d *domain.Deployment) error {
 		if err != nil {
 			return e.fail(ctx, d, svc, err)
 		}
+		if synthetic {
+			verdict.Evidence = domain.EvidenceSynthetic
+		} else {
+			verdict.Evidence = domain.EvidenceMeasured
+		}
 		e.emit(d, domain.Event{Kind: domain.EventVerdict, Weight: step.Weight, Message: verdict.Summary, Verdict: &verdict})
 
 		if verdict.Pass {
 			continue
 		}
+		allPassed = false
 		if !e.Cfg.Policy.AutoRollback {
 			e.emit(d, domain.Event{Kind: domain.EventVerdict, Weight: step.Weight,
 				Message: "Shadow mode: would roll back here; continuing because auto_rollback is off"})
 			continue
 		}
-		if err := e.Driver.Rollback(ctx, svc); err != nil {
-			return e.fail(ctx, d, svc, err)
+		if err := e.rollback(ctx, svc); err != nil {
+			return e.rollbackFailed(d, verdict.Summary, err)
 		}
-		d.Status, d.Reason = domain.StatusRolledBack, verdict.Summary
-		e.emit(d, domain.Event{Kind: domain.EventRolledBack, Weight: step.Weight, Message: fmt.Sprintf(
-			"Rolled back at %d%% traffic · %s", step.Weight, verdict.Summary)})
+		d.Status, d.Reason, d.Recovery = domain.StatusRolledBack, verdict.Summary, recoveryFor(routing)
+		e.emit(d, domain.Event{Kind: domain.EventRolledBack, Weight: step.Weight, Routing: routing, Message: fmt.Sprintf(
+			"Rolled back at %d%% traffic · %s%s", step.Weight, verdict.Summary, recoveryNote(routing))})
 		_ = e.Notifier.Notify(ctx, d, verdict.Summary)
 		return nil
 	}
 	return nil
 }
 
-// Rollback reverses a deployment on request (`alror rollback`).
+// Rollback reverses a deployment on request (`alror rollback`). A driver
+// error leaves the status as it was, records recovery rollback_failed and
+// returns an error wrapping ErrRollbackFailed.
 func (e *Engine) Rollback(ctx context.Context, d *domain.Deployment, reason string) error {
 	svc, ok := e.Cfg.Service(d.Service)
 	if !ok {
 		return fmt.Errorf("unknown service %q", d.Service)
 	}
-	if err := e.Driver.Rollback(ctx, svc); err != nil {
-		return err
+	routing := routingFor(targetName(svc))
+	if err := e.rollback(ctx, svc); err != nil {
+		d.Recovery = domain.RecoveryFailed
+		e.emit(d, domain.Event{Kind: domain.EventError, Message: fmt.Sprintf(
+			"Manual rollback failed · %v · traffic state unknown; check the target before retrying", err)})
+		return fmt.Errorf("%w: %v", ErrRollbackFailed, err)
 	}
-	d.Status, d.Reason, d.Weight = domain.StatusRolledBack, reason, 0
-	e.emit(d, domain.Event{Kind: domain.EventRolledBack, Message: "Manual rollback · " + reason})
+	d.Status, d.Reason, d.Weight, d.Recovery = domain.StatusRolledBack, reason, 0, recoveryFor(routing)
+	e.emit(d, domain.Event{Kind: domain.EventRolledBack, Routing: routing, Message: "Manual rollback · " + reason + recoveryNote(routing)})
 	return nil
 }
 
 func (e *Engine) judge(ctx context.Context, service string, window time.Duration) (domain.Verdict, error) {
+	names := metrics.Names(e.Cfg)
 	data := map[string]verify.Samples{}
-	for _, m := range metrics.Names(e.Cfg) {
+	for _, m := range names {
 		canary, err := e.Metrics.Sample(ctx, service, m, metrics.Canary, window)
 		if err != nil {
 			return domain.Verdict{}, err
@@ -139,14 +215,39 @@ func (e *Engine) judge(ctx context.Context, service string, window time.Duration
 		}
 		data[m] = verify.Samples{Canary: canary, Baseline: baseline}
 	}
-	return e.Verifier.Judge(data), nil
+	v := e.Verifier
+	if v.Required == nil {
+		v.Required = names
+	}
+	return v.Judge(data), nil
 }
 
+// rollback runs the driver's rollback even when ctx is already cancelled:
+// an interrupted rollout is exactly when the canary must be pulled back.
+func (e *Engine) rollback(ctx context.Context, svc config.Service) error {
+	rctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), rollbackTimeout)
+	defer cancel()
+	return e.Driver.Rollback(rctx, svc)
+}
+
+// fail stops the rollout after an error and attempts a rollback. The
+// rollback's own result is recorded; a failed rollback is never reported
+// as a restoration.
 func (e *Engine) fail(ctx context.Context, d *domain.Deployment, svc config.Service, cause error) error {
-	_ = e.Driver.Rollback(ctx, svc) // best effort: never leave a half-shifted canary behind
-	d.Status, d.Reason = domain.StatusFailed, cause.Error()
-	e.emit(d, domain.Event{Kind: domain.EventError, Weight: d.Weight, Message: cause.Error()})
+	if err := e.rollback(ctx, svc); err != nil {
+		return e.rollbackFailed(d, cause.Error(), err)
+	}
+	routing := routingFor(d.Target)
+	d.Status, d.Reason, d.Recovery = domain.StatusFailed, cause.Error(), recoveryFor(routing)
+	e.emit(d, domain.Event{Kind: domain.EventError, Weight: d.Weight, Routing: routing, Message: cause.Error() + recoveryNote(routing)})
 	return cause
+}
+
+func (e *Engine) rollbackFailed(d *domain.Deployment, why string, rbErr error) error {
+	d.Status, d.Recovery = domain.StatusFailed, domain.RecoveryFailed
+	d.Reason = fmt.Sprintf("%s · rollback failed: %v · traffic state unknown", why, rbErr)
+	e.emit(d, domain.Event{Kind: domain.EventError, Weight: d.Weight, Message: d.Reason})
+	return fmt.Errorf("%s: %w: %v", why, ErrRollbackFailed, rbErr)
 }
 
 func (e *Engine) emit(d *domain.Deployment, ev domain.Event) {
@@ -156,6 +257,102 @@ func (e *Engine) emit(d *domain.Deployment, ev domain.Event) {
 	if e.Observer != nil {
 		e.Observer.Event(ev)
 	}
+}
+
+func targetName(svc config.Service) string {
+	if svc.Target == "" {
+		return "simulated"
+	}
+	return svc.Target
+}
+
+// routingFor says what a traffic event on this target can claim.
+func routingFor(target string) string {
+	t, ok := capability.TargetFor(target)
+	if !ok {
+		return domain.RoutingRequested
+	}
+	switch t.Maturity(capability.OpObserve) {
+	case capability.Simulated:
+		return domain.RoutingSimulated
+	case capability.Verified:
+		return domain.RoutingObserved
+	default:
+		return domain.RoutingRequested
+	}
+}
+
+func recoveryFor(routing string) string {
+	if routing == domain.RoutingSimulated {
+		return domain.RecoverySimulated
+	}
+	return domain.RecoveryRequested
+}
+
+func recoveryNote(routing string) string {
+	switch routing {
+	case domain.RoutingSimulated:
+		return " · rollback simulated"
+	case domain.RoutingObserved:
+		return ""
+	default:
+		return " · rollback command accepted; restored traffic not observed"
+	}
+}
+
+func describeTarget(name string) string {
+	if t, ok := capability.TargetFor(name); ok {
+		return fmt.Sprintf("%s (%s)", name, t.Overall())
+	}
+	return name
+}
+
+func describeTelemetry(name string) string {
+	if p, ok := capability.ProviderFor(name); ok {
+		if p.Maturity == capability.Simulated {
+			return name + " (simulated, not production verification)"
+		}
+		return fmt.Sprintf("%s (%s)", name, p.Maturity)
+	}
+	return name
+}
+
+func stepMessage(step domain.Step, routing string) string {
+	switch routing {
+	case domain.RoutingSimulated:
+		return fmt.Sprintf("Canary at %d%% (simulated) · baking %s", step.Weight, step.Bake)
+	case domain.RoutingObserved:
+		return fmt.Sprintf("Canary at %d%% (observed) · baking %s", step.Weight, step.Bake)
+	default:
+		return fmt.Sprintf("Canary %d%% requested · applied split not observed · baking %s", step.Weight, step.Bake)
+	}
+}
+
+func promotedMessage(service, routing string, synthetic, allPassed bool) string {
+	var checks string
+	switch {
+	case !allPassed:
+		checks = "promoted despite failed or inconclusive verdicts (shadow mode)"
+	case synthetic:
+		checks = "every step passed on synthetic telemetry (not production verification)"
+	default:
+		checks = "every step passed on measured telemetry"
+	}
+	switch routing {
+	case domain.RoutingSimulated:
+		return fmt.Sprintf("Simulated rollout · %s · promoted %s to 100%% (simulated)", checks, service)
+	case domain.RoutingObserved:
+		return fmt.Sprintf("%s · promoted %s to 100%%", capitalize(checks), service)
+	default:
+		return fmt.Sprintf("%s · promotion of %s to 100%% requested; applied split not observed", capitalize(checks), service)
+	}
+}
+
+func capitalize(s string) string {
+	if s == "" {
+		return s
+	}
+	return strings.ToUpper(s[:1]) + s[1:]
 }
 
 func realWait(ctx context.Context, d time.Duration, tick func(float64)) error {

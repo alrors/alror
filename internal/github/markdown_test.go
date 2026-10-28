@@ -101,3 +101,25 @@ func TestLargeReportsRemainWithinGitHubSummaryLimit(t *testing.T) {
 		t.Fatalf("receipt size: %d", len(md))
 	}
 }
+
+func TestReceiptReportsFailedRollbackAndSyntheticTelemetry(t *testing.T) {
+	d := &domain.Deployment{Service: "api", Status: domain.StatusFailed, Recovery: domain.RecoveryFailed, Weight: 25,
+		Target: "kubernetes", Telemetry: "synthetic", Reason: "kubectl timeout · rollback failed"}
+	v := &domain.Verdict{Outcome: domain.OutcomeInsufficientData, Summary: "Insufficient data: error_rate insufficient data",
+		Results: []domain.MetricResult{{Metric: "error_rate", Status: domain.OutcomeInsufficientData, PValue: 1, Reason: "insufficient data (2/2 samples, need 8)"}}}
+	md := ReceiptMarkdown(d, v, time.Second)
+	for _, want := range []string{"Rollback failed", "may still be serving traffic", "Synthetic telemetry", "not production verification", "Failed: insufficient data", "| Insufficient data |"} {
+		if !strings.Contains(md, want) {
+			t.Errorf("missing %q in receipt:\n%s", want, md)
+		}
+	}
+	if strings.Contains(md, "rollback operation completed") {
+		t.Fatal("a failed rollback must never be reported as completed")
+	}
+
+	real := &domain.Deployment{Service: "api", Status: domain.StatusRolledBack, Recovery: domain.RecoveryRequested, Weight: 25, Target: "kubernetes", Telemetry: "prometheus"}
+	md = ReceiptMarkdown(real, nil, time.Second)
+	if !strings.Contains(md, "restored traffic split was not observed") || strings.Contains(md, "Synthetic telemetry") {
+		t.Fatalf("real-target rollback must be reported as requested, not observed:\n%s", md)
+	}
+}
