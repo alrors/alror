@@ -1,6 +1,6 @@
 import "server-only";
 import { z } from "zod";
-import { EVENT_KINDS, JOB_STATUSES, SOURCES, STATUSES, TARGETS } from "../db/schema";
+import { EVENT_KINDS, INCIDENT_STATUSES, JOB_STATUSES, SOURCES, STATUSES, TARGETS } from "../db/schema";
 
 // Request schemas for /api/v1. Domain shapes follow alror/internal/domain (snake_case, bake in ns).
 
@@ -108,6 +108,10 @@ export const HeartbeatBody = z.object({
 });
 
 export const JobStatusQuery = z.enum(JOB_STATUSES).optional();
+
+export const IncidentStatusQuery = z.enum(INCIDENT_STATUSES).optional();
+
+export const IncidentRollbackBody = z.object({ deployment_id: z.string().min(1).max(128) });
 
 export const ConfigBody = z.object({
   project: z.string().optional(),
