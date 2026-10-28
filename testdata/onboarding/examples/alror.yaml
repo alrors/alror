@@ -1,0 +1,126 @@
+# Alror configuration proposed by Alror onboarding for acme/demo.
+# Every value is explained in ALROR.md. Lines marked "unknown — set this" need your input.
+# Docs: run `alror docs` or see the configuration page.
+project: demo
+services:
+  # auth: Taken from convention evidence in services/auth/.
+  - name: auth
+    # paths (medium confidence): services/auth/ from convention evidence.
+    paths:
+      - services/auth/
+    # target (medium confidence): No Argo Rollout manifest found. Simulated runs the release loop without touching infrastructure; switch to kubernetes once an Argo Rollout exists.
+    target: simulated
+    critical: true # "auth" in the name or paths marks money or identity handling.
+    # owners (from CODEOWNERS, informational): @acme/identity
+  # billing: Taken from convention evidence in services/billing/.
+  - name: billing
+    # paths (medium confidence): services/billing/ from convention evidence.
+    paths:
+      - services/billing/
+    # target (medium confidence): No Argo Rollout manifest found. Simulated runs the release loop without touching infrastructure; switch to kubernetes once an Argo Rollout exists.
+    target: simulated
+    critical: true # "billing" in the name or paths marks money or identity handling.
+    # owners (from CODEOWNERS, informational): @acme/platform
+  # checkout: Taken from convention evidence in services/checkout/.
+  - name: checkout
+    # paths (medium confidence): services/checkout/ from convention evidence.
+    paths:
+      - services/checkout/
+    # target (medium confidence): No Argo Rollout manifest found. Simulated runs the release loop without touching infrastructure; switch to kubernetes once an Argo Rollout exists.
+    target: simulated
+    critical: true # "checkout" in the name or paths marks money or identity handling.
+    # owners (from CODEOWNERS, informational): @acme/platform
+  # gateway: Taken from convention evidence in services/gateway/.
+  - name: gateway
+    # paths (medium confidence): services/gateway/ from convention evidence; deploy/helm/gateway/ also belong to it (deployment, chart or data files).
+    paths:
+      - services/gateway/
+      - deploy/helm/gateway/
+    # target (medium confidence): No Argo Rollout manifest found. Simulated runs the release loop without touching infrastructure; switch to kubernetes once an Argo Rollout exists.
+    target: simulated
+    critical: true # "gateway" in the name or paths usually sits on a critical path; confirm.
+    # owners (from CODEOWNERS, informational): @acme/platform
+  # inventory: Taken from convention evidence in services/inventory/.
+  - name: inventory
+    # paths (medium confidence): services/inventory/ from convention evidence.
+    paths:
+      - services/inventory/
+    # target (medium confidence): No Argo Rollout manifest found. Simulated runs the release loop without touching infrastructure; switch to kubernetes once an Argo Rollout exists.
+    target: simulated
+    critical: false # No auth, payments, billing or checkout signal in the name or paths.
+    # owners (from CODEOWNERS, informational): @acme/platform
+  # ledger: Taken from convention evidence in services/ledger/.
+  - name: ledger
+    # paths (medium confidence): services/ledger/ from convention evidence; migrations/ledger/ also belong to it (deployment, chart or data files).
+    paths:
+      - services/ledger/
+      - migrations/ledger/
+    # target (medium confidence): No Argo Rollout manifest found. Simulated runs the release loop without touching infrastructure; switch to kubernetes once an Argo Rollout exists.
+    target: simulated
+    critical: true # "ledger" in the name or paths marks money or identity handling.
+    # owners (from CODEOWNERS, informational): @acme/payments
+  # media: Taken from convention evidence in services/media/.
+  - name: media
+    # paths (medium confidence): services/media/ from convention evidence.
+    paths:
+      - services/media/
+    # target (medium confidence): No Argo Rollout manifest found. Simulated runs the release loop without touching infrastructure; switch to kubernetes once an Argo Rollout exists.
+    target: simulated
+    critical: false # No auth, payments, billing or checkout signal in the name or paths.
+    # owners (from CODEOWNERS, informational): @acme/platform
+  # notifications: Taken from convention evidence in services/notifications/.
+  - name: notifications
+    # paths (medium confidence): services/notifications/ from convention evidence.
+    paths:
+      - services/notifications/
+    # target (medium confidence): No Argo Rollout manifest found. Simulated runs the release loop without touching infrastructure; switch to kubernetes once an Argo Rollout exists.
+    target: simulated
+    critical: false # No auth, payments, billing or checkout signal in the name or paths.
+    # owners (from CODEOWNERS, informational): @acme/platform
+  # pricing: Taken from convention evidence in services/pricing/.
+  - name: pricing
+    # paths (medium confidence): services/pricing/ from convention evidence.
+    paths:
+      - services/pricing/
+    # target (medium confidence): No Argo Rollout manifest found. Simulated runs the release loop without touching infrastructure; switch to kubernetes once an Argo Rollout exists.
+    target: simulated
+    critical: false # No auth, payments, billing or checkout signal in the name or paths.
+    # owners (from CODEOWNERS, informational): @acme/platform
+  # recs: Taken from convention evidence in services/recs/.
+  - name: recs
+    # paths (medium confidence): services/recs/ from convention evidence; ml/recs/ also belong to it (deployment, chart or data files).
+    paths:
+      - services/recs/
+      - ml/recs/
+    # target (medium confidence): No Argo Rollout manifest found. Simulated runs the release loop without touching infrastructure; switch to kubernetes once an Argo Rollout exists.
+    target: simulated
+    critical: false # No auth, payments, billing or checkout signal in the name or paths.
+    # owners (from CODEOWNERS, informational): @acme/platform
+  # search: Taken from convention evidence in services/search/.
+  - name: search
+    # paths (medium confidence): services/search/ from convention evidence.
+    paths:
+      - services/search/
+    # target (medium confidence): No Argo Rollout manifest found. Simulated runs the release loop without touching infrastructure; switch to kubernetes once an Argo Rollout exists.
+    target: simulated
+    critical: false # No auth, payments, billing or checkout signal in the name or paths.
+    # owners (from CODEOWNERS, informational): @acme/platform
+  # web: Taken from convention evidence in web/.
+  - name: web
+    # paths (medium confidence): web/ from convention evidence.
+    paths:
+      - web/
+    # target (medium confidence): No Argo Rollout manifest found. Simulated runs the release loop without touching infrastructure; switch to kubernetes once an Argo Rollout exists.
+    target: simulated
+    critical: false # No auth, payments, billing or checkout signal in the name or paths.
+    # owners (from CODEOWNERS, informational): @acme/platform
+metrics:
+  # unknown — set this: No metrics system found. Synthetic metrics exercise the release loop; set prometheus or datadog with a url and queries for real verification.
+  provider: synthetic
+policy:
+  max_regression:
+    error_rate: 0.25 # tolerate up to +25% error rate on the canary
+    latency_p95: 0.15 # tolerate up to +15% p95 latency on the canary
+  alpha: 0.05
+  # Shadow mode: Alror recommends rollbacks but never acts. Set to true once you trust its verdicts.
+  auto_rollback: false
