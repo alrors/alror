@@ -1,0 +1,33 @@
+# Alror configuration proposed by Alror onboarding for alrors/alror-playground.
+# Every value is explained in ALROR.md. Lines marked "unknown — set this" need your input.
+# Docs: run `alror docs` or see the configuration page.
+project: alror-playground
+services:
+  # checkout: Taken from convention evidence in services/checkout/.
+  - name: checkout
+    # paths (medium confidence): services/checkout/ from convention evidence.
+    paths:
+      - services/checkout/
+    # target (medium confidence): No Argo Rollout manifest found. Simulated runs the release loop without touching infrastructure; switch to kubernetes once an Argo Rollout exists.
+    target: simulated
+    critical: true # "checkout" in the name or paths marks money or identity handling.
+    # owners: unknown — set this in CODEOWNERS (informational, not read by the CLI)
+  # web: Taken from convention evidence in web/.
+  - name: web
+    # paths (medium confidence): web/ from convention evidence.
+    paths:
+      - web/
+    # target (medium confidence): No Argo Rollout manifest found. Simulated runs the release loop without touching infrastructure; switch to kubernetes once an Argo Rollout exists.
+    target: simulated
+    critical: false # No auth, payments, billing or checkout signal in the name or paths.
+    # owners: unknown — set this in CODEOWNERS (informational, not read by the CLI)
+metrics:
+  # unknown — set this: No metrics system found. Synthetic metrics exercise the release loop; set prometheus or datadog with a url and queries for real verification.
+  provider: synthetic
+policy:
+  max_regression:
+    error_rate: 0.25 # tolerate up to +25% error rate on the canary
+    latency_p95: 0.15 # tolerate up to +15% p95 latency on the canary
+  alpha: 0.05
+  # Shadow mode: Alror recommends rollbacks but never acts. Set to true once you trust its verdicts.
+  auto_rollback: false

@@ -74,6 +74,11 @@ export default async function OnboardingPage({ searchParams }: PageProps<"/app/o
             Services page.
           </p>
           <Command cmd="alror config push" />
+          <p>
+            No <code className="font-mono text-con-fg">alror.yaml</code> yet? With the GitHub App connected, an owner or admin can open{" "}
+            <Link href="/app/github" className="text-con-fg underline-offset-2 hover:underline">GitHub</Link>, pick a repository and choose Set up alror.yaml.
+            Alror detects services from Dockerfiles, manifests and workspaces and opens a setup pull request you review before merging.
+          </p>
         </div>
       ),
     },

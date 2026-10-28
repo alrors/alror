@@ -38,6 +38,14 @@ node --conditions=react-server --import tsx scripts/github-enroll.ts --org acme 
 
 The command verifies App access, scopes the token to that repository, and audits enrollment. A repository bound to another workspace cannot be claimed. Only enrolled repositories are processed; other repositories from the installation are not exposed to the workspace. Re-enrollment restores access only after an operator verifies removed/suspended connections. New repositories start in observe mode. Enrollment queues evaluations and can post checks/comments once the worker runs.
 
+## Onboarding: proposed alror.yaml
+
+On `/app/github`, owners and admins can open **Set up alror.yaml** on an enrolled repository. **Detect services** reads the default branch through the App (recursive git tree plus a bounded set of files: workspace manifests, compose files, Kubernetes and Helm manifests, CODEOWNERS) and proposes services from Dockerfiles, docker-compose `build:` services, Deployments, StatefulSets and Argo Rollouts, Helm charts, npm/pnpm/go.work workspaces and `services/*`, `apps/*`, `web/` conventions. Critical services come from names and paths (auth, payments, billing, checkout, ledger...). Every value shows its reason and confidence; values Alror cannot infer (cluster, a namespace the manifests do not set, source folders for manifest-only workloads) are marked `unknown — set this` rather than guessed. `target: kubernetes` (which drives Argo Rollouts) is proposed only when an Argo Rollout manifest exists; otherwise `simulated`. Proposals start in shadow mode (`auto_rollback: false`) with synthetic metrics.
+
+**Open setup PR** re-detects on the server, applies the edits, and commits `alror.yaml` and `ALROR.md` (an explanation of every value) to the `alror/setup` branch through the git data API, then opens a pull request against the default branch. The App never writes the default branch. Re-running reuses the open onboarding pull request: identical content makes no commit, changed content adds a commit on top of the branch. A stale `alror/setup` branch without an open pull request restarts from the default branch. Detection and pull request creation are audited (`github.onboarding_detected`, `github.onboarding_pr_opened`, `github.onboarding_pr_updated`, `github.onboarding_blocked`).
+
+Onboarding needs **Repository contents: Read and write**, **Pull requests: Read and write** and **Metadata: Read-only**. When the installation lacks them, the console lists the missing permissions instead of failing; grant them in the App settings and approve the update on the installation.
+
 ## Policies and limits
 
 Use `/app/github` to inspect decisions and configure policies:

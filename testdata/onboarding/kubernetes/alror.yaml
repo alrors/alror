@@ -1,0 +1,48 @@
+# Alror configuration proposed by Alror onboarding for acme/shop.
+# Every value is explained in ALROR.md. Lines marked "unknown — set this" need your input.
+# Docs: run `alror docs` or see the configuration page.
+project: shop
+services:
+  # checkout-api: Named after the Argo Rollout "checkout-api" (deploy/k8s/checkout.yaml); the kubernetes target addresses the Rollout by this name.
+  - name: checkout-api
+    # paths (high confidence): services/checkout/ from convention, dockerfile evidence; deploy/k8s/checkout.yaml also belong to it (deployment, chart or data files).
+    paths:
+      - services/checkout/
+      - deploy/k8s/checkout.yaml
+    # target (high confidence): deploy/k8s/checkout.yaml defines an Argo Rollout, which the kubernetes target drives with kubectl argo rollouts.
+    target: kubernetes
+    # cluster: unknown — set this. The kubectl context is not stored in the repository.
+    namespace: shop # Namespace of the Rollout in deploy/k8s/checkout.yaml.
+    critical: true # "checkout" in the name or paths marks money or identity handling.
+    # owners: unknown — set this in CODEOWNERS (informational, not read by the CLI)
+  # search: Taken from convention evidence in services/search/.
+  - name: search
+    # paths (high confidence): services/search/ from convention, dockerfile evidence; deploy/k8s/search.yaml also belong to it (deployment, chart or data files).
+    paths:
+      - services/search/
+      - deploy/k8s/search.yaml
+    # target (medium confidence): deploy/k8s/search.yaml is a Deployment, not an Argo Rollout. The kubernetes target only drives Argo Rollouts, so simulated is proposed until you convert it.
+    target: simulated
+    critical: false # No auth, payments, billing or checkout signal in the name or paths.
+    # owners: unknown — set this in CODEOWNERS (informational, not read by the CLI)
+  # mailer: Named after the Argo Rollout "mailer" (deploy/k8s/mailer.yaml); the kubernetes target addresses the Rollout by this name.
+  - name: mailer
+    # paths (unknown — set this): Only deployment manifests (deploy/k8s/mailer.yaml) were found; unknown — set this: add the folder that holds this service's source.
+    paths:
+      - deploy/k8s/mailer.yaml
+    # target (high confidence): deploy/k8s/mailer.yaml defines an Argo Rollout, which the kubernetes target drives with kubectl argo rollouts.
+    target: kubernetes
+    # cluster: unknown — set this. The kubectl context is not stored in the repository.
+    # namespace: unknown — set this. The Rollout does not set a namespace (omit to use the kube context default).
+    critical: false # No auth, payments, billing or checkout signal in the name or paths.
+    # owners: unknown — set this in CODEOWNERS (informational, not read by the CLI)
+metrics:
+  # unknown — set this: No metrics system found. Synthetic metrics exercise the release loop; set prometheus or datadog with a url and queries for real verification.
+  provider: synthetic
+policy:
+  max_regression:
+    error_rate: 0.25 # tolerate up to +25% error rate on the canary
+    latency_p95: 0.15 # tolerate up to +15% p95 latency on the canary
+  alpha: 0.05
+  # Shadow mode: Alror recommends rollbacks but never acts. Set to true once you trust its verdicts.
+  auto_rollback: false

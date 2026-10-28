@@ -6,6 +6,7 @@ import { ArrowUpRight, GitPullRequest, GitFork, RefreshCw, ShieldCheck } from "l
 import { reevaluatePull } from "@/app/app/github/actions";
 import { Card, EmptyState, FormStatus, Pill, buttonClass } from "@/components/console/primitives";
 import { PolicyForm, modeLabel } from "./policy-form";
+import { SetupPull } from "./setup-pull";
 import type { DecisionView, RepositoryView } from "@/lib/server/github/types";
 import { cn } from "@/lib/site";
 
@@ -37,6 +38,7 @@ export function GitHubWorkspace({ repositories, decisions, admin }: { repositori
           <div className="flex flex-wrap gap-2"><Pill>{modeLabel[repository.policy.mode]}</Pill><Pill tone={repository.enabled ? "idle" : "warn"}>{repository.enabled ? "Connected" : "Disabled"}</Pill></div>
         </div>
         <details className="mt-5"><summary className="mb-4 cursor-pointer text-[13px] text-con-fg2 hover:text-con-fg">{admin ? "Configure merge policy" : "View merge policy"}</summary><PolicyForm repository={repository} admin={admin} /></details>
+        {admin && repository.enabled && <details className="mt-3"><summary className="mb-4 cursor-pointer text-[13px] text-con-fg2 hover:text-con-fg">Set up alror.yaml</summary><SetupPull repositoryId={repository.id} fullName={repository.fullName} /></details>}
       </Card>)}
       <div className="flex items-start gap-3 px-1 text-[12px] leading-relaxed text-con-fg3"><ShieldCheck size={16} className="mt-0.5 shrink-0" /><p>Merge Gate is Alror’s first GitHub capability. Policies apply to human and agent pull requests, and GitHub’s branch protections remain authoritative.</p></div>
     </div>
