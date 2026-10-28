@@ -224,6 +224,9 @@ func serviceDiff(a, b config.Service) string {
 	if a.Critical != b.Critical {
 		parts = append(parts, fmt.Sprintf("critical %t → %t", a.Critical, b.Critical))
 	}
+	if a.RollbackMode != b.RollbackMode {
+		parts = append(parts, fmt.Sprintf("rollback_mode %s → %s", modeLabel(a.RollbackMode), modeLabel(b.RollbackMode)))
+	}
 	return strings.Join(parts, ", ")
 }
 
@@ -263,6 +266,13 @@ func policyDiff(a, b config.Policy) []change {
 		out = append(out, change{"~", "policy.bake_scale", fmt.Sprintf("%v → %v", a.BakeScale, b.BakeScale)})
 	}
 	return out
+}
+
+func modeLabel(m string) string {
+	if m == "" {
+		return "policy default"
+	}
+	return m
 }
 
 func metricsLabel(m config.Metrics) string {

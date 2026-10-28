@@ -5,6 +5,7 @@ import { db, type Tx } from "../db";
 import { orgPolicies, users } from "../db/schema";
 import { invalid } from "../errors";
 import { plansFromStored, validatePlans } from "@/lib/console/policy-rules";
+import { DEFAULT_TRUST_RAMP, rampSettings, type TrustRampSettings } from "@/lib/console/trust-ramp";
 import { writeAudit } from "./audit";
 
 export type MetricsConfig = { provider: string; url?: string; queries?: Record<string, string> };
@@ -18,6 +19,8 @@ export type OrgPolicy = {
   slack_webhook: string | null;
   /** Custom rollout plans ({low|medium|high: [{weight, bake ns}]}); null = the CLI's built-in planner. */
   plans: Record<string, { weight: number; bake: number }[]> | null;
+  /** Trust ramp thresholds and auto-graduation (defaults applied). */
+  trust_ramp: TrustRampSettings;
   updated_at: string;
   updated_by: string | null;
 };
@@ -30,6 +33,7 @@ export const DEFAULT_POLICY: Omit<OrgPolicy, "updated_at" | "updated_by"> = {
   metrics: { provider: "synthetic" },
   slack_webhook: null,
   plans: null,
+  trust_ramp: DEFAULT_TRUST_RAMP,
 };
 
 export async function getPolicy(ctx: OrgCtx, tx: Tx = db): Promise<OrgPolicy> {
@@ -49,6 +53,7 @@ export async function getPolicy(ctx: OrgCtx, tx: Tx = db): Promise<OrgPolicy> {
     metrics: r.metrics,
     slack_webhook: r.slackWebhook,
     plans: r.plans ?? null,
+    trust_ramp: rampSettings(r.trustRamp),
     updated_at: r.updatedAt.toISOString(),
     updated_by: row.by ?? null,
   };
@@ -81,6 +86,7 @@ export async function updatePolicy(
     ...(patch.metrics !== undefined && { metrics: patch.metrics }),
     ...(patch.slack_webhook !== undefined && { slackWebhook: patch.slack_webhook || null }),
     ...(patch.plans !== undefined && { plans: patch.plans }),
+    ...(patch.trust_ramp !== undefined && { trustRamp: rampSettings(patch.trust_ramp) }),
     updatedAt: new Date(),
     updatedBy: ctx.actor.userId ?? null,
   };

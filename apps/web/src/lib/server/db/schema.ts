@@ -3,6 +3,7 @@
 
 import { sql } from "drizzle-orm";
 import type { GatePolicy, GateMode } from "../github/types";
+import type { RollbackMode, ShadowFeedback, TrustRampSettings } from "../../console/trust-ramp";
 import {
   bigserial,
   boolean,
@@ -33,6 +34,8 @@ export const EVENT_KINDS = ["created", "step", "verdict", "promoted", "rolled_ba
 export const JOB_KINDS = ["deploy", "rollback"] as const;
 export const JOB_STATUSES = ["queued", "claimed", "done", "failed", "canceled"] as const;
 export const ACTOR_TYPES = ["user", "api_key", "system"] as const;
+export const ROLLBACK_MODES = ["auto", "shadow"] as const;
+export const FEEDBACK_VERDICTS = ["correct", "false_alarm"] as const;
 
 export type Plan = (typeof PLANS)[number];
 export type Role = (typeof ROLES)[number];
@@ -160,10 +163,18 @@ export const services = pgTable(
     namespace: text("namespace").notNull().default(""),
     critical: boolean("critical").notNull().default(false),
     policyOverride: jsonb("policy_override").$type<Record<string, unknown> | null>(),
+    /** Per-service rollback mode (trust ramp); null follows org_policies.auto_rollback. Served as services[].rollback_mode. */
+    rollbackMode: text("rollback_mode").$type<RollbackMode>(),
+    /** When the trust ramp last restarted (demotion to shadow); earlier recommendations no longer count. */
+    rampResetAt: ts("ramp_reset_at"),
     createdAt: createdAt(),
     archivedAt: ts("archived_at"),
   },
-  (t) => [uniqueIndex("services_org_name_key").on(t.orgId, t.name), check("services_target_check", oneOf("target", TARGETS))],
+  (t) => [
+    uniqueIndex("services_org_name_key").on(t.orgId, t.name),
+    check("services_target_check", oneOf("target", TARGETS)),
+    check("services_rollback_mode_check", sql`rollback_mode is null or ${oneOf("rollback_mode", ROLLBACK_MODES)}`),
+  ],
 );
 
 export const orgPolicies = pgTable("org_policies", {
@@ -184,6 +195,8 @@ export const orgPolicies = pgTable("org_policies", {
   slackWebhook: text("slack_webhook"),
   /** Custom rollout plans per risk level ({low|medium|high: [{weight, bake (ns)}]}); null = the built-in planner. */
   plans: jsonb("plans").$type<Record<string, { weight: number; bake: number }[]> | null>(),
+  /** Trust ramp thresholds and whether eligible services graduate on their own; null = the defaults. */
+  trustRamp: jsonb("trust_ramp").$type<Partial<TrustRampSettings> | null>(),
   updatedAt: ts("updated_at").notNull().defaultNow(),
   updatedBy: uuid("updated_by").references(() => users.id, { onDelete: "set null" }),
 });
@@ -321,6 +334,28 @@ export const notificationReads = pgTable(
     readAt: ts("read_at").notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.notificationId, t.userId] })],
+);
+
+/**
+ * A person's verdict on a shadow-mode rollback recommendation: "correct" or
+ * "false_alarm". One row per release; the latest answer wins. Feeds the trust ramp.
+ */
+export const shadowFeedback = pgTable(
+  "shadow_feedback",
+  {
+    deploymentId: text("deployment_id")
+      .primaryKey()
+      .references(() => deployments.id, { onDelete: "cascade" }),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => orgs.id, { onDelete: "cascade" }),
+    service: text("service").notNull(),
+    verdict: text("verdict").$type<ShadowFeedback>().notNull(),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+    updatedAt: ts("updated_at").notNull().defaultNow(),
+  },
+  (t) => [index("shadow_feedback_org_service_idx").on(t.orgId, t.service), check("shadow_feedback_verdict_check", oneOf("verdict", FEEDBACK_VERDICTS))],
 );
 
 /** In-console feedback ("Feedback" button in the top bar). Stored locally; never sent anywhere. */

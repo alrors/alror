@@ -24,6 +24,7 @@ import {
   jobInbox,
   latestPerPull,
   pullInbox,
+  rampInbox,
   releaseDid,
   releaseInbox,
   sortInbox,
@@ -40,6 +41,7 @@ import { listJobs } from "@/lib/server/data/jobs";
 import { gateImpact, manualRollbackIds, openIncidents } from "@/lib/server/data/oversight";
 import { enabledTargets } from "@/lib/server/data/plugins";
 import { getPolicy } from "@/lib/server/data/policy";
+import { loadTrustRamp, shadowFeedbackFor } from "@/lib/server/data/trust-ramp";
 import { listDecisions, listRepositories } from "@/lib/server/github/data";
 
 export const metadata: Metadata = { title: "Oversight" };
@@ -98,19 +100,22 @@ export default async function OversightPage({ searchParams }: PageProps<"/app">)
   const candidates = finished.slice(0, need + 40);
   const rolledBack = [...new Set([...candidates, ...finished.filter((d) => Date.parse(d.updated_at) >= impactStart)].filter((d) => d.status === "rolled_back").map((d) => d.id))];
 
-  const [events, requested, gate] = await Promise.all([
+  const [events, requested, gate, judged, ramp] = await Promise.all([
     eventsFor([...new Set([...inboxDeps.map((d) => d.id), ...rolledBack])]),
     manualRollbackIds(ctx, rolledBack),
     gateImpact(ctx, new Date(impactStart), new Date(now + 1)),
+    shadowFeedbackFor(ctx, inboxDeps.map((d) => d.id)),
+    loadTrustRamp(ctx, wall),
   ]);
   const manual = new Set(rolledBack.filter((id) => requested.has(id) || isManualRollback(events.get(id) ?? [])));
 
   /* ---- Needs you ---- */
   const inbox = sortInbox([
     ...pullInbox(decisions, wall),
-    ...releaseInbox(inboxDeps, events, limits, now),
+    ...releaseInbox(inboxDeps, events, limits, now, judged),
     ...jobInbox(openJobs, failedJobs, all, wall),
     ...incidentInbox(env ? incidents.filter((i) => !i.environment || i.environment === env) : incidents),
+    ...rampInbox(ramp.services),
   ]).slice(0, 40);
 
   /* ---- What Alror did ---- */

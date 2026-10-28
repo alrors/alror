@@ -358,11 +358,17 @@ export async function upsertDeployment(ctx: OrgCtx, input: DeploymentInput, opts
       );
       await writeAudit(ctx, `deployment.${deployment.status}`, deployment.id, { service: deployment.service, image: deployment.image }, tx);
     }
-    return { deployment, created: !mine };
+    return { deployment, created: !mine, becameTerminal };
   });
 
   await publish(ctx.orgId, { type: "deployment.updated", deployment: result.deployment });
-  return result;
+  // A new release (possible replacement) or a finished one (possible rollback) can move
+  // the trust ramp; with auto-graduation on, eligible services switch now.
+  if ((result.created || result.becameTerminal) && opts.sideEffects !== false) {
+    const { syncTrustRampQuietly } = await import("./trust-ramp");
+    await syncTrustRampQuietly(ctx);
+  }
+  return { deployment: result.deployment, created: result.created };
 }
 
 /** Appends one event to a deployment in this org. Publishes deployment.event. */
