@@ -10,6 +10,8 @@ import { ReleaseRisk, ReleaseRiskGauge } from "@/components/console/release-risk
 import { headline } from "@/components/console/release-story";
 import { ReleaseVerdicts } from "@/components/console/release-verdicts";
 import { RolloutTreeView } from "@/components/console/rollout-tree";
+import { ReleaseWhyCard } from "@/components/console/oversight/release-why";
+import { explainRelease } from "@/lib/console/oversight";
 import { AiBadge, Card, Field, LevelBadge, StatusBadge } from "@/components/console/primitives";
 import { cn } from "@/lib/site";
 import { anchorNow } from "@/lib/console/analytics";
@@ -44,6 +46,7 @@ export default async function DeploymentPage({ params }: PageProps<"/app/deploym
   const story = headline(d, events, tree, config.policy.maxRegression, now);
   const bad = d.status === "rolled_back" || d.status === "failed";
   const passCount = verdicts.filter((e) => e.verdict?.pass).length;
+  const why = explainRelease(d, events, config.policy.maxRegression);
 
   return (
     <div className="space-y-6">
@@ -71,6 +74,8 @@ export default async function DeploymentPage({ params }: PageProps<"/app/deploym
         </h1>
         <p className="break-all font-mono text-[13px] text-con-fg2">{d.image}</p>
       </div>
+
+      <ReleaseWhyCard why={why} />
 
       {/* The story in one sentence. */}
       <section
