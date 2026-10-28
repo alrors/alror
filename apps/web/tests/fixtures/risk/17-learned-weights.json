@@ -1,0 +1,81 @@
+{
+  "name": "17-learned-weights",
+  "description": "Per-org learned weights scale a factor's points, rounding half away from zero; a zero weight drops the factor.",
+  "services": [
+    {
+      "name": "checkout-api",
+      "paths": [
+        "services/checkout/"
+      ],
+      "critical": true
+    }
+  ],
+  "change": {
+    "files": [
+      {
+        "path": "services/checkout/auth/session.go",
+        "added": 70,
+        "deleted": 10
+      },
+      {
+        "path": "services/checkout/auth/session_test.go",
+        "added": 40,
+        "deleted": 0
+      }
+    ],
+    "authors": [
+      "dependabot[bot] <bot@example.com>"
+    ],
+    "message": "Rotate session keys",
+    "recent_rollbacks": {}
+  },
+  "weights": {
+    "ai_authored": 0,
+    "critical_service": 1.25,
+    "sensitive_paths": 0.55,
+    "well_tested": 1.5
+  },
+  "expected": {
+    "score": 21,
+    "level": "low",
+    "factors": [
+      {
+        "name": "Critical service",
+        "detail": "checkout-api is marked critical",
+        "points": 15
+      },
+      {
+        "name": "Small diff",
+        "detail": "120 lines changed",
+        "points": 8
+      },
+      {
+        "name": "Sensitive paths",
+        "detail": "changes in auth",
+        "points": 6
+      },
+      {
+        "name": "Well tested",
+        "detail": "1 test files for 1 code files",
+        "points": -8
+      }
+    ],
+    "services": [
+      "checkout-api"
+    ],
+    "ai_authored": true,
+    "plan": {
+      "strategy": "canary",
+      "steps": [
+        {
+          "weight": 25,
+          "bake_seconds": 300
+        },
+        {
+          "weight": 100,
+          "bake_seconds": 0
+        }
+      ]
+    }
+  }
+}

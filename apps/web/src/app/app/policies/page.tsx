@@ -13,6 +13,7 @@ import { isAdminRole } from "@/lib/server/context";
 import { listAudit, type AuditEntry } from "@/lib/server/data/audit";
 import { DEFAULT_POLICY, getPolicy } from "@/lib/server/data/policy";
 import { loadTrustRamp } from "@/lib/server/data/trust-ramp";
+import { listProposals } from "@/lib/server/tuning/store";
 import { cn } from "@/lib/site";
 
 export const metadata: Metadata = { title: "Policies" };
@@ -23,11 +24,12 @@ export default async function PoliciesPage() {
   const admin = isAdminRole(session.role);
   // The audit log is for owners and admins (as on Settings, Audit log); members see the policy row's updated_by.
   const now = requestTime();
-  const [c, policy, history, ramp] = await Promise.all([
+  const [c, policy, history, ramp, proposals] = await Promise.all([
     readProjectConfig(),
     getPolicy(ctx),
     admin ? listAudit(ctx, { action: "policy.update", limit: 5 }) : Promise.resolve([] as AuditEntry[]),
     loadTrustRamp(ctx, now),
+    listProposals(ctx, { status: ["open"] }),
   ]);
   const touched = Date.parse(policy.updated_at) > 0;
   const lastAudit = history[0];
@@ -59,6 +61,21 @@ export default async function PoliciesPage() {
           <code className="font-mono text-con-fg">alror config push</code> replaces it. {updatedLabel}
         </span>
       </div>
+
+      <Link
+        href="/app/policies/tuning"
+        className="flex items-center justify-between gap-3 rounded-lg border border-con-line bg-con-panel px-4 py-3 text-[13px] hover:border-con-line-hover"
+      >
+        <span>
+          <span className="font-medium text-con-fg">Tuning</span>
+          <span className="block text-con-fg2">
+            {proposals.length
+              ? `${proposals.length} proposal${proposals.length === 1 ? "" : "s"} ready: per-service limits, bake times or learned risk weights, with evidence.`
+              : "Per-service limits, bake times and risk weights learned from history. Nothing changes until accepted."}
+          </span>
+        </span>
+        {proposals.length > 0 ? <Pill className="text-con-fg">{proposals.length} ready</Pill> : <span className="text-con-fg3">Open</span>}
+      </Link>
 
       <PolicyEditor
         readOnly={!admin}

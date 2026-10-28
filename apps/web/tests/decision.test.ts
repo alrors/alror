@@ -3,12 +3,12 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { decidePull } from "../src/lib/server/decision/decide";
-import { levelFor, planFor, rules, scoreChange, sensitiveArea, type RiskFactor, type ServiceRule } from "../src/lib/server/decision/score";
+import { levelFor, planFor, rules, scoreChange, sensitiveArea, type RiskFactor, type RiskWeights, type ServiceRule } from "../src/lib/server/decision/score";
 
 // Shared fixtures: copies of internal/risk/testdata/fixtures (node scripts/sync-rules.mjs). The same files run in
 // `go test ./internal/risk`, so the CLI and the portal score every case identically.
 type Fixture = {
-  name: string; description: string; services: ServiceRule[];
+  name: string; description: string; services: ServiceRule[]; weights?: RiskWeights;
   change: { files: { path: string; added: number; deleted: number }[]; authors: string[]; message: string; recent_rollbacks: Record<string, number> };
   expected: { score: number; level: string; factors: RiskFactor[]; services: string[]; ai_authored: boolean; plan: { strategy: string; steps: { weight: number; bake_seconds: number }[] } };
 };
@@ -19,7 +19,7 @@ test("at least 12 shared fixtures are present", () => assert(fixtures.length >= 
 
 for (const fx of fixtures) {
   test(`shared fixture ${fx.name}: ${fx.description}`, () => {
-    const risk = scoreChange(fx.services, { files: fx.change.files, authors: fx.change.authors, message: fx.change.message, recentRollbacks: fx.change.recent_rollbacks });
+    const risk = scoreChange(fx.services, { files: fx.change.files, authors: fx.change.authors, message: fx.change.message, recentRollbacks: fx.change.recent_rollbacks }, fx.weights);
     assert.deepEqual({ ...risk, plan: planFor(risk.level) }, fx.expected);
   });
 }

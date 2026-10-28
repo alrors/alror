@@ -4,6 +4,7 @@ import type { OrgCtx } from "../context";
 import { db } from "../db";
 import { auditLog, githubDecisions, githubRepositories } from "../db/schema";
 import { listOpenIncidents, type Incident } from "./incidents";
+import { openProposals, refreshTuning, type Proposal } from "../tuning/store";
 
 // Read-only queries for the oversight home. They read what the GitHub worker and the
 // rollout engine already stored; nothing here evaluates or changes anything.
@@ -51,4 +52,17 @@ export async function manualRollbackIds(ctx: OrgCtx, ids: string[]): Promise<Set
 /** Open incidents from alert webhooks for the Needs you inbox (newest first). */
 export async function openIncidents(ctx: OrgCtx, limit = 20): Promise<Incident[]> {
   return listOpenIncidents(ctx, limit);
+}
+
+/**
+ * Open tuning proposals for the Needs you inbox. Re-runs the (throttled) analysis first, so new evidence turns
+ * into proposals without a separate worker; a failed analysis never breaks the home page.
+ */
+export async function tuningProposalsReady(ctx: OrgCtx): Promise<Proposal[]> {
+  try {
+    await refreshTuning(ctx);
+  } catch (e) {
+    console.error("[alror tuning] analysis failed", e);
+  }
+  return openProposals(ctx);
 }

@@ -310,6 +310,7 @@ func (rn *Runner) deploy(ctx context.Context, job *api.Job) (string, error) {
 	if !ok {
 		return "", fmt.Errorf("unknown service %q", p.Service)
 	}
+	cfg.UseServicePolicy(svc.Name) // per-service thresholds and bake scale from the portal
 	// Per-service rollback_mode wins over the policy; a shadow job still forces shadow.
 	cfg.Policy.AutoRollback = cfg.AutoRollbackFor(svc)
 	if p.Shadow {

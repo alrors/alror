@@ -8,6 +8,10 @@ import { writeAudit } from "./audit";
 import { getOrg } from "./orgs";
 import { getPolicy, updatePolicy } from "./policy";
 import { listServices, upsertServiceByName } from "./services";
+import { cleanWeights } from "../decision/context";
+import { cloneOverride, type ServiceOverride } from "../tuning/thresholds";
+import { tuningSettings } from "../db/schema";
+import { eq } from "drizzle-orm";
 
 /** The alror.yaml shape served by GET /config (Go internal/config.Config, JSON tags). */
 export type ConfigJSON = {
@@ -21,6 +25,8 @@ export type ConfigJSON = {
     critical: boolean;
     /** Per-service override of policy.auto_rollback (trust ramp). Omitted when the service follows the policy. */
     rollback_mode?: RollbackMode;
+    /** Per-service override from accepted tuning proposals (Go config.ServicePolicy); absent = the org policy. */
+    policy?: ServiceOverride;
   }[];
   metrics: { provider: string; url?: string; queries?: Record<string, string> };
   policy: {
@@ -32,6 +38,8 @@ export type ConfigJSON = {
     plans?: Record<string, { weight: number; bake: number }[]>;
   };
   notify: { slack_webhook?: string };
+  /** Learned factor weights from accepted tuning proposals (Go config.Risk); absent = the shared rules unchanged. */
+  risk?: { weights: Record<string, number> };
 };
 
 export type ConfigInput = {
@@ -49,7 +57,11 @@ export type ConfigInput = {
 };
 
 export async function getConfig(ctx: OrgCtx): Promise<ConfigJSON> {
-  const [org, services, policy] = await Promise.all([getOrg(ctx.orgId), listServices(ctx), getPolicy(ctx)]);
+  const [org, services, policy, tuning] = await Promise.all([
+    getOrg(ctx.orgId), listServices(ctx), getPolicy(ctx),
+    db.select({ weights: tuningSettings.riskWeights }).from(tuningSettings).where(eq(tuningSettings.orgId, ctx.orgId)).limit(1),
+  ]);
+  const weights = cleanWeights(tuning[0]?.weights);
   const metrics: ConfigJSON["metrics"] = { provider: policy.metrics.provider || "synthetic" };
   if (policy.metrics.url) metrics.url = policy.metrics.url;
   if (policy.metrics.queries && Object.keys(policy.metrics.queries).length) metrics.queries = policy.metrics.queries;
@@ -63,6 +75,7 @@ export async function getConfig(ctx: OrgCtx): Promise<ConfigJSON> {
       namespace: s.namespace,
       critical: s.critical,
       ...(s.rollback_mode ? { rollback_mode: s.rollback_mode } : {}),
+      ...servicePolicy(s.policy_override),
     })),
     metrics,
     policy: {
@@ -73,7 +86,13 @@ export async function getConfig(ctx: OrgCtx): Promise<ConfigJSON> {
       ...(policy.plans ? { plans: policy.plans } : {}),
     },
     notify: policy.slack_webhook ? { slack_webhook: policy.slack_webhook } : {},
+    ...(Object.keys(weights).length ? { risk: { weights } } : {}),
   };
+}
+
+function servicePolicy(raw: unknown): { policy?: ServiceOverride } {
+  const o = cloneOverride(raw);
+  return Object.keys(o).length ? { policy: o } : {};
 }
 
 /**

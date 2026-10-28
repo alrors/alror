@@ -44,7 +44,9 @@ type fixture struct {
 		Message         string         `json:"message"`
 		RecentRollbacks map[string]int `json:"recent_rollbacks"`
 	} `json:"change"`
-	Expected *expectation `json:"expected"`
+	// Weights are optional per-org factor weights (portal tuning); most fixtures have none.
+	Weights  map[string]float64 `json:"weights,omitempty"`
+	Expected *expectation       `json:"expected"`
 }
 
 type expectation struct {
@@ -79,6 +81,9 @@ func (fx *fixture) evaluate() expectation {
 	cfg.Services = nil // only the fixture's services
 	for _, s := range fx.Services {
 		cfg.Services = append(cfg.Services, config.Service{Name: s.Name, Paths: s.Paths, Critical: s.Critical})
+	}
+	if fx.Weights != nil {
+		cfg.Risk = &config.Risk{Weights: fx.Weights}
 	}
 	c := Change{Authors: fx.Change.Authors, Message: fx.Change.Message, RecentRollbacks: fx.Change.RecentRollbacks}
 	for _, f := range fx.Change.Files {
