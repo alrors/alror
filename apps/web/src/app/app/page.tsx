@@ -36,7 +36,7 @@ import { readProjectConfig } from "@/lib/console/policy";
 import type { Deployment } from "@/lib/console/types";
 import { ctxFor } from "@/lib/server/auth/accounts";
 import { listApiKeys } from "@/lib/server/auth/api-keys";
-import { isAdminRole } from "@/lib/server/context";
+import { hasScope, isAdminRole } from "@/lib/server/context";
 import { listAuditActions } from "@/lib/server/data/audit";
 import { listJobs } from "@/lib/server/data/jobs";
 import { gateImpact, manualRollbackIds, openIncidents, tuningProposalsReady } from "@/lib/server/data/oversight";
@@ -63,6 +63,8 @@ export default async function OversightPage({ searchParams }: PageProps<"/app">)
   const session = await requireSession();
   const ctx = ctxFor(session);
   const admin = isAdminRole(session.role);
+  // Rolling back needs deploy:write (every member role), the same check the rollback action makes.
+  const canDeploy = hasScope(ctx.actor, "deploy:write");
   const wall = requestTime();
 
   const [all, config, envs, env, openJobs, failedJobs, decisions, repos, audit, keys, policy, targets, incidents, proposals] = await Promise.all([
@@ -204,7 +206,7 @@ export default async function OversightPage({ searchParams }: PageProps<"/app">)
 
       <div className="grid items-start gap-4 xl:grid-cols-2">
         <div id="needs-you" className="min-w-0">
-          <NeedsYou items={inbox} now={wall} canRollBack={admin} />
+          <NeedsYou items={inbox} now={wall} canRollBack={canDeploy} canJudge={admin} />
         </div>
         <div id="what-alror-did" className="min-w-0">
           <WhatAlrorDid
