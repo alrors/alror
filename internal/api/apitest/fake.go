@@ -49,20 +49,21 @@ type Fake struct {
 	// LeaseTimeout requeues a claimed job with no heartbeat for this long (default 2 min).
 	LeaseTimeout time.Duration
 
-	mu       sync.Mutex
-	org      api.Org
-	keys     map[string]Key
-	cfg      *config.Config
-	deps     map[string]*domain.Deployment
-	events   map[string][]domain.Event
-	jobs     []*api.Job
-	wake     chan struct{}
-	failNext []int
-	requests []Request
-	nextJob  int
-	mux      *http.ServeMux
-	offset   time.Duration        // added to the wall clock; see Advance
-	beats    map[string]time.Time // job id -> last claim or heartbeat
+	mu        sync.Mutex
+	org       api.Org
+	keys      map[string]Key
+	cfg       *config.Config
+	deps      map[string]*domain.Deployment
+	events    map[string][]domain.Event
+	jobs      []*api.Job
+	wake      chan struct{}
+	failNext  []int
+	requests  []Request
+	nextJob   int
+	mux       *http.ServeMux
+	offset    time.Duration        // added to the wall clock; see Advance
+	beats     map[string]time.Time // job id -> last claim or heartbeat
+	decisions []api.Decision
 }
 
 // New returns a fake with org "acme", DefaultKey and a two-service config.
@@ -177,6 +178,32 @@ func (f *Fake) PutDeployment(d *domain.Deployment) {
 	f.deps[d.ID] = &c
 }
 
+// PutDecision stores a pull request decision, served by GET /decisions/{sha}
+// for its head SHA, its merge SHA, or a prefix of either (test setup).
+func (f *Fake) PutDecision(d api.Decision) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.decisions = append(f.decisions, d)
+}
+
+func (f *Fake) getDecision(w http.ResponseWriter, r *http.Request, _ Key) {
+	sha := strings.ToLower(r.PathValue("sha"))
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for i := len(f.decisions) - 1; i >= 0; i-- {
+		d := f.decisions[i]
+		if len(sha) >= 7 && (strings.HasPrefix(d.HeadSHA, sha) || (d.MergeSHA != "" && strings.HasPrefix(d.MergeSHA, sha))) {
+			d.SHA, d.Matched = d.HeadSHA, "head"
+			if !strings.HasPrefix(d.HeadSHA, sha) {
+				d.SHA, d.Matched = d.MergeSHA, "merge"
+			}
+			writeJSON(w, 200, d)
+			return
+		}
+	}
+	writeErr(w, 404, "not_found", "No decision is stored for this commit.")
+}
+
 // DeleteDeployment removes a deployment and its events (test setup).
 func (f *Fake) DeleteDeployment(id string) {
 	f.mu.Lock()
@@ -261,6 +288,7 @@ func (f *Fake) routes() {
 	h("GET /api/v1/deployments/{id}/events", api.ScopeDeployRead, f.getEvents)
 	h("POST /api/v1/deployments/{id}/events", api.ScopeDeployWrite, f.postEvent)
 	h("GET /api/v1/rollbacks/recent", api.ScopeDeployRead, f.recentRollbacks)
+	h("GET /api/v1/decisions/{sha}", api.ScopeDeployRead, f.getDecision)
 	h("POST /api/v1/jobs", api.ScopeDeployWrite, f.postJob)
 	h("GET /api/v1/jobs", api.ScopeDeployRead, f.listJobs)
 	h("POST /api/v1/jobs/claim", api.ScopeJobsRun, f.claimJob)

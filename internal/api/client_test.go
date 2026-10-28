@@ -352,3 +352,24 @@ func ids(ds []*domain.Deployment) []string {
 	}
 	return out
 }
+
+func TestDecisionLookup(t *testing.T) {
+	f, c := newClient(t)
+	ctx := context.Background()
+	head, merge := strings.Repeat("a1", 20), strings.Repeat("b2", 20)
+	f.PutDecision(api.Decision{HeadSHA: head, MergeSHA: merge, Repository: "acme/shop", PullNumber: 9, RulesVersion: 1,
+		Risk: domain.RiskReport{Score: 38, Level: domain.LevelMedium}, Plan: domain.Plan{Strategy: "canary", Steps: []domain.Step{{Weight: 5, Bake: time.Minute}, {Weight: 100}}}})
+	d, err := c.Decision(ctx, head[:7])
+	if err != nil || d.SHA != head || d.Matched != "head" || d.Risk.Score != 38 || d.Plan.Steps[0].Bake != time.Minute {
+		t.Fatalf("by head prefix: %+v, %v", d, err)
+	}
+	if d, err = c.Decision(ctx, merge); err != nil || d.Matched != "merge" || d.PullNumber != 9 {
+		t.Fatalf("by merge SHA: %+v, %v", d, err)
+	}
+	if _, err = c.Decision(ctx, strings.Repeat("0", 40)); !errors.Is(err, api.ErrNotFound) {
+		t.Fatalf("unknown commit: %v", err)
+	}
+	if r := f.Requests(); r[len(r)-1].Path != "/api/v1/decisions/"+strings.Repeat("0", 40) {
+		t.Fatalf("path = %s", r[len(r)-1].Path)
+	}
+}

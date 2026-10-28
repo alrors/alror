@@ -74,14 +74,32 @@ func runDeploy(o deployOpts) error {
 		cfg.Policy.AutoRollback = false
 	}
 
-	// 1. Risk → plan.
+	// 1. Risk → plan. In connected mode the decision the portal stored for this
+	// commit wins (same shared rules, plus the org's services and history);
+	// the local score is the fallback when there is none.
 	var report domain.RiskReport
+	var plan domain.Plan
+	src := riskSource{Source: "local"}
+	fromPortal := false
 	if o.riskOverride >= 0 {
 		report = domain.RiskReport{Score: min(o.riskOverride, 100), Level: risk.LevelFor(o.riskOverride),
 			Factors: []domain.Factor{{Name: "Manual score", Detail: "--risk flag", Points: o.riskOverride}}, Services: []string{svc.Name}}
-	} else if report, _, err = scoreChange(cfg, st, o.base); err != nil {
-		fmt.Fprintln(os.Stderr, ui.WarnLine("Could not read git diff ("+err.Error()+"); assuming medium risk"))
-		report = domain.RiskReport{Score: 50, Level: domain.LevelMedium, Services: []string{svc.Name}}
+		src.Source = "override"
+	} else if ws.conn != nil {
+		report, plan, src, fromPortal = portalDecision(ws.conn.client, deployCommit(o.ref, cfg.Dir))
+	}
+	if src.Source == "local" && !fromPortal {
+		if report, _, err = scoreChange(cfg, st, o.base); err != nil {
+			fmt.Fprintln(os.Stderr, ui.WarnLine("Could not read git diff ("+err.Error()+"); assuming medium risk"))
+			report = domain.RiskReport{Score: 50, Level: domain.LevelMedium, Services: []string{svc.Name}}
+			src.Source = "assumed"
+		}
+	}
+	if !fromPortal {
+		plan = rollout.PlanFor(report)
+	}
+	if ws.conn != nil && !g.json {
+		fmt.Println(ui.Fainter.Render(src.describe()))
 	}
 
 	// 2. Wire the engine.
@@ -114,7 +132,7 @@ func runDeploy(o deployOpts) error {
 
 	d := &domain.Deployment{
 		ID: store.NewID(), Service: svc.Name, Image: o.image, Ref: o.ref,
-		Risk: report, Plan: rollout.PlanFor(report), Status: domain.StatusPending, CreatedAt: time.Now().UTC(),
+		Risk: report, Plan: plan, Status: domain.StatusPending, CreatedAt: time.Now().UTC(),
 	}
 	if ws.conn != nil {
 		// Only connected mode records these, so local .alror/ files stay as they were.
@@ -158,7 +176,7 @@ func runDeploy(o deployOpts) error {
 
 	if g.json {
 		events, _ := st.Events(d.ID)
-		if err := printJSON(map[string]any{"deployment": d, "events": events}); err != nil {
+		if err := printJSON(map[string]any{"deployment": d, "events": events, "risk_source": src}); err != nil {
 			return err
 		}
 		return deployOutcome(d, runErr)

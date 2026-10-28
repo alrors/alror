@@ -6,7 +6,31 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/alrors/alror/internal/domain"
 )
+
+// Decision is the pull request decision the workspace stored for a commit
+// (GET /decisions/{sha}): the risk the portal scored with the shared rules
+// (internal/risk/rules.json), the rollout plan for that risk, and the merge
+// gate outcome. SHA is the PR head commit Alror evaluated, or the commit
+// GitHub created when the PR merged (Matched says which).
+type Decision struct {
+	SHA          string            `json:"sha"`
+	HeadSHA      string            `json:"head_sha"`
+	MergeSHA     string            `json:"merge_sha,omitempty"`
+	Matched      string            `json:"matched"` // "head" or "merge"
+	Repository   string            `json:"repository"`
+	PullNumber   int               `json:"pull_number"`
+	URL          string            `json:"url"`
+	Outcome      string            `json:"outcome"`
+	Mode         string            `json:"mode"`
+	RulesVersion int               `json:"rules_version"`
+	Risk         domain.RiskReport `json:"risk"`
+	Plan         domain.Plan       `json:"plan"`
+	Reasons      []string          `json:"reasons"`
+	UpdatedAt    time.Time         `json:"updated_at"`
+}
 
 // Whoami is the response of GET /whoami.
 type Whoami struct {
