@@ -177,7 +177,8 @@ export type InboxKind =
   | "recommendation"
   | "borderline"
   | "stalled"
-  | "queued";
+  | "queued"
+  | "incident";
 
 export type InboxLink = { label: string; href: string; external?: boolean };
 
@@ -202,6 +203,40 @@ export type InboxItem = {
 
 export function sortInbox(items: InboxItem[]): InboxItem[] {
   return [...items].sort((a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity] || Date.parse(a.at) - Date.parse(b.at) || a.key.localeCompare(b.key));
+}
+
+/** What the inbox needs from an open incident (src/lib/server/data/incidents.ts). */
+export type InboxIncident = {
+  id: string;
+  title: string;
+  service: string;
+  environment: string;
+  severity: string;
+  started_at: string;
+  rollback_job_id: string | null;
+  candidates: { items: { deployment_id: string; service: string; image: string; status: string; score: number }[] };
+};
+
+/** Open incidents from alert webhooks, with the most likely change; a strong, not yet rolled back candidate offers Roll back. */
+export function incidentInbox(incidents: InboxIncident[]): InboxItem[] {
+  return incidents.map((inc) => {
+    const top = inc.candidates.items[0];
+    const strong = top && top.score >= 80 && !inc.rollback_job_id && top.status !== "rolled_back" && top.status !== "failed";
+    return {
+      key: `incident-${inc.id}-${inc.rollback_job_id ?? ""}`,
+      kind: "incident",
+      severity: inc.severity === "critical" ? "critical" : inc.severity === "error" ? "high" : "medium",
+      subject: inc.title,
+      owner: [inc.service || "unknown service", inc.environment].filter(Boolean).join(" · "),
+      at: inc.started_at,
+      reason: top
+        ? `Most likely change: ${top.service} ${top.image} (${top.score}/100)${inc.rollback_job_id ? "; a rollback is queued" : ""}`
+        : "Alert firing; no deployments in the look-back window",
+      primary: { label: "Open incident", href: `/app/incidents/${inc.id}` },
+      ...(top ? { secondary: { label: "Deployment", href: `/app/deployments/${top.deployment_id}` } } : {}),
+      ...(strong ? { rollback: { id: top.deployment_id, service: top.service } } : {}),
+    };
+  });
 }
 
 /** Pull requests the gate sent to a person, waiting too long, or failed to evaluate. */

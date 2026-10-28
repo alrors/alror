@@ -16,6 +16,7 @@ import {
   type RankedCandidate,
 } from "../src/lib/incidents/rank";
 import { slackIncidentMessage } from "../src/lib/incidents/slack";
+import { incidentInbox } from "../src/lib/console/oversight";
 
 const NOW = new Date("2026-10-28T12:00:00Z");
 
@@ -366,3 +367,27 @@ describe("slack message", () => {
 function strong3() {
   return rankCandidates(alert, [dep({ id: "top", ago: 8, status: "rolling", risk_score: 70 }), dep({ id: "two", ago: 60 }), dep({ id: "three", ago: 90, service: "search" })]);
 }
+
+describe("needs you inbox", () => {
+  const inc = (score: number, over: Record<string, unknown> = {}) => ({
+    id: "i1",
+    title: "Checkout errors",
+    service: "checkout",
+    environment: "production",
+    severity: "critical",
+    started_at: START.toISOString(),
+    rollback_job_id: null,
+    candidates: { items: [{ deployment_id: "d1", service: "checkout", image: "checkout:2", status: "rolling", score }] },
+    ...over,
+  });
+  test("open incidents become inbox items; strong candidates offer a rollback", () => {
+    const [a] = incidentInbox([inc(85)]);
+    assert.equal(a.kind, "incident");
+    assert.equal(a.severity, "critical");
+    assert.equal(a.primary.href, "/app/incidents/i1");
+    assert.deepEqual(a.rollback, { id: "d1", service: "checkout" });
+    assert.equal(incidentInbox([inc(60)])[0].rollback, undefined);
+    assert.equal(incidentInbox([inc(90, { rollback_job_id: "j1" })])[0].rollback, undefined);
+    assert.match(incidentInbox([inc(0, { candidates: { items: [] }, severity: "warning" })])[0].reason, /no deployments/);
+  });
+});
