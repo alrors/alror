@@ -14,7 +14,7 @@ const STATE: Record<TileState, { label: string; bar: string; rank: number }> = {
   attention: { label: "Needs attention", bar: COLORS.bad, rank: 0 },
   rolling: { label: "Rolling out", bar: COLORS.info, rank: 1 },
   healthy: { label: "Healthy", bar: "#82cfa1", rank: 2 },
-  idle: { label: "No releases", bar: "#2e2e2e", rank: 3 },
+  idle: { label: "No releases", bar: "#262626", rank: 3 },
 };
 
 const INITIAL_LIMIT = 6;

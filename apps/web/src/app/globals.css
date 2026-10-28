@@ -137,15 +137,15 @@ summary::-webkit-details-marker {
 /* ---------- Console (appended): flat enterprise-dark tokens ---------- */
 
 @theme inline {
-  --color-con-bg: #121212;
-  --color-con-panel: #171717;
-  --color-con-line: #2e2e2e;
-  --color-con-line-hover: #3e3e3e;
-  --color-con-row: #242424;
-  --color-con-hover: #1c1c1c;
-  --color-con-fg: #ededed;
-  --color-con-fg2: #a1a1a1;
-  --color-con-fg3: #737373;
+  --color-con-bg: #0a0a0a;
+  --color-con-panel: #111111;
+  --color-con-line: #262626;
+  --color-con-line-hover: #333333;
+  --color-con-row: #1c1c1c;
+  --color-con-hover: #151515;
+  --color-con-fg: #fafafa;
+  --color-con-fg2: #d4d4d4;
+  --color-con-fg3: #a3a3a3;
   --color-con-spark: #525252;
   --color-con-good: #35e08f;
   --color-con-bad: #f2555a;
@@ -155,12 +155,12 @@ summary::-webkit-details-marker {
 
 .con-scroll {
   scrollbar-width: thin;
-  scrollbar-color: #3e3e3e transparent;
+  scrollbar-color: #333333 transparent;
 }
 
 .con-dots {
-  background-color: #121212;
-  background-image: radial-gradient(#2a2a2a 1px, transparent 1px);
+  background-color: #0a0a0a;
+  background-image: radial-gradient(#202020 1px, transparent 1px);
   background-size: 16px 16px;
 }
 
@@ -257,7 +257,7 @@ summary::-webkit-details-marker {
 /* Loading placeholders. */
 .con-skeleton {
   border-radius: 6px;
-  background: linear-gradient(90deg, #1c1c1c 25%, #262626 37%, #1c1c1c 63%);
+  background: linear-gradient(90deg, #151515 25%, #1e1e1e 37%, #151515 63%);
   background-size: 200% 100%;
   animation: con-shimmer 1.4s ease-in-out infinite;
 }
