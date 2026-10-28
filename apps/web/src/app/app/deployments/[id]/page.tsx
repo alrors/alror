@@ -8,6 +8,7 @@ import { ReleaseEvents } from "@/components/console/release-events";
 import { ReleaseProgress } from "@/components/console/release-progress";
 import { ReleaseRisk, ReleaseRiskGauge } from "@/components/console/release-risk";
 import { headline } from "@/components/console/release-story";
+import { trafficUnconfirmed } from "@/lib/console/recovery";
 import { ReleaseVerdicts } from "@/components/console/release-verdicts";
 import { RolloutTreeView } from "@/components/console/rollout-tree";
 import { ReleaseWhyCard } from "@/components/console/oversight/release-why";
@@ -66,7 +67,7 @@ export default async function DeploymentPage({ params }: PageProps<"/app/deploym
 
       <div className="con-fade-up flex flex-col gap-3">
         <div className="flex flex-wrap items-center gap-2">
-          <StatusBadge status={d.status} />
+          <StatusBadge status={d.status} recovery={d.recovery} />
           <LevelBadge level={d.risk?.level} />
           {d.risk?.ai_authored && <AiBadge />}
           <span className="text-[12px] text-con-fg3">
@@ -262,10 +263,10 @@ function SummaryCard({ d, now }: { d: Deployment; now: number }) {
     <Card title="Summary">
       <dl className="-my-2.5 divide-y divide-con-row">
         <Field label="Status">
-          <StatusBadge status={d.status} />
+          <StatusBadge status={d.status} recovery={d.recovery} />
         </Field>
         <Field label="Traffic">
-          <span className="font-mono tabular-nums">{d.status === "failed" ? "Unconfirmed" : (d.status === "promoted" ? 100 : d.status === "rolling" ? d.weight : 0) + "%"}</span>
+          <span className="font-mono tabular-nums">{trafficUnconfirmed(d) ? "Unconfirmed" : (d.status === "promoted" ? 100 : d.status === "rolling" ? d.weight : 0) + "%"}</span>
         </Field>
         <Field label="Plan">
           <span className="font-mono text-[13px] tabular-nums">

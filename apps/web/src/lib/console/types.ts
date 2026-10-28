@@ -43,10 +43,18 @@ export type Deployment = {
   reason?: string;
   created_at: string;
   updated_at: string;
+  /**
+   * Result of the last rollback attempt (Go Deployment.Recovery). Absent when no
+   * rollback was attempted, or when the writing client predates the field.
+   */
+  recovery?: Recovery;
   /** Platform extensions (not in the Go struct): environment name and where the write came from. */
   environment?: string;
   source?: "cli" | "ci" | "console" | "runner";
 };
+
+/** rollback_simulated: the simulated target moved traffic back; rollback_requested: the driver accepted the command but the split was not observed; rollback_failed: the command errored and production state is unknown. */
+export type Recovery = "rollback_simulated" | "rollback_requested" | "rollback_failed";
 
 export type EventKind = "created" | "step" | "verdict" | "promoted" | "rolled_back" | "error";
 

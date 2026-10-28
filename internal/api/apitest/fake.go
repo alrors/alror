@@ -436,9 +436,56 @@ func (f *Fake) postDeployment(w http.ResponseWriter, r *http.Request, _ Key) {
 		writeErr(w, 422, "unknown_service", fmt.Sprintf("service %q does not exist in this org", d.Service))
 		return
 	}
+	if _, exists := f.deps[d.ID]; !exists && !d.Status.Terminal() {
+		if run := f.runningLocked(&d); run != nil {
+			writeJSON(w, 409, map[string]any{"error": map[string]any{
+				"code":    "conflict",
+				"message": fmt.Sprintf("%s already has a release in progress in %s: %s (%s). No traffic was changed.", d.Service, envName(d.Environment), run.ID, run.Status),
+				"fix":     fmt.Sprintf("Wait for %s to finish, or roll it back (alror rollback %s).", run.ID, run.ID),
+				"details": map[string]string{"deployment_id": run.ID, "status": string(run.Status)},
+			}})
+			return
+		}
+	}
 	f.stampLocked(&d)
 	f.deps[d.ID] = &d
 	writeJSON(w, 201, d)
+}
+
+// ActiveReleaseWindow mirrors the workspace: a pending or rolling deployment
+// blocks a new release of its service and environment until it has not been
+// written for this long, or for its longest bake plus five minutes.
+const ActiveReleaseWindow = 30 * time.Minute
+
+func envName(e string) string {
+	if e == "" {
+		return "production"
+	}
+	return e
+}
+
+// runningLocked returns another pending or rolling deployment of d's service
+// and environment that is still being written to. Callers hold f.mu.
+func (f *Fake) runningLocked(d *domain.Deployment) *domain.Deployment {
+	var found *domain.Deployment
+	for _, o := range f.deps {
+		if o.ID == d.ID || o.Service != d.Service || envName(o.Environment) != envName(d.Environment) {
+			continue
+		}
+		if o.Status != domain.StatusPending && o.Status != domain.StatusRolling {
+			continue
+		}
+		window := ActiveReleaseWindow
+		for _, s := range o.Plan.Steps {
+			if s.Bake+5*time.Minute > window {
+				window = s.Bake + 5*time.Minute
+			}
+		}
+		if f.now().Sub(o.UpdatedAt) < window && (found == nil || o.UpdatedAt.After(found.UpdatedAt)) {
+			found = o
+		}
+	}
+	return found
 }
 
 func (f *Fake) putDeployment(w http.ResponseWriter, r *http.Request, _ Key) {

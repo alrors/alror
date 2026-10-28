@@ -14,6 +14,7 @@ import (
 	"github.com/alrors/alror/internal/api/apitest"
 	"github.com/alrors/alror/internal/config"
 	"github.com/alrors/alror/internal/domain"
+	"github.com/alrors/alror/internal/driver"
 	"github.com/alrors/alror/internal/metrics"
 )
 
@@ -148,6 +149,81 @@ func TestFailurePaths(t *testing.T) {
 	}
 }
 
+// recordingDriver counts every call that would touch the target.
+type recordingDriver struct {
+	mu    sync.Mutex
+	calls []string
+}
+
+func (r *recordingDriver) add(c string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.calls = append(r.calls, c)
+	return nil
+}
+func (r *recordingDriver) Name() string { return "recording" }
+func (r *recordingDriver) Mark(context.Context, config.Service, string, string) error {
+	return r.add("mark")
+}
+func (r *recordingDriver) Prepare(context.Context, config.Service, string) error {
+	return r.add("prepare")
+}
+func (r *recordingDriver) SetWeight(_ context.Context, _ config.Service, _, w int) error {
+	return r.add(fmt.Sprintf("weight %d", w))
+}
+func (r *recordingDriver) Promote(context.Context, config.Service) error  { return r.add("promote") }
+func (r *recordingDriver) Rollback(context.Context, config.Service) error { return r.add("rollback") }
+
+// A second release of a service that is still rolling is refused by the
+// workspace on the first write, before the engine touches the target.
+func TestDeployJobRefusedWhileAnotherReleaseRolls(t *testing.T) {
+	f, _, rn, _ := setup(t)
+	running := "dep_20260101T000000_aaaaaa"
+	f.PutDeployment(&domain.Deployment{ID: running, Service: "checkout-api", Image: "app:1", Environment: "production",
+		Status: domain.StatusRolling, Weight: 5, CreatedAt: time.Now(), UpdatedAt: time.Now()})
+	drv := &recordingDriver{}
+	rn.NewDriver = func(config.Service) (driver.Driver, error) { return drv, nil }
+
+	j := f.Enqueue(api.JobDeploy, map[string]any{"service": "checkout-api", "image": "app:2", "environment": "production"})
+	if err := rn.Run(context.Background(), true); err != nil {
+		t.Fatal(err)
+	}
+	got := f.Job(j.ID)
+	if got.Status != api.JobFailed || got.DeploymentID != "" || !strings.Contains(got.Error, "Wait for "+running+" to finish") {
+		t.Fatalf("job = %+v", got)
+	}
+	if len(drv.calls) != 0 {
+		t.Fatalf("traffic must not move when the release is refused: %v", drv.calls)
+	}
+	if n := len(f.Requests()); n == 0 {
+		t.Fatal("no requests recorded")
+	}
+	for _, r := range f.Requests() {
+		if r.Method == "PUT" || strings.HasSuffix(r.Path, "/events") {
+			t.Fatalf("nothing may be written after the refusal: %s %s", r.Method, r.Path)
+		}
+	}
+
+	// Another environment is a separate release and goes ahead.
+	ok := f.Enqueue(api.JobDeploy, map[string]any{"service": "checkout-api", "image": "app:2", "environment": "staging"})
+	if err := rn.Run(context.Background(), true); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.Job(ok.ID); got.Status != api.JobDone {
+		t.Fatalf("staging job = %+v", got)
+	}
+
+	// A run that stopped writing long ago no longer blocks.
+	f.Advance(apitest.ActiveReleaseWindow + time.Minute)
+	late := f.Enqueue(api.JobDeploy, map[string]any{"service": "checkout-api", "image": "app:3", "environment": "production"})
+	if err := rn.Run(context.Background(), true); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.Job(late.ID); got.Status != api.JobDone {
+		t.Fatalf("stale run should not block: %+v", got)
+	}
+}
+
 func TestOnceWithEmptyQueue(t *testing.T) {
 	_, _, rn, lb := setup(t)
 	if err := rn.Run(context.Background(), true); err != nil {
@@ -261,9 +337,15 @@ func TestHardStopAbortsJobAndReportsFailure(t *testing.T) {
 func TestConcurrency(t *testing.T) {
 	f, _, rn, _ := setup(t)
 	rn.Concurrency = 3
+	// One running release per service: concurrent jobs deploy different services.
+	cfg := f.Config()
+	for i := range 6 {
+		cfg.Services = append(cfg.Services, config.Service{Name: fmt.Sprintf("svc-%d", i), Target: "simulated"})
+	}
+	f.SetConfig(cfg)
 	var ids []string
 	for i := range 6 {
-		ids = append(ids, f.Enqueue(api.JobDeploy, map[string]any{"service": "checkout-api", "image": fmt.Sprintf("app:%d", i)}).ID)
+		ids = append(ids, f.Enqueue(api.JobDeploy, map[string]any{"service": fmt.Sprintf("svc-%d", i), "image": fmt.Sprintf("app:%d", i)}).ID)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error)

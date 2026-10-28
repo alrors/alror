@@ -1,6 +1,6 @@
 import "server-only";
 import { and, asc, desc, eq, gt, gte, ilike, inArray, lt, or, sql, type SQL } from "drizzle-orm";
-import type { DeployEvent, Deployment, EventKind, Status, Verdict } from "@/lib/console/types";
+import type { DeployEvent, Deployment, EventKind, Recovery, Status, Verdict } from "@/lib/console/types";
 import type { OrgCtx } from "../context";
 import { db } from "../db";
 import { deploymentEvents, deployments, environments, type DeploymentSource } from "../db/schema";
@@ -37,6 +37,7 @@ export function toDeployment(r: Row, environment?: string | null): Deployment {
     updated_at: goTime(r.updatedAt),
     ...(environment ? { environment } : {}),
     source: r.source,
+    ...(r.recovery ? { recovery: r.recovery } : {}),
   };
 }
 
@@ -225,7 +226,9 @@ export async function recentRollbacks(ctx: OrgCtx, since: Date): Promise<Record<
 
 // ---------- Writes ----------
 
-export type DeploymentInput = Omit<Deployment, "created_at" | "updated_at" | "environment" | "source"> & {
+export type DeploymentInput = Omit<Deployment, "created_at" | "updated_at" | "environment" | "source" | "recovery"> & {
+  /** Result of the last rollback attempt; absent clears it (the body is the full record). */
+  recovery?: Recovery;
   created_at?: string;
   updated_at?: string;
   /** Environment name; defaults to production on insert and is left unchanged on update when absent. */
@@ -258,6 +261,22 @@ function parseTime(v: string | undefined, fallback: Date): Date {
   const t = new Date(v);
   if (Number.isNaN(t.getTime()) || t.getUTCFullYear() < 1971) return fallback; // Go zero time
   return t;
+}
+
+/**
+ * How long a pending/rolling deployment blocks a new release of the same
+ * service and environment without being written to. A live run saves on every
+ * step and verdict, so a longer silence means its client died; the window
+ * stretches to the deployment's longest bake so a slow step is not mistaken
+ * for a crash.
+ */
+export const ACTIVE_RELEASE_WINDOW_MS = 30 * 60_000;
+const BAKE_SLACK_MS = 5 * 60_000;
+
+function activeWindowMs(plan: unknown): number {
+  const steps = (plan as { steps?: { bake?: unknown }[] | null } | null)?.steps ?? [];
+  const longestBakeMs = Math.max(0, ...steps.map((s) => (typeof s?.bake === "number" ? s.bake / 1e6 : 0)));
+  return Math.max(ACTIVE_RELEASE_WINDOW_MS, longestBakeMs + BAKE_SLACK_MS);
 }
 
 /** Default source when neither the body nor the X-Alror-Source header names one. */
@@ -311,6 +330,37 @@ export async function upsertDeployment(ctx: OrgCtx, input: DeploymentInput, opts
       environmentName = env?.name ?? null;
     }
 
+    // One release per service and environment at a time: a second one would fight
+    // the first over the traffic split. Only new, still-running records are
+    // checked (an update of an existing id, e.g. a retried POST, is the same
+    // release). The advisory lock serialises concurrent inserts for the pair.
+    if (!mine && !isTerminal(input.status) && !opts.trustTimestamps) {
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`deploy:${ctx.orgId}:${svc.id}:${environmentId}`}, 0))`);
+      const active = await tx
+        .select({ id: deployments.id, status: deployments.status, plan: deployments.plan, updatedAt: deployments.updatedAt })
+        .from(deployments)
+        .where(
+          and(
+            eq(deployments.orgId, ctx.orgId),
+            eq(deployments.serviceId, svc.id),
+            eq(deployments.environmentId, environmentId),
+            inArray(deployments.status, ["pending", "rolling"]),
+          ),
+        )
+        .orderBy(desc(deployments.updatedAt))
+        .limit(20);
+      const running = active.find((a) => now.getTime() - a.updatedAt.getTime() < activeWindowMs(a.plan));
+      if (running) {
+        throw new ApiError(
+          409,
+          "conflict",
+          `${svc.name} already has a release in progress in ${environmentName ?? "this environment"}: ${running.id} (${running.status}). No traffic was changed.`,
+          { deployment_id: running.id, status: running.status },
+          `Wait for ${running.id} to finish, or roll it back (alror rollback ${running.id}).`,
+        );
+      }
+    }
+
     const explicitSource = input.source ?? opts.sourceHint;
     const values = {
       serviceId: svc.id,
@@ -324,6 +374,7 @@ export async function upsertDeployment(ctx: OrgCtx, input: DeploymentInput, opts
       reason: input.reason ?? "",
       risk: input.risk,
       plan: input.plan,
+      recovery: input.recovery ?? null,
       updatedAt: opts.trustTimestamps ? parseTime(input.updated_at, now) : now,
       ...(explicitSource && mine ? { source: explicitSource } : {}),
     };

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { FolderTree, TriangleAlert } from "lucide-react";
 import { COLORS, LegendItem, LineChart } from "@/components/console/charts";
 import { Card, Pill, RiskValue, StagePips, toneBg, type StageState } from "@/components/console/primitives";
-import { ago, dayLabel, statusLabel, statusTone } from "@/lib/console/format";
+import { ago, dayLabel, deploymentStatus } from "@/lib/console/format";
 import type { Deployment, MetricResult } from "@/lib/console/types";
 import { cn } from "@/lib/site";
 
@@ -167,7 +167,7 @@ export function ServiceTimeline({ deps, now, name }: { deps: Deployment[]; now: 
           {deps.map((d, i) => (
             <li key={d.id} className="relative flex gap-3 pb-3 last:pb-0">
               {i < deps.length - 1 && <span aria-hidden className="absolute left-[3px] top-3 h-full w-px bg-con-row" />}
-              <span aria-hidden className={cn("relative mt-1.5 h-[7px] w-[7px] shrink-0 rounded-full ring-2 ring-con-panel", toneBg[statusTone(d.status)])} />
+              <span aria-hidden className={cn("relative mt-1.5 h-[7px] w-[7px] shrink-0 rounded-full ring-2 ring-con-panel", toneBg[deploymentStatus(d.status, d.recovery).tone])} />
               <Link
                 href={`/app/deployments/${d.id}`}
                 className="con-ease -mx-2 -my-1 flex min-w-0 flex-1 items-center gap-3 rounded-md px-2 py-1 hover:bg-con-hover"
@@ -175,7 +175,7 @@ export function ServiceTimeline({ deps, now, name }: { deps: Deployment[]; now: 
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-[13px]">
                     <span className="font-mono text-con-fg">{d.ref || d.id.slice(0, 8)}</span>
-                    <span className="text-con-fg3"> · {statusLabel[d.status] ?? d.status}</span>
+                    <span className="text-con-fg3"> · {deploymentStatus(d.status, d.recovery).label}</span>
                   </span>
                   <span className="block truncate text-[12px] text-con-fg3">
                     {d.environment ?? "production"}

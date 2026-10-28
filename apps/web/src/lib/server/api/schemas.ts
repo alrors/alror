@@ -1,6 +1,6 @@
 import "server-only";
 import { z } from "zod";
-import { EVENT_KINDS, INCIDENT_STATUSES, JOB_STATUSES, SOURCES, STATUSES, TARGETS } from "../db/schema";
+import { EVENT_KINDS, INCIDENT_STATUSES, JOB_STATUSES, RECOVERIES, SOURCES, STATUSES, TARGETS } from "../db/schema";
 
 // Request schemas for /api/v1. Domain shapes follow alror/internal/domain (snake_case, bake in ns).
 
@@ -46,6 +46,8 @@ export const DeploymentBody = z.object({
   reason: z.string().max(4000).optional(),
   created_at: time.optional(),
   updated_at: time.optional(),
+  /** Result of the last rollback attempt; omitted (Go omitempty) when none was attempted. */
+  recovery: z.enum(RECOVERIES).optional(),
   // Extensions (not in the Go struct; optional):
   environment: z.string().max(40).optional(),
   source: z.enum(SOURCES).optional(),
