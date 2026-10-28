@@ -335,7 +335,7 @@ function DeployDialog({ defaults, onClose, closing }: { defaults: DeployDefaults
         </div>
 
         <label className="flex items-start gap-2.5 text-[13px] text-con-fg2">
-          <input type="checkbox" name="shadow" className="mt-0.5 h-3.5 w-3.5 accent-[#ededed]" />
+          <input type="checkbox" name="shadow" className="mt-0.5 h-3.5 w-3.5 accent-con-brand" />
           <span>
             Shadow run
             <span className="block text-[12px] text-con-fg3">Verdicts are recorded but never trigger a rollback.</span>

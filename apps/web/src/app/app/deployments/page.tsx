@@ -73,16 +73,16 @@ export default async function DeploymentsPage({ searchParams }: PageProps<"/app/
       />
 
       <div className="con-stagger grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <BoardTile label="In this view" hint={active ? "matching your filters" : "all deployments"}>
+        <BoardTile accent="var(--color-con-accent-sky)" label="In this view" hint={active ? "matching your filters" : "all deployments"}>
           <CountUp value={filtered.length} />
         </BoardTile>
-        <BoardTile label="Promoted" hint={finished.length ? `of ${finished.length} finished` : "none finished yet"}>
+        <BoardTile accent="var(--color-con-accent-mint)" label="Promoted" hint={finished.length ? `of ${finished.length} finished` : "none finished yet"}>
           <CountUp value={finished.length ? (promoted / finished.length) * 100 : 0} suffix="%" />
         </BoardTile>
-        <BoardTile label="Stopped" hint="rolled back or failed">
+        <BoardTile accent="var(--color-con-accent-coral)" label="Stopped" hint="rolled back or failed">
           <CountUp value={stopped} />
         </BoardTile>
-        <BoardTile label="Average risk" hint={aiCount ? `${aiCount} AI-authored` : "0 is safest, 100 riskiest"}>
+        <BoardTile accent="var(--color-con-accent-butter)" label="Average risk" hint={aiCount ? `${aiCount} AI-authored` : "0 is safest, 100 riskiest"}>
           <CountUp value={avgRisk} />
         </BoardTile>
       </div>
@@ -99,11 +99,11 @@ export default async function DeploymentsPage({ searchParams }: PageProps<"/app/
                 aria-current={on ? "page" : undefined}
                 className={cn(
                   "relative -mb-px flex h-10 shrink-0 items-center gap-2 border-b-2 px-3 text-[14px] transition-colors duration-150",
-                  on ? "border-con-fg text-con-fg" : "border-transparent text-con-fg2 hover:text-con-fg",
+                  on ? "border-con-brand text-con-fg" : "border-transparent text-con-fg2 hover:text-con-fg",
                 )}
               >
                 {s.label}
-                <span className={cn("rounded-full px-1.5 text-[12px] tabular-nums", on ? "bg-con-row text-con-fg" : "text-con-fg3")}>{counts[s.value]}</span>
+                <span className={cn("rounded-full px-1.5 text-[12px] tabular-nums", on ? "bg-con-brand-soft text-con-brand-text" : "text-con-fg3")}>{counts[s.value]}</span>
               </Link>
             );
           })}
@@ -217,10 +217,13 @@ export default async function DeploymentsPage({ searchParams }: PageProps<"/app/
   );
 }
 
-function BoardTile({ label, hint, children }: { label: string; hint: string; children: React.ReactNode }) {
+function BoardTile({ label, hint, accent, children }: { label: string; hint: string; accent: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-lg border border-con-line bg-con-panel px-4 py-3.5">
-      <div className="text-[12px] text-con-fg2">{label}</div>
+    <div className="con-surface con-accent-top rounded-lg border border-con-line bg-con-panel px-4 py-3.5" style={{ "--con-accent": accent } as React.CSSProperties}>
+      <div className="flex items-center gap-1.5 text-[12px] text-con-fg2">
+        <span aria-hidden className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: accent }} />
+        {label}
+      </div>
       <div className="mt-1 text-[24px] font-semibold leading-none tracking-[-0.02em]">{children}</div>
       <div className="mt-1.5 truncate text-[12px] text-con-fg3">{hint}</div>
     </div>

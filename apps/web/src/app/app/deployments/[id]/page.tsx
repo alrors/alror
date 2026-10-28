@@ -114,7 +114,7 @@ export default async function DeploymentPage({ params }: PageProps<"/app/deploym
         aria-label="What happened"
         className={cn(
           "con-fade-up rounded-lg border bg-con-panel px-5 py-4",
-          bad ? "border-con-bad/30" : d.status === "rolling" ? "border-con-info/30" : "border-con-line",
+          bad ? "border-con-bad-edge" : d.status === "rolling" ? "border-con-info-edge" : "border-con-line",
         )}
         style={{ animationDelay: "60ms" }}
       >

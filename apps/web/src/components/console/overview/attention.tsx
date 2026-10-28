@@ -62,7 +62,7 @@ export function NeedsAttention({ items, now, canRollBack }: { items: AttentionIt
       title={
         <h2 className="flex items-center gap-2 text-[14px] font-semibold tracking-[-0.01em] text-con-fg">
           Needs attention
-          {visible.length > 0 && <Count className={critical ? "bg-con-bad/15 text-con-bad" : undefined}>{visible.length}</Count>}
+          {visible.length > 0 && <Count className={critical ? "bg-con-bad-soft text-con-bad-text" : "bg-con-warn-soft text-con-warn-text"}>{visible.length}</Count>}
         </h2>
       }
       tip="Failing verdicts, high-risk releases in progress, stalled or waiting jobs, and services that rolled back in the last 7 days, most severe first. Dismissing hides an item on this device for 12 hours, or until it changes."

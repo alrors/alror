@@ -14,7 +14,7 @@ export const STACK = "space-y-5 group-data-[density=compact]/ov:space-y-3";
 
 /** Compact 28px button base for inline row actions. */
 export const SMALL_BUTTON =
-  "inline-flex h-7 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2.5 text-[12px] font-medium outline-none transition-colors duration-150 focus-visible:ring-1 focus-visible:ring-con-line-hover disabled:opacity-60";
+  "inline-flex h-7 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2.5 text-[12px] font-medium outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-con-brand/60 disabled:opacity-60";
 export const GHOST_BUTTON = "border border-con-line text-con-fg2 hover:border-con-line-hover hover:bg-con-hover hover:text-con-fg";
 
 /** A board widget: compact header (title, optional tip, right side) and a body. */
@@ -44,7 +44,7 @@ export function Panel({
   label?: string;
 }) {
   return (
-    <section data-widget={widget} aria-label={label} className={cn("flex min-w-0 flex-col rounded-lg border border-con-line bg-con-panel", className)}>
+    <section data-widget={widget} aria-label={label} className={cn("con-surface flex min-w-0 flex-col rounded-lg border border-con-line bg-con-panel", className)}>
       <header className={cn("flex min-h-12 flex-wrap items-center justify-between gap-x-3 gap-y-1.5 pb-1 pt-3", PAD_X, "group-data-[density=compact]/ov:min-h-10 group-data-[density=compact]/ov:pt-2.5")}>
         <div className="flex min-w-0 items-center gap-1">
           {typeof title === "string" ? <h2 className="truncate text-[14px] font-semibold tracking-[-0.01em] text-con-fg">{title}</h2> : title}
@@ -63,7 +63,7 @@ export function Panel({
 
 /** Quiet "View all" style link for panel headers. */
 export function PanelLink({ href, children, external }: { href: string; children: React.ReactNode; external?: boolean }) {
-  const cls = "con-ease rounded px-1 text-[12px] text-con-fg3 outline-none hover:text-con-fg focus-visible:ring-1 focus-visible:ring-con-line-hover";
+  const cls = "con-ease rounded px-1 text-[12px] text-con-fg3 outline-none hover:text-con-brand-text focus-visible:ring-2 focus-visible:ring-con-brand/60";
   return external ? (
     <a href={href} target="_blank" rel="noreferrer" className={cls}>
       {children}

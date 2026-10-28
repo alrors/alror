@@ -20,7 +20,7 @@ export function ReleaseProgress({ d, tree }: { d: Deployment; tree: RolloutTree;
         </span>
       </div>
       <div className="relative mt-3 flex h-1.5 gap-1 overflow-hidden rounded-full bg-con-row" role="img" aria-label={d.status === "failed" ? "Traffic state unconfirmed after failure" : live + "% of traffic on this release"}>
-        {d.status !== "failed" && live > 0 && <span className={cn("h-full rounded-full transition-[width] duration-500 motion-reduce:transition-none", d.status === "rolling" ? "bg-con-info" : "bg-con-fg2")} style={{ width: live + "%" }} />}
+        {d.status !== "failed" && live > 0 && <span className={cn("h-full rounded-full transition-[width] duration-500 motion-reduce:transition-none", d.status === "rolling" ? "bg-con-info" : "bg-con-good")} style={{ width: live + "%" }} />}
       </div>
     </div>
   );
