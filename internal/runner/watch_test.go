@@ -223,7 +223,7 @@ func TestWatchNewImageStartsExactlyOneRelease(t *testing.T) {
 	if last.Name != "Detected in cluster" || !strings.Contains(last.Detail, "commit 3f9c2ab1 (from image tag)") || !strings.Contains(last.Detail, "reg/checkout:1.0.0") {
 		t.Fatalf("detection factor = %+v", last)
 	}
-	if d.Risk.Level != domain.LevelMedium || !strings.Contains(d.Risk.Factors[0].Detail, "no stored decision or local git checkout") {
+	if d.Risk.Level != domain.LevelMedium || !strings.Contains(d.Risk.Factors[0].Detail, "no portal decision or local git checkout") {
 		t.Fatalf("without git or a stored decision the risk is medium, and says why: %+v", d.Risk)
 	}
 	if a := cl.annotations("checkout-api"); a[driver.AnnotationControlledBy] != d.ID || a[driver.AnnotationImage] != d.Image {
@@ -292,37 +292,44 @@ func TestWatchYieldsToActiveCIRelease(t *testing.T) {
 	}
 }
 
-func TestWatchConnectedReusesStoredDecision(t *testing.T) {
+func TestWatchConnectedPrefersThePortalDecision(t *testing.T) {
 	cl := newFakeCluster(map[string]string{"checkout-api": "reg/checkout:1"})
 	w, f, lb := connectedWatcher(t, cl)
 	runOnce(t, w)
 
-	sha := "3f9c2ab1d4e5f60718293a4b5c6d7e8f90a1b2c3"
-	f.PutDeployment(&domain.Deployment{ID: "dep_20261027T000000_aaaaaa", Service: "checkout-api", Image: "reg/checkout-staging:x", Ref: sha,
-		Status: domain.StatusPromoted, CreatedAt: time.Now().Add(-time.Hour),
+	head := "1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d"
+	merge := "3f9c2ab1d4e5f60718293a4b5c6d7e8f90a1b2c3"
+	plan := domain.Plan{Strategy: "canary", Steps: []domain.Step{{Weight: 2, Bake: time.Minute}, {Weight: 100}}}
+	f.PutDecision(api.Decision{HeadSHA: head, MergeSHA: merge, Repository: "acme/shop", PullNumber: 4821,
+		URL: "https://github.com/acme/shop/pull/4821", RulesVersion: 1, Plan: plan,
 		Risk: domain.RiskReport{Score: 85, Level: domain.LevelHigh, Factors: []domain.Factor{{Name: "Migrations", Points: 40}}}})
-	cl.setImage("checkout-api", "reg/checkout:2.0.0", map[string]string{driver.AnnotationCommit: sha})
+	// The merge commit reaches the cluster through GitOps, named by the annotation.
+	cl.setImage("checkout-api", "reg/checkout:2.0.0", map[string]string{driver.AnnotationCommit: merge})
 	runOnce(t, w)
 
-	var got *domain.Deployment
-	all, _ := w.Store.List()
-	for _, d := range all {
-		if d.Image == "reg/checkout:2.0.0" {
-			got = d
-		}
+	all, err := w.Store.List()
+	if err != nil || len(all) != 1 {
+		t.Fatalf("want one detected release, got %+v %v\n%s", all, err, lb)
 	}
-	if got == nil || len(all) != 2 {
-		t.Fatalf("want one detected release, got %+v\n%s", all, lb)
-	}
-	if got.Ref != sha || got.Risk.Score != 85 || got.Risk.Level != domain.LevelHigh || got.Source != "runner" || got.Environment != "production" {
+	got := all[0]
+	if got.Ref != merge || got.Risk.Score != 85 || got.Risk.Level != domain.LevelHigh || got.Source != "runner" || got.Environment != "production" {
 		t.Fatalf("deployment = %+v", got)
 	}
-	if !strings.Contains(fmt.Sprint(got.Risk.Factors), "risk reused from deployment dep_20261027T000000_aaaaaa") ||
-		!strings.Contains(fmt.Sprint(got.Risk.Factors), "pod template annotation alror.dev/commit") {
+	factors := fmt.Sprint(got.Risk.Factors)
+	if !strings.Contains(factors, "pull request acme/shop#4821") || !strings.Contains(factors, "pod template annotation alror.dev/commit") {
 		t.Fatalf("factors = %+v", got.Risk.Factors)
 	}
-	if got.Plan.Steps[0].Weight != 1 {
-		t.Fatalf("a high-risk stored decision must give the high-risk plan: %+v", got.Plan)
+	if len(got.Plan.Steps) != 2 || got.Plan.Steps[0].Weight != 2 {
+		t.Fatalf("the portal's stored plan must be used: %+v", got.Plan)
+	}
+
+	// No decision for the commit: medium risk, and the reason is recorded.
+	other := "9e8d7c6b5a4f"
+	cl.setImage("checkout-api", "reg/checkout:sha-"+other, nil)
+	runOnce(t, w)
+	all, _ = w.Store.List()
+	if len(all) != 2 || all[0].Risk.Level != domain.LevelMedium || !strings.Contains(all[0].Risk.Factors[0].Detail, "no portal decision or local git checkout for commit "+other) {
+		t.Fatalf("fallback = %+v\n%s", all[0], lb)
 	}
 }
 

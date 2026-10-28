@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
@@ -404,7 +403,7 @@ func (w *Watcher) release(det detection) error {
 	if !ok {
 		return fmt.Errorf("service %q is no longer configured", det.svc.Name)
 	}
-	report := w.score(ctx, cfg, svc, det.commit)
+	report, plan := w.score(ctx, cfg, svc, det.commit)
 	detail := fmt.Sprintf("Rollout %s changed from %s to %s outside Alror", rolloutName(svc), orNone(det.previous), det.image)
 	if det.commit != "" {
 		detail += fmt.Sprintf(" · commit %s (from %s)", det.commit, det.how)
@@ -430,7 +429,7 @@ func (w *Watcher) release(det detection) error {
 	}
 	d := &domain.Deployment{
 		ID: det.id, Service: svc.Name, Image: det.image, Ref: det.commit,
-		Risk: report, Plan: rollout.PlanFor(report), Status: domain.StatusPending, CreatedAt: time.Now().UTC(),
+		Risk: report, Plan: plan, Status: domain.StatusPending, CreatedAt: time.Now().UTC(),
 	}
 	if w.Client != nil {
 		d.Environment, d.Source = w.Environment, "runner"
@@ -457,48 +456,65 @@ func (w *Watcher) release(det detection) error {
 	return runErr
 }
 
-// score rates a detected change. Connected mode first reuses a decision
-// already stored in the workspace for the same commit; otherwise the offline
-// scorer reads the commit from a local git checkout (alror.yaml's
-// directory); otherwise the change is treated as medium risk, and says so.
-func (w *Watcher) score(ctx context.Context, cfg *config.Config, svc config.Service, commit string) domain.RiskReport {
+// score rates a detected change and plans it. Connected mode prefers the
+// decision the portal stored for the commit (GET /decisions/{sha}: the
+// shared rules plus the org's history, and the pull request it came from);
+// otherwise the offline scorer reads the commit from a local git checkout
+// (alror.yaml's directory); otherwise the change is treated as medium risk,
+// and says so.
+func (w *Watcher) score(ctx context.Context, cfg *config.Config, svc config.Service, commit string) (domain.RiskReport, domain.Plan) {
+	why := "commit unknown"
+	if commit != "" {
+		why = "no portal decision or local git checkout for commit " + commit
+	}
 	if commit != "" && w.Client != nil {
-		lctx, cancel := context.WithTimeout(ctx, time.Minute)
-		prior, err := w.Client.ListDeployments(lctx, api.ListOptions{Service: svc.Name, Limit: 100})
+		dctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		d, err := w.Client.Decision(dctx, commit)
 		cancel()
-		if err == nil {
-			for _, d := range prior {
-				if sameCommit(d.Ref, commit) && (d.Risk.Score > 0 || len(d.Risk.Factors) > 0) {
-					r := d.Risk
-					r.Factors = append(append([]domain.Factor(nil), r.Factors...), domain.Factor{
-						Name: "Stored decision", Detail: fmt.Sprintf("risk reused from deployment %s for commit %s", d.ID, commit)})
-					return r
-				}
+		switch {
+		case err == nil && usablePlan(d.Plan):
+			r := d.Risk
+			r.Score = max(0, min(r.Score, 100))
+			if r.Level != domain.LevelLow && r.Level != domain.LevelMedium && r.Level != domain.LevelHigh {
+				r.Level = risk.LevelFor(r.Score)
 			}
+			pr := fmt.Sprintf("%s#%d", d.Repository, d.PullNumber)
+			if d.URL != "" {
+				pr += " (" + d.URL + ")"
+			}
+			r.Factors = append(append([]domain.Factor(nil), r.Factors...), domain.Factor{Name: "Portal decision",
+				Detail: fmt.Sprintf("risk and plan stored for commit %s, pull request %s, shared rules v%d", d.SHA, pr, d.RulesVersion)})
+			return r, d.Plan
+		case err == nil:
+			why = "the portal decision for " + commit + " has no usable plan, and no local git checkout has the commit"
+		case !errors.Is(err, api.ErrNotFound):
+			w.Log(Warn, fmt.Sprintf("watch %s: could not read the portal decision for %s: %v", svc.Name, commit, err))
 		}
 	}
 	if commit != "" && cfg.Dir != "" {
 		if change, err := risk.FromCommit(cfg.Dir, commit); err == nil {
 			change.RecentRollbacks, _ = w.Store.RecentRollbacks(time.Now().AddDate(0, 0, -30))
-			return risk.Score(cfg, change)
+			r := risk.Score(cfg, change)
+			return r, rollout.PlanFor(r)
 		}
 	}
-	why := "commit unknown"
-	if commit != "" {
-		why = "no stored decision or local git checkout for commit " + commit
-	}
-	return domain.RiskReport{Score: 50, Level: domain.LevelMedium, Services: []string{svc.Name},
+	r := domain.RiskReport{Score: 50, Level: domain.LevelMedium, Services: []string{svc.Name},
 		Factors: []domain.Factor{{Name: "Default score", Detail: why + "; assuming medium risk", Points: 50}}}
+	return r, rollout.PlanFor(r)
 }
 
-// sameCommit matches a deployment ref against a SHA, allowing a short SHA
-// on either side (at least 7 characters).
-func sameCommit(ref, sha string) bool {
-	ref = strings.ToLower(strings.TrimSpace(ref))
-	if len(ref) < 7 || !hexSHA.MatchString(ref) {
+// usablePlan reports whether a stored plan can drive the engine: steps of
+// 1 to 100%, ending with 100% (promote).
+func usablePlan(p domain.Plan) bool {
+	if len(p.Steps) == 0 || p.Steps[len(p.Steps)-1].Weight != 100 {
 		return false
 	}
-	return strings.HasPrefix(ref, sha) || strings.HasPrefix(sha, ref)
+	for _, s := range p.Steps {
+		if s.Weight < 1 || s.Weight > 100 || s.Bake < 0 {
+			return false
+		}
+	}
+	return true
 }
 
 func (w *Watcher) save(err error) {
