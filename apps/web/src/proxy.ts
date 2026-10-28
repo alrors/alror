@@ -32,10 +32,21 @@ export async function proxy(req: NextRequest) {
   return NextResponse.next({ request: { headers: requestHeaders } });
 }
 
+/**
+ * Where the proxy reaches this same server. In production that is the local
+ * port: the public URL can be unreachable from inside the container (the
+ * request then times out and every admin gets a 404). ALROR_INTERNAL_URL overrides it.
+ */
+function internalOrigin(req: NextRequest): string {
+  if (process.env.ALROR_INTERNAL_URL) return process.env.ALROR_INTERNAL_URL;
+  if (process.env.NODE_ENV === "production") return `http://127.0.0.1:${process.env.PORT || 3000}`;
+  return req.nextUrl.origin;
+}
+
 /** Asks the app (src/app/admin/api/[action]) whether this session is a platform admin; fails closed. */
 async function isPlatformAdmin(req: NextRequest): Promise<boolean> {
   try {
-    const res = await fetch(new URL("/admin/api/access", req.url), {
+    const res = await fetch(new URL("/admin/api/access", internalOrigin(req)), {
       headers: { cookie: req.headers.get("cookie") ?? "" },
       cache: "no-store",
       signal: AbortSignal.timeout(5000),
