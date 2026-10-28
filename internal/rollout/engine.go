@@ -30,11 +30,52 @@ var ErrSyntheticTelemetry = errors.New("synthetic telemetry cannot verify a real
 // was cancelled (Ctrl-C, lost lease): the rollback itself must still run.
 const rollbackTimeout = 2 * time.Minute
 
+// notifyTimeout bounds a notification, which may run after the rollout's
+// context was cancelled: the people on call must still hear about it.
+const notifyTimeout = 15 * time.Second
+
 // Observer receives live updates; the CLI uses it to draw progress.
 type Observer interface {
 	Event(domain.Event)
 	Progress(step int, fraction float64)
 }
+
+// Warner is an optional Observer extension for problems that do not change
+// the release's outcome (a notification that could not be sent). Warnings
+// are shown live but not stored as events.
+type Warner interface {
+	Warn(msg string)
+}
+
+// ErrInterrupted marks a rollout stopped by its context (Ctrl-C, SIGTERM,
+// a lost runner lease). The returned error also wraps the context's cause.
+var ErrInterrupted = errors.New("rollout stopped")
+
+// interrupted describes why ctx stopped the rollout, in plain words. A
+// cancel cause set with context.WithCancelCause (e.g. a lost lease) names
+// itself; a plain cancellation is a signal.
+func interrupted(ctx context.Context, err error) error {
+	cause := context.Cause(ctx)
+	if cause == nil {
+		cause = err
+	}
+	why := "interrupt or SIGTERM"
+	switch {
+	case errors.Is(cause, context.DeadlineExceeded):
+		why = "deadline exceeded"
+	case cause != nil && !errors.Is(cause, context.Canceled):
+		why = cause.Error()
+	}
+	return &stopError{why: why, cause: cause}
+}
+
+type stopError struct {
+	why   string
+	cause error
+}
+
+func (e *stopError) Error() string   { return "Stopped (" + e.why + ")" }
+func (e *stopError) Unwrap() []error { return []error{ErrInterrupted, e.cause} }
 
 // Engine executes a deployment's plan: prepare, shift traffic, bake, verify, decide.
 //
@@ -147,7 +188,7 @@ func (e *Engine) Run(ctx context.Context, d *domain.Deployment) error {
 			d.Status = domain.StatusPromoted
 			msg := promotedMessage(d.Service, routing, synthetic, allPassed)
 			e.emit(d, domain.Event{Kind: domain.EventPromoted, Weight: 100, Message: msg, Routing: routing})
-			_ = e.Notifier.Notify(ctx, d, msg)
+			e.notify(ctx, d, msg)
 			return nil
 		}
 
@@ -161,7 +202,7 @@ func (e *Engine) Run(ctx context.Context, d *domain.Deployment) error {
 				e.Observer.Progress(i, f)
 			}
 		}); err != nil {
-			return e.fail(ctx, d, svc, fmt.Errorf("interrupted: %w", err))
+			return e.fail(ctx, d, svc, interrupted(ctx, err))
 		}
 
 		verdict, err := e.judge(ctx, d.Service, step.Bake)
@@ -185,12 +226,12 @@ func (e *Engine) Run(ctx context.Context, d *domain.Deployment) error {
 			continue
 		}
 		if err := e.rollback(ctx, svc); err != nil {
-			return e.rollbackFailed(d, verdict.Summary, err)
+			return e.rollbackFailed(ctx, d, verdict.Summary, err)
 		}
 		d.Status, d.Reason, d.Recovery = domain.StatusRolledBack, verdict.Summary, recoveryFor(routing)
 		e.emit(d, domain.Event{Kind: domain.EventRolledBack, Weight: step.Weight, Routing: routing, Message: fmt.Sprintf(
 			"Rolled back at %d%% traffic · %s%s", step.Weight, verdict.Summary, recoveryNote(routing))})
-		_ = e.Notifier.Notify(ctx, d, verdict.Summary)
+		e.notify(ctx, d, verdict.Summary)
 		return nil
 	}
 	return nil
@@ -250,19 +291,51 @@ func (e *Engine) rollback(ctx context.Context, svc config.Service) error {
 // as a restoration.
 func (e *Engine) fail(ctx context.Context, d *domain.Deployment, svc config.Service, cause error) error {
 	if err := e.rollback(ctx, svc); err != nil {
-		return e.rollbackFailed(d, cause.Error(), err)
+		return e.rollbackFailed(ctx, d, cause.Error(), err)
 	}
 	routing := routingFor(d.Target)
-	d.Status, d.Reason, d.Recovery = domain.StatusFailed, cause.Error(), recoveryFor(routing)
-	e.emit(d, domain.Event{Kind: domain.EventError, Weight: d.Weight, Routing: routing, Message: cause.Error() + recoveryNote(routing)})
+	reason, msg := cause.Error(), cause.Error()+recoveryNote(routing)
+	if errors.Is(cause, ErrInterrupted) {
+		reason = cause.Error() + stoppedNote(routing)
+		msg = reason
+	}
+	d.Status, d.Reason, d.Recovery = domain.StatusFailed, reason, recoveryFor(routing)
+	e.emit(d, domain.Event{Kind: domain.EventError, Weight: d.Weight, Routing: routing, Message: msg})
+	e.notify(ctx, d, msg)
 	return cause
 }
 
-func (e *Engine) rollbackFailed(d *domain.Deployment, why string, rbErr error) error {
+func (e *Engine) rollbackFailed(ctx context.Context, d *domain.Deployment, why string, rbErr error) error {
 	d.Status, d.Recovery = domain.StatusFailed, domain.RecoveryFailed
 	d.Reason = fmt.Sprintf("%s · rollback failed: %v · traffic state unknown", why, rbErr)
 	e.emit(d, domain.Event{Kind: domain.EventError, Weight: d.Weight, Message: d.Reason})
+	e.notify(ctx, d, d.Reason)
 	return fmt.Errorf("%s: %w: %v", why, ErrRollbackFailed, rbErr)
+}
+
+// notify tells people about a terminal outcome. It runs even when ctx is
+// cancelled (an interrupted rollout must still be reported); a delivery
+// error is shown as a warning and never changes the outcome.
+func (e *Engine) notify(ctx context.Context, d *domain.Deployment, summary string) {
+	nctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), notifyTimeout)
+	defer cancel()
+	if err := e.Notifier.Notify(nctx, d, summary); err != nil {
+		if w, ok := e.Observer.(Warner); ok {
+			w.Warn(fmt.Sprintf("Notification not sent: %v · the release outcome is unchanged", err))
+		}
+	}
+}
+
+// stoppedNote completes "Stopped (…)" with what the rollback achieved.
+func stoppedNote(routing string) string {
+	switch routing {
+	case domain.RoutingSimulated:
+		return "; canary rolled back (simulated)"
+	case domain.RoutingObserved:
+		return "; canary rolled back"
+	default:
+		return "; canary rollback requested, restored traffic not observed"
+	}
 }
 
 func (e *Engine) emit(d *domain.Deployment, ev domain.Event) {

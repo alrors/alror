@@ -1,7 +1,7 @@
 // Pure formatting helpers, safe on server and client.
 
 import { levelFor } from "@/lib/server/decision/score";
-import type { Level, Status } from "./types";
+import type { Level, Recovery, Status } from "./types";
 
 export const statusLabel: Record<Status, string> = {
   pending: "Pending",
@@ -26,6 +26,16 @@ export function statusTone(s: Status): Tone {
     case "failed":
       return "bad";
   }
+}
+
+/**
+ * Status label and tone for one deployment. A failed rollback outranks the
+ * status (which can still read rolling or promoted after a manual rollback
+ * failed): production state is unknown and someone must look now.
+ */
+export function deploymentStatus(status: Status, recovery?: Recovery): { label: string; tone: Tone } {
+  if (recovery === "rollback_failed") return { label: "Rollback failed", tone: "bad" };
+  return { label: statusLabel[status] ?? status, tone: statusTone(status) };
 }
 
 export function levelTone(l: Level | undefined): Tone {

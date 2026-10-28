@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { actionError, field, type ActionResult } from "@/lib/console/action-result";
 import { requireCtx } from "@/lib/server/auth/session";
-import { disablePlugin, installPlugin, togglePluginVote, uninstallPlugin, type VoteState } from "@/lib/server/data/plugins";
+import { disablePlugin, enablePlugin, installPlugin, togglePluginVote, uninstallPlugin, type VoteState } from "@/lib/server/data/plugins";
 import { getCatalogItem } from "@/lib/server/marketplace/catalog";
 
 // Marketplace server actions. Each one passes the session's org context to the
@@ -57,6 +57,21 @@ export async function disablePluginAction(_prev: PluginResult, formData: FormDat
     return { ok: true, message: `${item.name} disabled.` };
   } catch (e) {
     return actionError(e, `Could not disable ${item.name}.`);
+  }
+}
+
+/** Turns a disabled plugin back on with its kept settings (Undo after Disable). */
+export async function enablePluginAction(_prev: PluginResult, formData: FormData): Promise<PluginResult> {
+  const ctx = await requireCtx();
+  const id = field(formData, "id");
+  const item = ID_RE.test(id) ? getCatalogItem(id) : undefined;
+  if (!item) return { error: "No such plugin." };
+  try {
+    await enablePlugin(ctx, id);
+    refresh();
+    return { ok: true, message: `${item.name} enabled.` };
+  } catch (e) {
+    return actionError(e, `Could not enable ${item.name}. Open its configuration and save it to turn it back on.`);
   }
 }
 

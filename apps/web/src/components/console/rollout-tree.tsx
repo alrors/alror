@@ -3,6 +3,7 @@ import { Check, ChevronDown, GitBranch, GitCommitHorizontal, GitMerge, RotateCcw
 import { cn } from "@/lib/site";
 import { duration, elapsed, hm, metricUnitValue, pValue, signedPct, span } from "@/lib/console/format";
 import type { Leaf, NodeState, RolloutTree, StageNode } from "@/lib/console/rollout-tree";
+import type { RecoveryState } from "@/lib/console/recovery";
 import styles from "./rollout-tree.module.css";
 
 const stateLabel: Record<NodeState, string> = {
@@ -95,6 +96,14 @@ function StageCard({ s, compact }: { s: StageNode; compact?: boolean }) {
   );
 }
 
+/** Outcome copy after a rollback: only a simulated target claims traffic is back. */
+const RETURNED_COPY: Record<RecoveryState, { title: string; body: string }> = {
+  rollback_simulated: { title: "Returned to stable (simulated)", body: "The simulated target moved all traffic back to the stable version." },
+  rollback_requested: { title: "Rollback requested", body: "The target accepted the rollback; the traffic split was not confirmed." },
+  rollback_failed: { title: "Rollback failed", body: "Production state unknown. Check the target now." },
+  unreported: { title: "Rolled back", body: "No rollback result was reported; confirm the traffic split on the target." },
+};
+
 export function RolloutTreeView({ tree, root, compact, animate }: { tree: RolloutTree; root?: ReactNode; compact?: boolean; animate?: boolean }) {
   const stopped = ["rolled_back", "manual_rollback", "failed"].includes(tree.outcome);
   const rows = tree.stages.filter((s) => !stopped || (s.state !== "skipped" && s.state !== "pending"));
@@ -136,9 +145,9 @@ export function RolloutTreeView({ tree, root, compact, animate }: { tree: Rollou
           <div className={cn(styles.content, styles.outcome)}>
             <div className={styles.outcomeTitle}>
               {returned ? <RotateCcw size={14} /> : promoted ? <GitMerge size={14} /> : <X size={14} />}
-              {returned ? "Returned to stable" : promoted ? "Release is live" : "Rollout stopped"}
+              {returned ? RETURNED_COPY[tree.recovery].title : promoted ? "Release is live" : "Rollout stopped"}
             </div>
-            {!compact && <p>{returned ? "Rollback completed. This release is no longer receiving traffic." : promoted ?
+            {!compact && <p>{returned ? RETURNED_COPY[tree.recovery].body : promoted ?
               "100% of traffic is on this release." : "Review the failure and confirm the current traffic state."}</p>}
           </div>
         </li>}

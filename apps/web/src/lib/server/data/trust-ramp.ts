@@ -3,6 +3,7 @@ import { and, eq, gte, inArray, isNull, ne } from "drizzle-orm";
 import {
   classifyRecommendation,
   DAY_MS,
+  effectiveMode,
   evaluateRamp,
   rampEvidence,
   rampProgress,
@@ -131,38 +132,44 @@ export async function recommendationFor(ctx: OrgCtx, deploymentId: string, now =
  * Switches a service's rollback mode (the Policies switch, or auto-graduation).
  * Moving to automatic is a graduation, back to shadow a demotion that restarts the
  * ramp. Both are audited with the ramp's evidence at that moment.
+ *
+ * `mode: null` makes the service follow the org default again. `undo` restores the
+ * state just before a console switch (the Undo on its toast): the override is put
+ * back as it was and the ramp is not restarted, since no evidence was lost.
  */
 export async function setRollbackMode(
   ctx: OrgCtx,
   name: string,
-  mode: RollbackMode,
-  opts: { automatic?: boolean; ramp?: TrustRamp; now?: number } = {},
+  mode: RollbackMode | null,
+  opts: { automatic?: boolean; undo?: boolean; ramp?: TrustRamp; now?: number } = {},
 ): Promise<RampEvaluation> {
   if (!opts.automatic) requireAdmin(ctx);
   const now = opts.now ?? Date.now();
   const ramp = opts.ramp ?? (await loadTrustRamp(ctx, now));
   const before = ramp.services.find((s) => s.service === name);
   if (!before) throw notFound(`Service ${name} not found.`);
+  const target = effectiveMode(mode, ramp.orgAutoRollback);
   const [row] = await db
     .update(services)
-    .set({ rollbackMode: mode, ...(mode === "shadow" && before.mode === "auto" ? { rampResetAt: new Date(now) } : {}) })
+    .set({ rollbackMode: mode, ...(target === "shadow" && before.mode === "auto" && !opts.undo ? { rampResetAt: new Date(now) } : {}) })
     .where(and(eq(services.orgId, ctx.orgId), eq(services.name, name), isNull(services.archivedAt)))
     .returning({ id: services.id });
   if (!row) throw notFound(`Service ${name} not found.`);
 
-  const action = mode === "auto" ? "trust_ramp.graduate" : "trust_ramp.demote";
+  const action = target === "auto" ? "trust_ramp.graduate" : "trust_ramp.demote";
   await writeAudit(ctx, action, name, {
-    source: opts.automatic ? "auto_graduate" : "console",
+    source: opts.automatic ? "auto_graduate" : opts.undo ? "console_undo" : "console",
     from: before.mode,
-    to: mode,
+    to: target,
+    ...(mode === null ? { follows_org_default: true } : {}),
     eligible: before.eligible,
     progress: rampProgress(before),
     ...rampEvidence(before, ramp.settings),
   });
-  if (opts.automatic || mode === "auto") {
+  if (opts.automatic || (target === "auto" && !opts.undo)) {
     await createNotification(ctx.orgId, {
       kind: action,
-      title: mode === "auto" ? `${name} now rolls back automatically` : `${name} is back in shadow mode`,
+      title: target === "auto" ? `${name} now rolls back automatically` : `${name} is back in shadow mode`,
       body: `${opts.automatic ? "Graduated by the trust ramp: " : ""}${rampProgress(before)}.`,
       href: "/app/policies#trust-ramp",
     });

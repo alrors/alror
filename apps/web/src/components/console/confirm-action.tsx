@@ -10,7 +10,8 @@ type Result = { ok?: boolean; error?: string; message?: string; retryable?: bool
 
 /**
  * A small button that runs a server action after an inline confirmation
- * (revoke, remove, archive). Hidden fields carry the ids.
+ * (revoke, remove, archive). Hidden fields carry the ids. Pass `confirm={false}`
+ * for a reversible action: it then runs on the first click.
  */
 export function ConfirmAction({
   action,
@@ -21,6 +22,7 @@ export function ConfirmAction({
   tone = "danger",
   className,
   icon,
+  confirm = true,
 }: {
   action: (prev: Result, formData: FormData) => Promise<Result>;
   fields: Record<string, string>;
@@ -30,6 +32,7 @@ export function ConfirmAction({
   tone?: "danger" | "secondary";
   className?: string;
   icon?: React.ReactNode;
+  confirm?: boolean;
 }) {
   // Success shows a toast. Errors the user can act on (validation, permissions) stay
   // next to the button; retryable failures (an outage, an unexpected error) toast with Retry.
@@ -49,17 +52,24 @@ export function ConfirmAction({
         <input key={k} type="hidden" name={k} value={v} />
       ))}
       {confirming ? (
-        <span className="con-fade inline-flex items-center gap-2">
-          {prompt && <span className="hidden text-[12px] text-con-fg2 sm:inline">{prompt}</span>}
-          <button type="button" onClick={() => setConfirming(false)} className={buttonClass.secondary}>
-            Cancel
-          </button>
-          <button type="submit" className={tone === "danger" ? buttonClass.danger : buttonClass.secondary}>
-            {confirmLabel ?? label}
-          </button>
+        <span role="alert" className="con-fade flex max-w-[min(100%,420px)] flex-wrap items-center justify-end gap-2">
+          {/* The prompt says what happens; it is shown on every screen size. */}
+          {prompt && <span className="min-w-0 basis-full text-right text-[12px] leading-snug text-con-fg2 sm:basis-auto sm:flex-1">{prompt}</span>}
+          <span className="flex gap-2">
+            <button type="button" onClick={() => setConfirming(false)} className={cn(buttonClass.secondary, "h-11 sm:h-8")}>
+              Cancel
+            </button>
+            <button type="submit" className={cn(tone === "danger" ? buttonClass.danger : buttonClass.secondary, "h-11 sm:h-8")}>
+              {confirmLabel ?? label}
+            </button>
+          </span>
         </span>
       ) : (
-        <button type="button" disabled={pending} onClick={() => setConfirming(true)} className={tone === "danger" ? buttonClass.danger : buttonClass.secondary}>
+        <button
+          type={confirm ? "button" : "submit"}
+          disabled={pending}
+          onClick={confirm ? () => setConfirming(true) : undefined}
+          className={tone === "danger" ? buttonClass.danger : buttonClass.secondary}>
           {pending ? <Spinner size={14} /> : icon}
           {label}
         </button>

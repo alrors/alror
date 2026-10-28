@@ -225,6 +225,27 @@ func Table(headers []string, rows [][]string) string {
 	return t.Render()
 }
 
+// ReceiptHeadline is the receipt's bold outcome line. Every outcome on a
+// simulated target or synthetic telemetry is tagged SIMULATED: none of it
+// happened to real traffic. Not "verified": no target reads back the
+// traffic split it applied, and shadow mode can promote despite failed verdicts.
+func ReceiptHeadline(d *domain.Deployment) string {
+	headline := "PROMOTED"
+	switch d.Status {
+	case domain.StatusRolledBack:
+		headline = "ROLLED BACK"
+	case domain.StatusFailed:
+		headline = "FAILED"
+		if d.Recovery == domain.RecoveryFailed {
+			headline = "ROLLBACK FAILED · STATE UNKNOWN"
+		}
+	}
+	if d.Telemetry == "synthetic" || d.Target == "simulated" {
+		headline += " · SIMULATED"
+	}
+	return headline
+}
+
 // Receipt renders the paper release receipt shown at the end of `alror deploy`.
 // Every line is one full-width run with the paper background: nesting styled
 // strings would reset the background mid-line and stripe the paper.
@@ -244,20 +265,13 @@ func Receipt(d *domain.Deployment, v *domain.Verdict, elapsed time.Duration) str
 	rule := line(grey, strings.TrimSpace(strings.Repeat("- ", width/2)), "")
 	blank := line(ink, "", "")
 
-	// Not "verified": no target reads back the traffic split it applied, and
-	// shadow mode can promote despite failed verdicts.
-	headline, outLabel, outValue := "PROMOTED", "Promoted", "→ 100%"
-	if d.Telemetry == "synthetic" || d.Target == "simulated" {
-		headline = "PROMOTED · SIMULATED"
-	}
+	headline := ReceiptHeadline(d)
+	outLabel, outValue := "Promoted", "→ 100%"
 	switch d.Status {
 	case domain.StatusRolledBack:
-		headline, outLabel, outValue = "ROLLED BACK", "Reverted at", fmt.Sprintf("%d%%", d.Weight)
+		outLabel, outValue = "Reverted at", fmt.Sprintf("%d%%", d.Weight)
 	case domain.StatusFailed:
-		headline, outLabel, outValue = "FAILED", "Stopped at", fmt.Sprintf("%d%%", d.Weight)
-		if d.Recovery == domain.RecoveryFailed {
-			headline = "ROLLBACK FAILED · STATE UNKNOWN"
-		}
+		outLabel, outValue = "Stopped at", fmt.Sprintf("%d%%", d.Weight)
 	}
 
 	lines := []string{

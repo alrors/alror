@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { buildRolloutTree } from "../src/lib/console/rollout-tree";
 import { headline } from "../src/components/console/release-story";
+import { deploymentStatus } from "../src/lib/console/format";
+import { trafficUnconfirmed } from "../src/lib/console/recovery";
 import type { DeployEvent, Deployment, Status } from "../src/lib/console/types";
 
 const at = "2026-10-03T12:00:00Z";
@@ -54,9 +56,10 @@ test("driver failures do not claim successful traffic restoration", () => {
  const tree = buildRolloutTree(d, events, now);
  const notes = tree.stages.flatMap(s => s.children).filter(c => c.kind === "note").map(c => c.text).join(" ");
  assert.equal(tree.outcome, "failed");
- assert.match(notes, /restoration is unconfirmed/);
+ assert.match(notes, /Rollout stopped\.$/);
+ assert.doesNotMatch(notes, /returned to stable|stable version/);
  assert.doesNotMatch(notes, /traffic returned to stable/);
- assert.match(headline(d, events, tree, {}, now), /restoration is unconfirmed/);
+ assert.doesNotMatch(headline(d, events, tree, {}, now), /stable version|returned/);
 });
 test("missing events preserve terminal status without inventing history or manual rollback", () => {
  for (const status of ["promoted", "failed", "rolled_back"] as const) {
@@ -79,4 +82,32 @@ test("empty plans retain outcome without manufacturing stages", () => {
  assert.equal(tree.outcome, "promoted");
  assert.equal(tree.stages.length, 0);
  assert.match(headline(d, [promoted], tree, {}, now), /no canary verification stages/);
+});
+test("rollback headlines claim only what the recorded recovery proves", () => {
+ const events: DeployEvent[] = [step(5), verdict(5, false), { at, kind: "rolled_back", weight: 5, message: "regression" }];
+ const story = (over: Partial<Deployment>) => {
+  const d = { ...deployment("rolled_back"), ...over };
+  return headline(d, events, buildRolloutTree(d, events, now), {}, now);
+ };
+ assert.match(story({ recovery: "rollback_simulated" }), /Traffic went back to the stable version \(simulated\)\.$/);
+ assert.match(story({ recovery: "rollback_requested" }), /Rollback requested; traffic split not confirmed\.$/);
+ assert.match(story({ recovery: "rollback_failed" }), /Rollback failed; production state unknown\. Check the target now\.$/);
+ const unreported = story({});
+ assert.match(unreported, /^Rolled back at 5%/);
+ assert.doesNotMatch(unreported, /stable version|Traffic/, "no recovery reported: no traffic claim, whatever the row's age");
+});
+test("rollback tree notes and the failed-rollback badge follow recovery", () => {
+ const events: DeployEvent[] = [step(5), verdict(5, false), { at, kind: "rolled_back", weight: 5, message: "regression" }];
+ const notes = (recovery?: Deployment["recovery"]) =>
+  buildRolloutTree({ ...deployment("rolled_back"), recovery }, events, now).stages.flatMap(s => s.children).filter(c => c.kind === "note").map(c => c.text).join(" ");
+ assert.match(notes("rollback_requested"), /traffic split not confirmed/);
+ assert.doesNotMatch(notes("rollback_requested"), /returned to stable/);
+ assert.match(notes("rollback_simulated"), /returned to stable \(simulated\)/);
+ assert.deepEqual(deploymentStatus("rolled_back", "rollback_requested"), { label: "Rolled back", tone: "warn" });
+ assert.deepEqual(deploymentStatus("promoted", "rollback_failed"), { label: "Rollback failed", tone: "bad" });
+ const promotedThenFailed = { ...deployment("promoted"), recovery: "rollback_failed" as const };
+ assert.match(headline(promotedThenFailed, successful, buildRolloutTree(promotedThenFailed, successful, now), {}, now), /rollback was attempted and failed; production state unknown/i);
+ assert.equal(trafficUnconfirmed(promotedThenFailed), true);
+ assert.equal(trafficUnconfirmed({ status: "rolled_back", recovery: "rollback_simulated" }), false);
+ assert.equal(trafficUnconfirmed({ status: "rolled_back", recovery: "rollback_requested" }), true);
 });

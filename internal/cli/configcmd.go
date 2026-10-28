@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"path/filepath"
 	"slices"
 	"sort"
@@ -56,14 +57,17 @@ func configPullCmd() *cobra.Command {
 				}
 				path = filepath.Join(dir, config.FileName)
 			}
-			changes := diffConfig(old, remote, true)
+			workspaceHook := remote.Notify.SlackWebhook
+			kept := keepSecretsOut(remote, old)
+			changes := append(diffConfig(old, remote, true), kept...)
 			if g.json {
 				if !dryRun {
 					if err := remote.Save(path); err != nil {
 						return err
 					}
 				}
-				return printJSON(map[string]any{"path": path, "changes": changes, "written": !dryRun, "config": remote})
+				return printJSON(map[string]any{"path": path, "changes": changes, "written": !dryRun,
+					"config": redactConfig(remote), "slack_webhook": setLabel(workspaceHook)})
 			}
 			printChanges("alror.yaml ← "+res.Server, changes)
 			if dryRun {
@@ -144,7 +148,8 @@ func configPushCmd() *cobra.Command {
 				return explainAPIError(res.Server, err)
 			}
 			if g.json {
-				return printJSON(map[string]any{"changes": changes, "pushed": true, "config": out})
+				return printJSON(map[string]any{"changes": changes, "pushed": true,
+					"config": redactConfig(out), "slack_webhook": setLabel(out.Notify.SlackWebhook)})
 			}
 			fmt.Println(ui.OK(fmt.Sprintf("Pushed %d services and the policy to %s", len(local.Services), res.Server)))
 			return nil
@@ -277,9 +282,68 @@ func modeLabel(m string) string {
 
 func metricsLabel(m config.Metrics) string {
 	if m.URL != "" {
-		return m.Provider + " (" + m.URL + ")"
+		return m.Provider + " (" + redactURL(m.URL) + ")"
 	}
 	return m.Provider
+}
+
+// redactURL masks credentials in a URL (https://user:token@host → https://user:xxxxx@host).
+// A lone username is masked too: it is often a token.
+func redactURL(s string) string {
+	u, err := url.Parse(s)
+	if err != nil || u.User == nil {
+		if err != nil && strings.Contains(s, "@") {
+			return "(URL hidden: it may contain credentials)"
+		}
+		return s
+	}
+	if _, ok := u.User.Password(); !ok {
+		u.User = url.User("xxxxx")
+	}
+	return u.Redacted()
+}
+
+// stripURLCredentials removes userinfo from a URL; unparsable URLs stay as they are.
+func stripURLCredentials(s string) string {
+	u, err := url.Parse(s)
+	if err != nil || u.User == nil {
+		return s
+	}
+	u.User = nil
+	return u.String()
+}
+
+// redactConfig is a copy of c that is safe to print: no Slack webhook and
+// no credentials in the metrics URL.
+func redactConfig(c *config.Config) *config.Config {
+	if c == nil {
+		return nil
+	}
+	out := *c
+	out.Notify.SlackWebhook = ""
+	out.Metrics.URL = redactURL(c.Metrics.URL)
+	return &out
+}
+
+// keepSecretsOut stops `config pull` from writing workspace secrets into
+// alror.yaml, a file that is usually committed. The Slack webhook stays
+// whatever alror.yaml had (connected mode reads it from the workspace), and
+// credentials in the metrics URL are dropped unless alror.yaml already has
+// them for the same URL. It returns a note for each secret it kept out.
+func keepSecretsOut(remote, local *config.Config) []change {
+	var notes []change
+	if remote.Notify.SlackWebhook != "" && remote.Notify.SlackWebhook != local.Notify.SlackWebhook {
+		notes = append(notes, change{"=", "notify.slack_webhook", "set in the workspace; not written to alror.yaml (secret)"})
+	}
+	remote.Notify.SlackWebhook = local.Notify.SlackWebhook
+	if u := remote.Metrics.URL; stripURLCredentials(u) != u {
+		if local.Metrics.URL == u {
+			return notes // alror.yaml already holds these credentials
+		}
+		remote.Metrics.URL = stripURLCredentials(u)
+		notes = append(notes, change{"=", "metrics.url", "credentials not written to alror.yaml (secret)"})
+	}
+	return notes
 }
 
 func setLabel(s string) string {

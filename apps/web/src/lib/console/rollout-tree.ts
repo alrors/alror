@@ -1,6 +1,7 @@
 // Builds the rollout tree shown on deployment pages from a deployment and its
 // event log. Pure and deterministic (pass `now`), so it is easy to test.
 
+import { recoveryState, type RecoveryState } from "./recovery";
 import type { DeployEvent, Deployment, MetricResult } from "./types";
 
 export type NodeState = "pass" | "warning" | "fail" | "active" | "pending" | "skipped";
@@ -29,9 +30,28 @@ export type RolloutTree = {
   stages: StageNode[];
   outcome: "promoted" | "rolled_back" | "manual_rollback" | "failed" | "rolling" | "pending";
   liveWeight: number;
+  /** What the recorded rollback result lets the page claim about traffic. */
+  recovery: RecoveryState;
+};
+
+/** Stage note for an automatic rollback, by what the rollback result proves. */
+const ROLLED_BACK_NOTE: Record<RecoveryState, string> = {
+  rollback_simulated: "rolled back · traffic returned to stable (simulated)",
+  rollback_requested: "rolled back · rollback requested, traffic split not confirmed",
+  rollback_failed: "rollback failed · production state unknown",
+  unreported: "rolled back",
+};
+
+/** Note under an error that stopped the rollout. */
+const STOPPED_NOTE: Record<RecoveryState, string> = {
+  rollback_simulated: "Rollout stopped. Traffic went back to the stable version (simulated).",
+  rollback_requested: "Rollout stopped. Rollback requested; traffic split not confirmed.",
+  rollback_failed: "Rollout stopped. Rollback failed; production state unknown. Check the target now.",
+  unreported: "Rollout stopped.",
 };
 
 export function buildRolloutTree(d: Deployment, events: DeployEvent[], now = Date.now()): RolloutTree {
+  const recovery = recoveryState(d);
   const steps = d.plan?.steps ?? [];
   const stages: StageNode[] = steps.map((s, i) => ({
     index: i,
@@ -102,7 +122,7 @@ export function buildRolloutTree(d: Deployment, events: DeployEvent[], now = Dat
           const s = at(e.weight) ?? current;
           if (s) {
             s.state = "fail";
-            s.children.push({ kind: "note", tone: "bad", text: "rolled back · traffic returned to stable", at: e.at });
+            s.children.push({ kind: "note", tone: "bad", text: ROLLED_BACK_NOTE[recovery], at: e.at });
           }
           outcome = "rolled_back";
         }
@@ -116,7 +136,7 @@ export function buildRolloutTree(d: Deployment, events: DeployEvent[], now = Dat
           s.startedAt ??= e.at;
           s.endedAt = e.at;
           s.children.push({ kind: "note", tone: "bad", text: e.message, at: e.at });
-          s.children.push({ kind: "note", tone: "bad", text: "Rollout stopped. Rollback was attempted; traffic restoration is unconfirmed.", at: e.at });
+          s.children.push({ kind: "note", tone: "bad", text: STOPPED_NOTE[recovery], at: e.at });
         }
         outcome = "failed";
         break;
@@ -147,5 +167,5 @@ export function buildRolloutTree(d: Deployment, events: DeployEvent[], now = Dat
   }
 
   const liveWeight = d.status === "promoted" ? 100 : d.status === "rolling" ? d.weight : 0;
-  return { stages, outcome, liveWeight };
+  return { stages, outcome, liveWeight, recovery };
 }

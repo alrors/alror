@@ -127,6 +127,33 @@ func TestRemoteModeEndToEnd(t *testing.T) {
 	mustRun(t, 1, "-C", repo, "status")
 }
 
+// alror deploy while another release of the service is rolling fails on the
+// first write (409 with a fix), exits 1 and records or moves nothing.
+func TestDeployRefusedWhileAnotherReleaseRolls(t *testing.T) {
+	isolate(t)
+	f, srv := apitest.Start()
+	defer srv.Close()
+	repo := t.TempDir()
+	running := "dep_20260101T000000_bbbbbb"
+	f.PutDeployment(&domain.Deployment{ID: running, Service: "checkout-api", Image: "app:1", Environment: "production",
+		Status: domain.StatusRolling, Weight: 5, CreatedAt: time.Now(), UpdatedAt: time.Now()})
+	mustRun(t, 0, "--no-anim", "login", "--server", srv.URL, "--key", apitest.DefaultKey)
+
+	mustRun(t, 1, "-C", repo, "--no-anim", "deploy", "-s", "checkout-api", "-i", "app:2", "--risk", "10", "--fast")
+	for _, r := range f.Requests() {
+		if r.Method == "PUT" || strings.HasSuffix(r.Path, "/events") {
+			t.Fatalf("nothing may be written after the refusal: %s %s", r.Method, r.Path)
+		}
+	}
+	if d := f.Deployment(running); d.Status != domain.StatusRolling || d.Weight != 5 {
+		t.Fatalf("the running release must be untouched: %+v", d)
+	}
+	deps, err := api.New(srv.URL, apitest.DefaultKey).ListDeployments(t.Context(), api.ListOptions{})
+	if err != nil || len(deps) != 1 {
+		t.Fatalf("only the running deployment may exist: %v %v", deps, err)
+	}
+}
+
 func TestLocalModeUnchanged(t *testing.T) {
 	isolate(t)
 	repo := t.TempDir()

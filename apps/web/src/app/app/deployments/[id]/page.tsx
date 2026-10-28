@@ -3,11 +3,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { JobStatus } from "@/components/console/jobs-table";
-import { ReleaseActions } from "@/components/console/release-actions";
+import { ReleaseActions, ReleasePrimaryAction } from "@/components/console/release-actions";
 import { ReleaseEvents } from "@/components/console/release-events";
 import { ReleaseProgress } from "@/components/console/release-progress";
 import { ReleaseRisk, ReleaseRiskGauge } from "@/components/console/release-risk";
 import { headline } from "@/components/console/release-story";
+import { trafficUnconfirmed } from "@/lib/console/recovery";
 import { ReleaseVerdicts } from "@/components/console/release-verdicts";
 import { RolloutTreeView } from "@/components/console/rollout-tree";
 import { ReleaseWhyCard } from "@/components/console/oversight/release-why";
@@ -66,12 +67,20 @@ export default async function DeploymentPage({ params }: PageProps<"/app/deploym
 
       <div className="con-fade-up flex flex-col gap-3">
         <div className="flex flex-wrap items-center gap-2">
-          <StatusBadge status={d.status} />
+          <StatusBadge status={d.status} recovery={d.recovery} />
           <LevelBadge level={d.risk?.level} />
           {d.risk?.ai_authored && <AiBadge />}
           <span className="text-[12px] text-con-fg3">
             {d.environment ?? "production"} · from {d.source ?? "cli"} · {ago(d.created_at, now)}
           </span>
+          {/* On phones and tablets the primary action sits here; on desktop it lives in the Actions card. */}
+          <ReleasePrimaryAction
+            id={d.id}
+            service={d.service}
+            environment={d.environment ?? "production"}
+            canRollBack={canRollBack}
+            className="w-full sm:ml-auto sm:w-auto lg:hidden"
+          />
         </div>
         <h1 className="flex flex-wrap items-baseline gap-x-3 text-[28px] font-semibold leading-tight tracking-[-0.025em]">
           <Link href={`/app/services/${encodeURIComponent(d.service)}`} className="hover:underline hover:decoration-con-line-hover hover:underline-offset-4">
@@ -197,7 +206,6 @@ export default async function DeploymentPage({ params }: PageProps<"/app/deploym
             <ReleaseActions
               id={d.id}
               service={d.service}
-              image={d.image}
               environment={d.environment ?? "production"}
               canRollBack={canRollBack}
               status={d.status}
@@ -255,10 +263,10 @@ function SummaryCard({ d, now }: { d: Deployment; now: number }) {
     <Card title="Summary">
       <dl className="-my-2.5 divide-y divide-con-row">
         <Field label="Status">
-          <StatusBadge status={d.status} />
+          <StatusBadge status={d.status} recovery={d.recovery} />
         </Field>
         <Field label="Traffic">
-          <span className="font-mono tabular-nums">{d.status === "failed" ? "Unconfirmed" : (d.status === "promoted" ? 100 : d.status === "rolling" ? d.weight : 0) + "%"}</span>
+          <span className="font-mono tabular-nums">{trafficUnconfirmed(d) ? "Unconfirmed" : (d.status === "promoted" ? 100 : d.status === "rolling" ? d.weight : 0) + "%"}</span>
         </Field>
         <Field label="Plan">
           <span className="font-mono text-[13px] tabular-nums">

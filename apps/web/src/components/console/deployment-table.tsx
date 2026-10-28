@@ -71,7 +71,7 @@ export function DeploymentTable({
                   </td>
                   {show("status") && (
                     <td className={cell}>
-                      <StatusBadge status={d.status} />
+                      <StatusBadge status={d.status} recovery={d.recovery} />
                     </td>
                   )}
                   {show("risk") && (
@@ -121,7 +121,7 @@ export function DeploymentTable({
                   <span className="truncate text-[14px] font-medium">{hideService ? d.ref || d.id : d.service}</span>
                   {!hideService && d.ref && <span className="font-mono text-[12px] text-con-fg2">{d.ref}</span>}
                 </span>
-                <StatusBadge status={d.status} />
+                <StatusBadge status={d.status} recovery={d.recovery} />
               </div>
               <div className="mt-2 flex items-center justify-between gap-3">
                 <span className="text-[13px] text-con-fg3">

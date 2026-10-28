@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { Activity, Archive, ArchiveRestore, Gauge, RotateCcw, Server, ShieldCheck, Tag } from "lucide-react";
 import { ServicePaths, ServiceRiskTrend, ServiceTimeline, ServiceTopology } from "@/components/console/service-board";
 import { COLORS, LegendItem, StackedBars } from "@/components/console/charts";
-import { ConfirmAction } from "@/components/console/confirm-action";
+import { UndoableAction } from "@/components/console/undoable-action";
 import { CopyButton } from "@/components/console/copy-button";
 import { DeployButton } from "@/components/console/deploy-dialog";
 import { JobsTable } from "@/components/console/jobs-table";
@@ -25,6 +25,7 @@ import { getEvents, listDeployments } from "@/lib/console/data";
 import { ago, dayLabel, pct, requestTime, weekdayLabel } from "@/lib/console/format";
 import { paginate, parsePage, parsePer } from "@/lib/console/paginate";
 import { readProjectConfig } from "@/lib/console/policy";
+import { effectiveMode } from "@/lib/console/trust-ramp";
 import { cn } from "@/lib/site";
 
 export async function generateMetadata({ params }: PageProps<"/app/services/[name]">): Promise<Metadata> {
@@ -53,6 +54,9 @@ export default async function ServicePage({ params, searchParams }: PageProps<"/
   const row = serviceRows(known, deps, now).find((r) => r.name === name);
   if (!row) notFound();
   const admin = isAdminRole(session.role);
+  // The service's own rollback mode (trust ramp), else the org policy.
+  const ownMode = svc?.rollback_mode ?? null;
+  const autoRollback = effectiveMode(ownMode, config.policy.autoRollback) === "auto";
 
   const releases = env ? row.deps.filter((d) => (d.environment ?? "production") === env) : row.deps;
   const page = paginate(releases, parsePage(sp.page), parsePer(sp.per));
@@ -103,13 +107,12 @@ export default async function ServicePage({ params, searchParams }: PageProps<"/
             />
           )}
           {admin && svc && (
-            <ConfirmAction
+            <UndoableAction
               action={setArchived}
               fields={{ name, archived: archived ? "false" : "true" }}
+              undoFields={{ name, archived: archived ? "true" : "false" }}
               label={archived ? "Restore" : "Archive"}
-              confirmLabel={archived ? "Restore" : "Archive"}
-              prompt={archived ? undefined : "Archived services cannot be deployed."}
-              tone={archived ? "secondary" : "danger"}
+              done={archived ? `${name} restored` : `${name} archived`}
               icon={archived ? <ArchiveRestore size={14} /> : <Archive size={14} />}
             />
           )}
@@ -152,8 +155,10 @@ export default async function ServicePage({ params, searchParams }: PageProps<"/
             <span className="text-con-fg2"> / 100 · {pct(row.cfr, 1)} rolled back</span>
           </Tile>
           <Tile icon={<ShieldCheck size={22} strokeWidth={1.5} />} label="Auto-rollback">
-            {config.policy.autoRollback ? "Enabled" : <span className="text-con-warn">Shadow mode</span>}
-            <span className="text-con-fg2"> · α {config.policy.alpha}</span>
+            <Link href="/app/policies#trust-ramp" className="hover:underline hover:underline-offset-4">
+              {autoRollback ? "Automatic" : <span className="text-con-warn">Shadow</span>}
+              <span className="text-con-fg2"> ({ownMode ? "this service" : "org default"})</span>
+            </Link>
           </Tile>
           <Tile icon={<RotateCcw size={22} strokeWidth={1.5} />} label="Last rollback">
             {row.lastRollback ? (
@@ -176,7 +181,7 @@ export default async function ServicePage({ params, searchParams }: PageProps<"/
           states={liveStates}
           metrics={results}
           verdict={lastVerdict ? lastVerdict.verdict!.pass : null}
-          autoRollback={config.policy.autoRollback}
+          autoRollback={autoRollback}
           now={now}
         />
       </div>

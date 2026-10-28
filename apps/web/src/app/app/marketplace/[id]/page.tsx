@@ -9,14 +9,16 @@ import { MarketRichText, MarketSnippet, MarketSteps } from "@/components/console
 import { MarketplaceLogo } from "@/components/console/marketplace-logo";
 import { MarketplaceVote } from "@/components/console/marketplace-vote";
 import { buttonClass, Card, Field } from "@/components/console/primitives";
+import { UndoableAction } from "@/components/console/undoable-action";
 import { requireSession } from "@/lib/console/auth";
 import { DOCS_URL as LOCAL_DOCS_URL } from "@/lib/console/config";
 import { dateTime } from "@/lib/console/format";
 import { ctxFor } from "@/lib/server/auth/accounts";
 import { isAdminRole } from "@/lib/server/context";
 import { maskSecret } from "@/lib/server/data/plugins";
+import { listServices } from "@/lib/server/data/services";
 import { getCatalogItem } from "@/lib/server/marketplace/catalog";
-import { disablePluginAction, uninstallPluginAction } from "../actions";
+import { disablePluginAction, enablePluginAction, uninstallPluginAction } from "../actions";
 import { loadMarket } from "../state";
 
 // Page titles of the docs the catalog links to (alror docs).
@@ -52,7 +54,8 @@ export default async function MarketplaceItemPage({ params }: PageProps<"/app/ma
 
   const session = await requireSession();
   const admin = isAdminRole(session.role);
-  const { items, rows, policy } = await loadMarket(ctxFor(session));
+  const ctx = ctxFor(session);
+  const { items, rows, policy } = await loadMarket(ctx);
   const view = items.find((i) => i.id === item.id)!;
   const row = rows.get(item.id);
   const state = view.state;
@@ -69,6 +72,18 @@ export default async function MarketplaceItemPage({ params }: PageProps<"/app/ma
   }
   const secretMask = item.fields.some((f) => f.storage === "policy") ? maskSecret(policy.slack_webhook) : null;
 
+  // Turning off the metrics provider in use falls back to synthetic metrics, which
+  // the engine refuses on real targets (rollout.Preflight): name that effect.
+  const realServices = item.category === "metrics" && view.active ? (await listServices(ctx)).filter((s) => s.target !== "simulated").length : 0;
+  const breaksReal = realServices
+    ? `deploys to ${realServices} Kubernetes/ECS service${realServices === 1 ? "" : "s"} will be refused until a metrics provider is installed`
+    : "";
+  const disableEffect = breaksReal
+    ? `${breaksReal[0].toUpperCase()}${breaksReal.slice(1)}.`
+    : item.id === "slack" && policy.slack_webhook
+      ? "Its webhook is cleared; you'll paste it again to turn Slack back on."
+      : null;
+
   const headerActions = (
     <>
       {item.kind === "planned" && view.votes && <MarketplaceVote id={item.id} name={item.name} initial={view.votes} />}
@@ -77,22 +92,32 @@ export default async function MarketplaceItemPage({ params }: PageProps<"/app/ma
           Install
         </a>
       )}
-      {installable && admin && state === "installed" && (
+      {installable && admin && state === "installed" && (disableEffect ? (
+        // Not a plain toggle: real deploys stop, or (Slack) the webhook is cleared. Say so first.
         <ConfirmAction
           action={disablePluginAction}
           fields={{ id: item.id }}
           label="Disable"
-          prompt={item.category === "metrics" ? "Switch back to synthetic metrics?" : "Keep the settings but turn it off?"}
+          prompt={disableEffect}
           tone="secondary"
           icon={<Power size={14} />}
         />
-      )}
+      ) : (
+        <UndoableAction
+          action={disablePluginAction}
+          fields={{ id: item.id }}
+          undoAction={enablePluginAction}
+          undoFields={{ id: item.id }}
+          label="Disable"
+          icon={<Power size={14} />}
+        />
+      ))}
       {installable && admin && (state === "installed" || state === "disabled") && (
         <ConfirmAction
           action={uninstallPluginAction}
           fields={{ id: item.id }}
           label="Uninstall"
-          prompt="Remove it and its settings?"
+          prompt={`Removes it and its settings${breaksReal && state === "installed" ? `; ${breaksReal}` : ""}. This can't be undone.`}
           icon={<Trash2 size={14} />}
         />
       )}

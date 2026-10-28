@@ -71,6 +71,13 @@
       "when": 1793155924386,
       "tag": "0009_tuning",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793198057024,
+      "tag": "0010_deployment_recovery",
+      "breakpoints": true
     }
   ]
 }

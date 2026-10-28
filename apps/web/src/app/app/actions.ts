@@ -11,6 +11,7 @@ import { cancelJob as cancelQueuedJob, enqueueJob } from "@/lib/server/data/jobs
 import { markRead } from "@/lib/server/data/notifications";
 import { searchConsole, type SearchResult } from "@/lib/server/data/search";
 import { ENV_COOKIE } from "@/lib/console/prefs";
+import { requireScope } from "@/lib/server/context";
 import { ApiError } from "@/lib/server/errors";
 import { actionError } from "@/lib/console/action-result";
 import { getDeployment, isValidId } from "@/lib/console/data";
@@ -39,6 +40,11 @@ export type RollbackState = { ok?: boolean; error?: string; retryable?: boolean;
 /** Queues a rollback job; an `alror runner` claims and executes it with the engine. */
 export async function rollback(_prev: RollbackState, formData: FormData): Promise<RollbackState> {
   const ctx = await requireCtx();
+  try {
+    requireScope(ctx, "deploy:write");
+  } catch (e) {
+    return actionError(e, "Could not queue the rollback.");
+  }
 
   const id = String(formData.get("id") ?? "");
   if (!isValidId(id)) return { error: "Invalid deployment id." };
@@ -67,6 +73,11 @@ export type DeployState = { ok?: boolean; error?: string; retryable?: boolean; j
  */
 export async function deploy(_prev: DeployState, formData: FormData): Promise<DeployState> {
   const ctx = await requireCtx();
+  try {
+    requireScope(ctx, "deploy:write");
+  } catch (e) {
+    return actionError(e, "Could not queue the deploy.");
+  }
   const get = (k: string) => String(formData.get(k) ?? "").trim();
   const service = get("service");
   const image = get("image");
@@ -99,6 +110,24 @@ export async function cancelJob(_prev: DeployState, formData: FormData): Promise
     await cancelQueuedJob(ctx, String(formData.get("id") ?? ""));
   } catch (e) {
     return actionError(e, "Could not cancel the job.");
+  }
+  revalidatePath("/app", "layout");
+  return { ok: true };
+}
+
+export type UndoState = { ok?: boolean; error?: string } | undefined;
+
+/**
+ * Undo for a just-queued rollback: cancels the job while it is still queued.
+ * Once a runner has claimed it, the rollback can't be taken back.
+ */
+export async function undoRollback(jobId: string): Promise<UndoState> {
+  const ctx = await requireCtx();
+  try {
+    await cancelQueuedJob(ctx, typeof jobId === "string" ? jobId : "");
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 409) return { error: "The runner already started the rollback." };
+    return actionError(e, "Could not cancel the rollback. Track it in Jobs.");
   }
   revalidatePath("/app", "layout");
   return { ok: true };

@@ -80,8 +80,7 @@ export default async function IncidentPage({ params }: PageProps<"/app/incidents
             action={resolveIncidentAction}
             fields={{ id: inc.id }}
             label="Mark resolved"
-            confirmLabel="Resolve"
-            prompt="The source can still reopen it with a new alert."
+            confirm={false}
             tone="secondary"
             icon={<Check size={14} />}
           />

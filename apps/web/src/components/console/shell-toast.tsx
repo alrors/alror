@@ -60,6 +60,31 @@ export const toast = Object.assign((title: string, opts?: ToastOptions) => push(
   dismiss: dismissToast,
 });
 
+/**
+ * "Undo over confirm": a success toast with an Undo button for about 8 seconds.
+ * `undo` must call a real action that restores the previous state; its result
+ * is reported with a follow-up toast. Irreversible actions confirm instead.
+ */
+export function undoToast(title: string, undo: () => Promise<{ ok?: boolean; error?: string } | undefined | void>, opts: { description?: string } = {}) {
+  const id = push("success", title, {
+    description: opts.description,
+    duration: 8000,
+    action: {
+      label: "Undo",
+      onClick: () => {
+        dismissToast(id);
+        void Promise.resolve(undo())
+          .then((r) => {
+            if (r && r.error) toast.error(r.error);
+            else toast.info("Undone.");
+          })
+          .catch(() => toast.error("Could not undo. Try again from the page."));
+      },
+    },
+  });
+  return id;
+}
+
 type ResultLike = { ok?: boolean; message?: string; error?: string; retryable?: boolean } | undefined | null;
 
 /** Error toast for a failed action; a Retry button when the failure is retryable and a retry is given. */

@@ -20,7 +20,7 @@ import { searchConsole } from "@/lib/server/data/search";
 import { archiveService, createService, updateService } from "@/lib/server/data/services";
 import type { OrgCtx } from "@/lib/server/context";
 import { closeDb, db } from "@/lib/server/db";
-import { githubDecisions, githubRepositories, orgs, users } from "@/lib/server/db/schema";
+import { deployments, githubDecisions, githubRepositories, orgs, users } from "@/lib/server/db/schema";
 import { loadDecisionContext } from "@/lib/server/decision/context";
 import { decidePull } from "@/lib/server/decision/decide";
 import { storedDecision } from "@/lib/server/decision/stored";
@@ -83,6 +83,10 @@ const emails = {
 };
 
 const STEP_NS = 60_000_000_000;
+/**
+ * A finished (promoted) deployment by default: the server allows one running
+ * release per service and environment, so tests that need a running one say so.
+ */
 function deployment(id: string, service = "api", over: Json = {}): Json {
   const now = new Date().toISOString();
   return {
@@ -92,9 +96,9 @@ function deployment(id: string, service = "api", over: Json = {}): Json {
     ref: "#42",
     risk: { score: 40, level: "medium", factors: [{ name: "Medium diff", detail: "210 lines changed", points: 15 }], services: [service], ai_authored: true },
     plan: { strategy: "canary", steps: [{ weight: 5, bake: 10 * STEP_NS }, { weight: 100, bake: 0 }] },
-    status: "rolling",
-    step_index: 0,
-    weight: 5,
+    status: "promoted",
+    step_index: 1,
+    weight: 100,
     created_at: now,
     updated_at: now,
     ...over,
@@ -268,7 +272,7 @@ describe("deployments", () => {
   const id2 = depId("aaa222");
 
   test("POST upserts (201), PUT updates (200), GET returns Go-shaped JSON", async () => {
-    const c = await keyA.post("/api/v1/deployments", deployment(id1));
+    const c = await keyA.post("/api/v1/deployments", deployment(id1, "api", { status: "rolling", step_index: 0, weight: 5 }));
     assert.equal(c.status, 201, JSON.stringify(c.body));
     assert.deepEqual(Object.keys(c.body), [
       "id", "service", "image", "ref", "risk", "plan", "status", "step_index", "weight", "created_at", "updated_at", "environment", "source",
@@ -277,7 +281,7 @@ describe("deployments", () => {
     assert.equal(c.body.source, "cli", "API key writes default to source cli");
     assert.equal(((c.body.plan as Json).steps as Json[])[0].bake, 10 * STEP_NS, "bake is integer nanoseconds");
 
-    const again = await keyA.post("/api/v1/deployments", deployment(id1, "api", { step_index: 1, weight: 100 }));
+    const again = await keyA.post("/api/v1/deployments", deployment(id1, "api", { status: "rolling", step_index: 1, weight: 100 }));
     assert.equal(again.status, 201);
 
     const u = await keyA.put(`/api/v1/deployments/${id1}`, deployment(id1, "api", { status: "promoted", step_index: 1, weight: 100 }));
@@ -325,7 +329,7 @@ describe("deployments", () => {
   });
 
   test("list filters and newest-first order", async () => {
-    await keyA.post("/api/v1/deployments", deployment(id2, "web", { created_at: new Date(Date.now() + 1000).toISOString() }));
+    await keyA.post("/api/v1/deployments", deployment(id2, "web", { status: "rolling", step_index: 0, weight: 5, created_at: new Date(Date.now() + 1000).toISOString() }));
     const all = await keyA.get("/api/v1/deployments?limit=10");
     assert.equal(all.status, 200);
     const ids = (all.body as unknown as Json[]).map((d) => d.id);
@@ -375,6 +379,52 @@ describe("deployments", () => {
     assert.equal(r.status, 200);
     assert.deepEqual(r.body, { api: 1 });
     assert.equal((await keyA.get("/api/v1/rollbacks/recent?since=garbage")).status, 422);
+  });
+});
+
+describe("release safety: one running release per service, honest recovery", () => {
+  const running = (id: string, over: Json = {}) => deployment(id, "web", { environment: "staging", status: "rolling", step_index: 0, weight: 5, ...over });
+
+  test("a second running release of a service and environment is 409 with the running id and a fix", async () => {
+    const first = depId("one001");
+    const second = depId("one002");
+    assert.equal((await keyA.post("/api/v1/deployments", running(first))).status, 201);
+
+    const r = await keyA.post("/api/v1/deployments", running(second));
+    assert.equal(r.status, 409, JSON.stringify(r.body));
+    const e = r.body.error as Json;
+    assert.equal(e.code, "conflict");
+    assert.match(String(e.message), new RegExp(first));
+    assert.equal(e.fix, `Wait for ${first} to finish, or roll it back (alror rollback ${first}).`);
+    assert.equal((e.details as Json).deployment_id, first);
+    assert.equal((await keyA.get(`/api/v1/deployments/${second}`)).status, 404, "nothing recorded for the rejected release");
+
+    assert.equal((await keyA.post("/api/v1/deployments", running(first, { step_index: 1 }))).status, 201, "a retried POST of the running id is not blocked");
+    assert.equal((await keyA.post("/api/v1/deployments", running(depId("one003"), { status: "promoted", step_index: 1, weight: 100 }))).status, 201, "finished records are not blocked");
+
+    // A run that stopped writing (crashed client) stops blocking after the staleness window.
+    await db.update(deployments).set({ updatedAt: new Date(Date.now() - 31 * 60_000) }).where(eq(deployments.id, first));
+    const next = await keyA.post("/api/v1/deployments", running(second));
+    assert.equal(next.status, 201, JSON.stringify(next.body));
+    assert.equal((await keyA.put(`/api/v1/deployments/${second}`, running(second, { status: "promoted", step_index: 1, weight: 100 }))).status, 200);
+    assert.equal((await keyA.put(`/api/v1/deployments/${first}`, running(first, { status: "failed", reason: "runner lost" }))).status, 200);
+  });
+
+  test("recovery round-trips, is omitted when absent and must be a known value", async () => {
+    const id = depId("rec001");
+    const c = await keyA.post("/api/v1/deployments", running(id, { status: "rolled_back", weight: 0, reason: "Regression", recovery: "rollback_requested" }));
+    assert.equal(c.status, 201, JSON.stringify(c.body));
+    assert.equal(c.body.recovery, "rollback_requested");
+    assert.equal(Object.keys(c.body).at(-1), "recovery", "recovery follows the Go struct order");
+    assert.equal((await keyA.get(`/api/v1/deployments/${id}`)).body.recovery, "rollback_requested");
+    const listed = (await keyA.get("/api/v1/deployments?service=web&environment=staging")).body as unknown as Json[];
+    assert.equal(listed.find((d) => d.id === id)?.recovery, "rollback_requested");
+
+    const failed = await keyA.put(`/api/v1/deployments/${id}`, running(id, { status: "failed", recovery: "rollback_failed" }));
+    assert.equal(failed.body.recovery, "rollback_failed");
+    const cleared = await keyA.put(`/api/v1/deployments/${id}`, running(id, { status: "failed" }));
+    assert.equal("recovery" in cleared.body, false, "absent recovery is omitted like Go omitempty");
+    assert.equal((await keyA.post("/api/v1/deployments", running(depId("rec002"), { status: "rolled_back", recovery: "rolled_back_probably" }))).status, 422);
   });
 });
 
@@ -543,7 +593,7 @@ describe("contract decisions (v1.1)", () => {
     const bad = await keyA.post("/api/v1/deployments", deployment(depId("env002"), "api", { environment: "moon" }));
     assert.equal(bad.status, 422);
     assert.equal((bad.body.error as Json).code, "unknown_environment");
-    assert.equal((await keyA.get("/api/v1/deployments?environment=staging")).body.length, 1);
+    assert.equal((await keyA.get("/api/v1/deployments?environment=staging&service=api")).body.length, 1);
 
     const runner = await keyA.req("POST", "/api/v1/deployments", deployment(depId("src001")), { "x-alror-source": "runner" });
     assert.equal(runner.body.source, "runner", "X-Alror-Source header");

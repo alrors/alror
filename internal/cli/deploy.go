@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/mattn/go-isatty"
@@ -138,10 +139,7 @@ func runDeploy(o deployOpts) error {
 			fmt.Println(ui.Fainter.Render("Simulated target with synthetic metrics: bakes shortened to seconds (--full-bakes keeps real timings)."))
 		}
 	}
-	var notifier notify.Notifier = notify.Nop{}
-	if cfg.Notify.SlackWebhook != "" {
-		notifier = notify.Slack{Webhook: cfg.Notify.SlackWebhook}
-	}
+	notifier := notify.For(cfg.Notify.SlackWebhook, ws.server())
 
 	d := &domain.Deployment{
 		ID: store.NewID(), Service: svc.Name, Image: o.image, Ref: o.ref,
@@ -171,8 +169,9 @@ func runDeploy(o deployOpts) error {
 		obs.header(drv.Name(), prov.Name(), cfg.Policy.AutoRollback)
 	}
 
-	// 3. Run. Ctrl-C rolls the canary back instead of leaving it half-shifted.
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	// 3. Run. Ctrl-C or SIGTERM (CI cancel, pod eviction) rolls the canary
+	// back instead of leaving it half-shifted.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	start := time.Now()
 	runErr := eng.Run(ctx, d)
@@ -189,7 +188,11 @@ func runDeploy(o deployOpts) error {
 
 	if g.json {
 		events, _ := st.Events(d.ID)
-		if err := printJSON(map[string]any{"deployment": d, "events": events, "risk_source": src}); err != nil {
+		out := map[string]any{"deployment": d, "events": events, "risk_source": src}
+		if u := ws.consoleURL(d.ID); u != "" {
+			out["console_url"] = u
+		}
+		if err := printJSON(out); err != nil {
 			return err
 		}
 		return deployOutcome(d, runErr)
@@ -198,7 +201,16 @@ func runDeploy(o deployOpts) error {
 	ui.Reveal(ui.Receipt(d, obs.lastVerdict, time.Since(start)), 45*time.Millisecond) // "printing"
 	fmt.Println()
 	fmt.Println(ui.Hint("alror status "+d.ID, "full event log"))
+	printConsoleHint(d.ID)
 	return deployOutcome(d, runErr)
+}
+
+// printConsoleHint prints the release's console page in connected mode,
+// as the last line, so it is easy to find and click.
+func printConsoleHint(id string) {
+	if u := ws.consoleURL(id); u != "" {
+		fmt.Println(ui.Hint(u, "open in console"))
+	}
 }
 
 // errRolledBack makes the process exit with code 2, so CI can tell
@@ -371,6 +383,14 @@ func (o *liveObserver) Event(e domain.Event) {
 	case domain.EventError:
 		fmt.Printf("%s  %s\n", ts, ui.Fail(e.Message))
 	}
+}
+
+// Warn implements rollout.Warner. It goes to stderr so --json output stays parseable.
+func (o *liveObserver) Warn(msg string) {
+	if !o.quiet {
+		o.endProgress()
+	}
+	fmt.Fprintln(os.Stderr, ui.WarnLine(msg))
 }
 
 func (o *liveObserver) Progress(step int, f float64) {
