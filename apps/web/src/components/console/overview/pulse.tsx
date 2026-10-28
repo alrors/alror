@@ -10,7 +10,7 @@ import { delta, HOUR, RANGE_SPEC, type Kpi, type OverviewRange, type PulseBucket
 import { cn } from "@/lib/site";
 import { InfoTip, PAD_X, Panel } from "./ui";
 
-export const OUTCOME_COLORS = { promoted: COLORS.promoted, bad: COLORS.bad, inFlight: COLORS.info };
+export const OUTCOME_COLORS = { promoted: "#a3a3a3", bad: COLORS.bad, inFlight: COLORS.info };
 
 function bucketLabels(b: PulseBucket, range: OverviewRange): { label: string; header: string } {
   const iso = new Date(b.start).toISOString();

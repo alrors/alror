@@ -8,18 +8,18 @@ import { ago, hm } from "@/lib/console/format";
 import { groupByDay, type DidItem, type DidKind } from "@/lib/console/oversight";
 import { cn } from "@/lib/site";
 
-const KIND: Record<DidKind, { Icon: typeof CircleCheck; tone: string; chip: string; label: string }> = {
-  auto_merge: { Icon: GitMerge, tone: "text-con-accent-lilac-soft", chip: "border-con-accent-lilac/35 bg-con-accent-lilac/12", label: "Auto-merge" },
-  review_routed: { Icon: GitPullRequest, tone: "text-con-warn-text", chip: "border-con-warn-edge bg-con-warn-soft", label: "Routed to review" },
-  promoted: { Icon: CircleCheck, tone: "text-con-good-text", chip: "border-con-good-edge bg-con-good-soft", label: "Promotion" },
-  auto_rollback: { Icon: RotateCcw, tone: "text-con-warn-text", chip: "border-con-warn-edge bg-con-warn-soft", label: "Automatic rollback" },
-  stopped: { Icon: CircleX, tone: "text-con-bad-text", chip: "border-con-bad-edge bg-con-bad-soft", label: "Stopped rollout" },
-  gate_policy: { Icon: ShieldCheck, tone: "text-con-info-text", chip: "border-con-info-edge bg-con-info-soft", label: "Merge policy" },
-  rollout_policy: { Icon: SlidersHorizontal, tone: "text-con-info-text", chip: "border-con-info-edge bg-con-info-soft", label: "Rollout policy" },
+const KIND: Record<DidKind, { Icon: typeof CircleCheck; tone: string; label: string }> = {
+  auto_merge: { Icon: GitMerge, tone: "text-con-good", label: "Auto-merge" },
+  review_routed: { Icon: GitPullRequest, tone: "text-con-warn", label: "Routed to review" },
+  promoted: { Icon: CircleCheck, tone: "text-con-good", label: "Promotion" },
+  auto_rollback: { Icon: RotateCcw, tone: "text-con-warn", label: "Automatic rollback" },
+  stopped: { Icon: CircleX, tone: "text-con-bad", label: "Stopped rollout" },
+  gate_policy: { Icon: ShieldCheck, tone: "text-con-fg2", label: "Merge policy" },
+  rollout_policy: { Icon: SlidersHorizontal, tone: "text-con-fg2", label: "Rollout policy" },
 };
 
 function PageButton({ href, label, children }: { href: string | null; label: string; children: React.ReactNode }) {
-  const cls = "inline-grid h-8 w-8 place-items-center rounded-md border text-con-fg2 outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-con-brand/60 sm:h-7 sm:w-7";
+  const cls = "inline-grid h-8 w-8 place-items-center rounded-md border text-con-fg2 outline-none transition-colors duration-150 focus-visible:ring-1 focus-visible:ring-con-line-hover sm:h-7 sm:w-7";
   return href ? (
     <Link href={href} scroll={false} aria-label={label} className={cn(cls, "border-con-line hover:border-con-line-hover hover:bg-con-hover hover:text-con-fg")}>
       {children}
@@ -76,7 +76,7 @@ export function WhatAlrorDid({
                     <>
                       <span className="relative flex w-5 shrink-0 justify-center self-stretch">
                         {i < g.items.length - 1 && <span aria-hidden className="absolute bottom-[-12px] top-6 w-px bg-con-row" />}
-                        <span className={cn("relative mt-0.5 grid h-5 w-5 place-items-center rounded-full border bg-con-panel", k.chip)} title={k.label}>
+                        <span className="relative mt-0.5 grid h-5 w-5 place-items-center rounded-full border border-con-line bg-con-panel" title={k.label}>
                           <k.Icon size={11} className={k.tone} strokeWidth={2.25} aria-label={k.label} />
                         </span>
                       </span>

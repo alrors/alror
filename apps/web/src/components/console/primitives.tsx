@@ -4,7 +4,6 @@ import { cn } from "@/lib/site";
 import type { StageState } from "@/lib/console/analytics";
 import { levelTone, riskTone, statusLabel, statusTone, type Tone } from "@/lib/console/format";
 import type { Deployment, Level, Status } from "@/lib/console/types";
-import { STATUS } from "./palette";
 
 export type { StageState };
 
@@ -24,24 +23,12 @@ export const toneText: Record<Tone, string> = {
   idle: "text-con-fg3",
 };
 
-export const toneHex: Record<Tone, string> = STATUS;
-
-/** Status chip surfaces: soft tint, edge and readable text for each tone. */
-export const toneChip: Record<Tone, string> = {
-  good: "border-con-good-edge bg-con-good-soft text-con-good-text",
-  warn: "border-con-warn-edge bg-con-warn-soft text-con-warn-text",
-  bad: "border-con-bad-edge bg-con-bad-soft text-con-bad-text",
-  info: "border-con-info-edge bg-con-info-soft text-con-info-text",
-  idle: "border-con-idle-edge bg-con-idle-soft text-con-idle-text",
-};
-
-/** Soft tinted panel (alerts, banners, verdict cards) for each tone. */
-export const toneSoft: Record<Tone, string> = {
-  good: "border-con-good-edge bg-con-good-soft",
-  warn: "border-con-warn-edge bg-con-warn-soft",
-  bad: "border-con-bad-edge bg-con-bad-soft",
-  info: "border-con-info-edge bg-con-info-soft",
-  idle: "border-con-idle-edge bg-con-idle-soft",
+export const toneHex: Record<Tone, string> = {
+  good: "#35e08f",
+  warn: "#f5a524",
+  bad: "#f2555a",
+  info: "#3b82f6",
+  idle: "#737373",
 };
 
 /** 6px static status dot. */
@@ -49,14 +36,13 @@ export function Dot({ tone, className }: { tone: Tone; className?: string }) {
   return <span aria-hidden className={cn("inline-block h-1.5 w-1.5 shrink-0 rounded-full", toneBg[tone], className)} />;
 }
 
-/** Pill: a tinted status chip when given a tone, neutral otherwise. */
+/** Neutral pill with an optional coloured dot. */
 export function Pill({ tone, children, className, title }: { tone?: Tone; children: React.ReactNode; className?: string; title?: string }) {
   return (
     <span
       title={title}
       className={cn(
-        "inline-flex h-[22px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-2 text-[12px] font-medium",
-        tone ? toneChip[tone] : "border-con-line bg-con-row text-con-fg",
+        "inline-flex h-[22px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-con-row px-2 text-[12px] font-medium text-con-fg",
         className,
       )}
     >
@@ -139,7 +125,7 @@ export function StagePips({ states, weights, size = "sm" }: { states: StageState
           className={cn(
             "rounded-[2px]",
             size === "lg" ? "h-1.5 w-10" : "h-1 w-3.5",
-            s === "pass" && "bg-con-good",
+            s === "pass" && "bg-con-fg2",
             s === "fail" && "bg-con-bad",
             s === "active" && "bg-con-info",
             s === "pending" && "bg-con-line-hover",
@@ -170,7 +156,7 @@ export function Card({
   flush?: boolean;
 }) {
   return (
-    <section className={cn("con-surface flex min-w-0 flex-col rounded-lg border border-con-line bg-con-panel", className)}>
+    <section className={cn("flex min-w-0 flex-col rounded-lg border border-con-line bg-con-panel", className)}>
       {(title || aside) && (
         <header
           className={cn(
@@ -216,7 +202,7 @@ export function PageHeader({
 /** Link-based segmented control; works without client JS. */
 export function Segmented({ items, active }: { items: { label: string; href: string; value: string }[]; active: string }) {
   return (
-    <div className="inline-flex h-8 items-center rounded-md border border-con-line bg-con-bg p-0.5" role="tablist">
+    <div className="inline-flex h-8 items-center rounded-md border border-con-line p-0.5" role="tablist">
       {items.map((it) => (
         <Link
           key={it.value}
@@ -225,8 +211,8 @@ export function Segmented({ items, active }: { items: { label: string; href: str
           aria-selected={it.value === active}
           scroll={false}
           className={cn(
-            "inline-flex h-full items-center rounded-[4px] px-2.5 text-[13px] outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-con-brand/60",
-            it.value === active ? "bg-con-brand-soft font-medium text-con-brand-text shadow-[inset_0_0_0_1px_var(--color-con-brand-edge)]" : "text-con-fg3 hover:bg-con-hover hover:text-con-fg",
+            "inline-flex h-full items-center rounded-[4px] px-2.5 text-[13px] transition-colors duration-150",
+            it.value === active ? "bg-con-row text-con-fg" : "text-con-fg3 hover:text-con-fg",
           )}
         >
           {it.label}
@@ -236,22 +222,13 @@ export function Segmented({ items, active }: { items: { label: string; href: str
   );
 }
 
-/** Mint focus ring shared by console controls. */
-export const focusRing = "outline-none focus-visible:ring-2 focus-visible:ring-con-brand/60 focus-visible:ring-offset-1 focus-visible:ring-offset-con-bg";
-
 export const buttonClass = {
-  primary: cn(
-    "inline-flex h-8 items-center justify-center gap-2 rounded-md bg-con-brand px-3 text-[13px] font-semibold text-con-brand-ink shadow-[inset_0_1px_0_rgb(255_255_255/0.25)] transition-colors duration-150 hover:bg-con-brand-hover disabled:cursor-not-allowed disabled:bg-con-row disabled:text-con-fg3 disabled:shadow-none",
-    focusRing,
-  ),
-  secondary: cn(
-    "inline-flex h-8 items-center justify-center gap-2 rounded-md border border-con-line-hover bg-con-raised px-3 text-[13px] font-medium text-con-fg transition-colors duration-150 hover:border-con-fg3/60 hover:bg-con-row disabled:opacity-60",
-    focusRing,
-  ),
-  danger: cn(
-    "inline-flex h-8 items-center justify-center gap-2 rounded-md border border-con-bad-edge bg-con-bad-soft px-3 text-[13px] font-medium text-con-bad-text transition-colors duration-150 hover:border-con-bad/70 hover:bg-con-bad/20 disabled:opacity-60",
-    focusRing,
-  ),
+  primary:
+    "inline-flex h-8 items-center justify-center gap-2 rounded-md bg-con-fg px-3 text-[13px] font-medium text-black transition-colors duration-150 hover:bg-white disabled:opacity-60",
+  secondary:
+    "inline-flex h-8 items-center justify-center gap-2 rounded-md border border-con-line-hover px-3 text-[13px] font-medium text-con-fg transition-colors duration-150 hover:bg-con-hover disabled:opacity-60",
+  danger:
+    "inline-flex h-8 items-center justify-center gap-2 rounded-md border border-con-bad/40 px-3 text-[13px] font-medium text-con-bad transition-colors duration-150 hover:border-con-bad/70 hover:bg-con-bad/[0.06] disabled:opacity-60",
 };
 
 /**
@@ -271,7 +248,7 @@ export function Delta({ value, goodWhen, suffix = "vs prev." }: { value: number 
       <span
         className={cn(
           "inline-flex items-center gap-0.5 font-mono tabular-nums",
-          good === null ? "text-con-fg2" : good ? "text-con-good-text" : "text-con-bad-text",
+          good === null ? "text-con-fg2" : good ? "text-con-good" : "text-con-bad",
         )}
       >
         <Icon size={14} strokeWidth={2} />
@@ -307,9 +284,9 @@ export const tableCell = "h-12 px-4 align-middle first:pl-5 last:pr-5";
 /* ---------------------------------- Forms ---------------------------------- */
 
 export const inputClass =
-  "h-8 w-full min-w-0 rounded-md border border-con-line bg-con-bg px-2.5 text-[13px] text-con-fg outline-none transition-colors duration-150 placeholder:text-con-fg3 hover:border-con-line-hover focus-visible:border-con-brand/70 focus-visible:ring-2 focus-visible:ring-con-brand/25 disabled:text-con-fg3 aria-[invalid=true]:border-con-bad/60";
+  "h-8 w-full min-w-0 rounded-md border border-con-line bg-con-bg px-2.5 text-[13px] text-con-fg outline-none transition-colors duration-150 placeholder:text-con-fg3 focus-visible:border-con-line-hover disabled:text-con-fg3 aria-[invalid=true]:border-con-bad/60";
 export const selectClass =
-  "h-8 rounded-md border border-con-line bg-con-bg px-2 text-[13px] text-con-fg outline-none transition-colors duration-150 hover:border-con-line-hover focus-visible:border-con-brand/70 focus-visible:ring-2 focus-visible:ring-con-brand/25 disabled:text-con-fg3";
+  "h-8 rounded-md border border-con-line bg-con-bg px-2 text-[13px] text-con-fg outline-none transition-colors duration-150 focus-visible:border-con-line-hover disabled:text-con-fg3";
 export const labelClass = "block text-[13px] text-con-fg2";
 export const hintClass = "text-[12px] text-con-fg3";
 
@@ -335,16 +312,16 @@ export function FormField({
         {label}
       </label>
       {children}
-      {error ? <p className="text-[12px] text-con-bad-text">{error}</p> : hint ? <p className={hintClass}>{hint}</p> : null}
+      {error ? <p className="text-[12px] text-con-bad">{error}</p> : hint ? <p className={hintClass}>{hint}</p> : null}
     </div>
   );
 }
 
-/** Inline result line for an action: error in coral, success in mint. */
+/** Inline result line for an action: error in red, success in the neutral foreground. */
 export function FormStatus({ error, message, className }: { error?: string; message?: string; className?: string }) {
   return (
     <div aria-live="polite" className={cn("text-[12px]", className)}>
-      {error ? <p className="text-con-bad-text">{error}</p> : message ? <p className="text-con-good-text">{message}</p> : null}
+      {error ? <p className="text-con-bad">{error}</p> : message ? <p className="text-con-fg2">{message}</p> : null}
     </div>
   );
 }

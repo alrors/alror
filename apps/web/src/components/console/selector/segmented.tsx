@@ -92,9 +92,9 @@ export function SegmentedSelector({
 
   const seg = (on: boolean) =>
     cn(
-      "relative z-[1] inline-flex h-full items-center justify-center gap-1.5 whitespace-nowrap rounded-[4px] outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-con-brand/60",
+      "relative z-[1] inline-flex h-full items-center justify-center gap-1.5 whitespace-nowrap rounded-[4px] outline-none transition-colors duration-150 focus-visible:ring-1 focus-visible:ring-con-line-hover",
       size === "sm" ? "px-2 text-[12px]" : "px-2.5 text-[13px]",
-      on ? "font-medium text-con-brand-text group-data-[ready=1]/seg:bg-transparent bg-con-brand-soft" : "text-con-fg3 hover:text-con-fg",
+      on ? "text-con-fg group-data-[ready=1]/seg:bg-transparent bg-con-row" : "text-con-fg3 hover:text-con-fg",
     );
 
   return (
@@ -103,13 +103,13 @@ export function SegmentedSelector({
       role={isLinks ? undefined : "radiogroup"}
       aria-label={label}
       onKeyDown={onKeyDown}
-      className={cn("group/seg relative inline-flex shrink-0 items-center rounded-md border border-con-line bg-con-bg p-0.5", size === "sm" ? "h-7" : "h-8", className)}
+      className={cn("group/seg relative inline-flex shrink-0 items-center rounded-md border border-con-line p-0.5", size === "sm" ? "h-7" : "h-8", className)}
     >
       {name && <input type="hidden" name={name} value={current} />}
       <span
         ref={bar}
         aria-hidden
-        className="pointer-events-none absolute bottom-0.5 left-0 top-0.5 rounded-[4px] bg-con-brand-soft opacity-0 shadow-[inset_0_0_0_1px_var(--color-con-brand-edge)] transition-[transform,width,opacity] duration-200 ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-reduce:transition-none"
+        className="pointer-events-none absolute bottom-0.5 left-0 top-0.5 rounded-[4px] bg-con-row opacity-0 transition-[transform,width,opacity] duration-200 ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-reduce:transition-none"
       />
       {items.map((it) => {
         const on = it.value === current;

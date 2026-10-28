@@ -36,7 +36,7 @@ const isActive = (it: Item, p: string) => (it.exact ? p === it.href : p === it.h
 export function AdminSidebar({ stalled }: { stalled: number }) {
   const pathname = usePathname() ?? "/admin";
   return (
-    <nav aria-label="Admin" className="flex w-14 shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-con-line bg-con-panel px-2 py-3 lg:w-52">
+    <nav aria-label="Admin" className="flex w-14 shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-con-line bg-con-bg px-2 py-3 lg:w-52">
       <p className="mb-1 hidden px-2 text-[11px] font-medium uppercase tracking-wide text-con-fg3 lg:block">Instance</p>
       {ADMIN_NAV.map((it) => {
         const active = isActive(it, pathname);
@@ -50,15 +50,15 @@ export function AdminSidebar({ stalled }: { stalled: number }) {
             title={it.label}
             className={cn(
               "con-ease group relative flex h-8 items-center gap-2.5 rounded-md px-2 text-[13px]",
-              active ? "bg-con-brand-soft text-con-fg shadow-[inset_2px_0_0_var(--color-con-brand)]" : "text-con-fg3 hover:bg-con-hover hover:text-con-fg",
+              active ? "bg-con-row text-con-fg" : "text-con-fg3 hover:bg-con-hover hover:text-con-fg",
             )}
           >
-            <Icon size={16} strokeWidth={1.7} className={cn("shrink-0", active && "text-con-brand")} />
+            <Icon size={16} strokeWidth={1.7} className="shrink-0" />
             <span className="hidden min-w-0 flex-1 truncate lg:inline">{it.label}</span>
             {badge > 0 && (
               <span
                 title={`${badge} stalled`}
-                className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-con-warn lg:static lg:inline-flex lg:h-5 lg:w-auto lg:items-center lg:rounded-full lg:bg-con-warn-soft lg:px-1.5 lg:text-[11px] lg:tabular-nums lg:text-con-warn-text"
+                className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-con-warn lg:static lg:inline-flex lg:h-5 lg:w-auto lg:items-center lg:rounded-full lg:bg-con-row lg:px-1.5 lg:text-[11px] lg:tabular-nums lg:text-con-warn"
               >
                 <span className="hidden lg:inline">{badge}</span>
               </span>

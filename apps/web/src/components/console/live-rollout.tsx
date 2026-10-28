@@ -44,7 +44,7 @@ export function LiveRolloutCard({ d, events, tree, now }: { d: Deployment; event
             <LineChart
               height={110}
               series={[
-                { name: "baseline", values: baseline, color: COLORS.neutralLight, dashed: true },
+                { name: "baseline", values: baseline, color: "#737373", dashed: true },
                 { name: "canary", values: canary, color: COLORS.good },
               ]}
               yFormat={(v) => `${Math.round(v)}`}
@@ -54,7 +54,7 @@ export function LiveRolloutCard({ d, events, tree, now }: { d: Deployment; event
                 <>
                   <span className="text-[12px] font-medium text-con-fg">Latency p95</span>
                   <LegendItem color={COLORS.good} label="Canary" value={lastCanary !== undefined ? metricUnitValue(metric, lastCanary) : undefined} />
-                  <LegendItem color={COLORS.neutralLight} dashed label="Baseline" />
+                  <LegendItem color="#737373" dashed label="Baseline" />
                 </>
               }
             />

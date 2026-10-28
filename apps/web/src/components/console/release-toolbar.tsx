@@ -138,7 +138,7 @@ export function ReleaseToolbar({
         <div className="con-scale-in absolute right-0 z-20 mt-1.5 w-44 origin-top-right rounded-md border border-con-line bg-con-panel p-1.5 shadow-[0_12px_32px_-12px_rgb(0_0_0/0.8)]">
           {COLUMNS.map((c) => (
             <label key={c.key} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-[13px] text-con-fg2 hover:bg-con-hover hover:text-con-fg">
-              <input type="checkbox" checked={!prefs.hidden.includes(c.key)} onChange={() => toggleColumn(c.key)} className="h-3.5 w-3.5 accent-con-brand" />
+              <input type="checkbox" checked={!prefs.hidden.includes(c.key)} onChange={() => toggleColumn(c.key)} className="h-3.5 w-3.5 accent-[#ededed]" />
               {c.label}
             </label>
           ))}
