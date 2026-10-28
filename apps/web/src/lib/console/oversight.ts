@@ -180,7 +180,8 @@ export type InboxKind =
   | "stalled"
   | "queued"
   | "incident"
-  | "ready_for_auto";
+  | "ready_for_auto"
+  | "tuning";
 
 export type InboxLink = { label: string; href: string; external?: boolean };
 
@@ -241,6 +242,31 @@ export function incidentInbox(incidents: InboxIncident[]): InboxItem[] {
       ...(strong ? { rollback: { id: top.deployment_id, service: top.service } } : {}),
     };
   });
+}
+
+/** What the inbox needs from an open tuning proposal (src/lib/server/tuning/store.ts). */
+export type InboxProposal = { id: string; kind: string; service: string | null; summary: string; created_at: string };
+
+/** One item for all open tuning proposals: nothing changes until someone accepts them on the Tuning page. */
+export function tuningInbox(proposals: InboxProposal[]): InboxItem[] {
+  if (proposals.length === 0) return [];
+  const oldest = proposals.reduce((a, p) => (Date.parse(p.created_at) < Date.parse(a.created_at) ? p : a));
+  const services = proposals.filter((p) => p.service).map((p) => p.service!);
+  const weights = proposals.some((p) => p.kind === "risk_weights");
+  const what = [
+    ...(services.length ? [`thresholds for ${services.slice(0, 3).join(", ")}${services.length > 3 ? ` and ${services.length - 3} more` : ""}`] : []),
+    ...(weights ? ["learned risk weights"] : []),
+  ].join("; ");
+  return [{
+    key: `tuning-${proposals.map((p) => p.id).sort().join(",")}`,
+    kind: "tuning",
+    severity: "medium",
+    subject: `Tuning proposals ready (${proposals.length})`,
+    owner: "Policies",
+    at: oldest.created_at,
+    reason: proposals.length === 1 ? proposals[0].summary : `Review ${what}. Nothing changes until accepted.`,
+    primary: { label: "Review", href: "/app/policies/tuning" },
+  }];
 }
 
 /** Pull requests the gate sent to a person, waiting too long, or failed to evaluate. */
@@ -491,7 +517,7 @@ export function releaseDid(d: Deployment, events: DeployEvent[]): DidItem {
 export type AuditLite = { id: number; action: string; target: string; actor_label: string; meta: Record<string, unknown>; at: string };
 
 /** GitHub and policy audit rows Alror's oversight feed shows. */
-export const DID_AUDIT_ACTIONS = ["github.pull_merged", "github.review_requested", "github.policy_updated", "policy.update"] as const;
+export const DID_AUDIT_ACTIONS = ["github.pull_merged", "github.review_requested", "github.policy_updated", "policy.update", "tuning.auto_applied"] as const;
 
 /** One audit row as a feed item. `repos` maps a repository full name to its id; `decisions` gives the latest reason per pull. */
 export function auditDid(a: AuditLite, repos: Map<string, string>, decisions: Map<string, DecisionView>): DidItem | null {
@@ -517,6 +543,8 @@ export function auditDid(a: AuditLite, repos: Map<string, string>, decisions: Ma
       const mode = (a.meta.policy as { mode?: string } | undefined)?.mode;
       return { key: base.key, at: a.at, href: "/app/github", kind: "gate_policy", title: `Merge policy for ${a.target} updated${version}`, reason: `${mode ? `Mode ${GATE_MODE[mode] ?? mode} · ` : ""}changed by ${a.actor_label || "an admin"}; open pull requests re-evaluated` };
     }
+    case "tuning.auto_applied":
+      return { key: base.key, at: a.at, href: "/app/policies/tuning", kind: "rollout_policy", title: `Applied a tuning proposal${a.target ? ` for ${a.target}` : ""}`, reason: `${typeof a.meta.summary === "string" ? a.meta.summary : "Thresholds or weights changed"} · auto-apply is on` };
     case "policy.update": {
       const fields = Array.isArray(a.meta.fields) ? (a.meta.fields as unknown[]).filter((x): x is string => typeof x === "string").map((f) => f.replace(/_/g, " ")) : [];
       return { key: base.key, at: a.at, href: "/app/policies", kind: "rollout_policy", title: "Rollout policy updated", reason: `${fields.length ? `${fields.join(", ")} · ` : ""}changed by ${a.actor_label || "an admin"}` };

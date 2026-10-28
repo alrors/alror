@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { AlarmClock, ArrowUpRight, CircleAlert, CircleCheck, GitPullRequest, OctagonAlert, RotateCcw, ShieldCheck, Siren, Timer, TriangleAlert, X } from "lucide-react";
+import { AlarmClock, ArrowUpRight, CircleAlert, CircleCheck, GitPullRequest, OctagonAlert, RotateCcw, ShieldCheck, Siren, SlidersHorizontal, Timer, TriangleAlert, X } from "lucide-react";
 import { LaneRollback } from "@/components/console/overview/lane-rollback";
 import { useLocalValue } from "@/components/console/overview/store";
 import { RecommendationFeedback } from "@/components/console/trust-ramp";
@@ -33,6 +33,7 @@ const KIND_ICON: Partial<Record<InboxKind, typeof CircleAlert>> = {
   rollback_job_failed: RotateCcw,
   incident: Siren,
   ready_for_auto: ShieldCheck,
+  tuning: SlidersHorizontal,
 };
 
 function parse(raw: string | null): Record<string, number> {
@@ -88,7 +89,7 @@ export function NeedsYou({ items, now, canRollBack }: { items: InboxItem[]; now:
           {visible.length > 0 && <Count className={critical ? "bg-con-bad/15 text-con-bad" : undefined}>{visible.length}</Count>}
         </h2>
       }
-      tip="Pull requests the merge gate sent to a person or has waited on too long, open incidents from your alerts, releases whose rollback is unconfirmed or whose verdict had too little data or passed close to its limit, shadow-mode rollback recommendations (mark them correct or a false alarm for the trust ramp), services ready for automatic rollback, and stalled runner jobs. Snooze hides an item on this device for a day; dismiss hides it until it changes."
+      tip="Pull requests the merge gate sent to a person or has waited on too long, open incidents from your alerts, releases whose rollback is unconfirmed or whose verdict had too little data or passed close to its limit, shadow-mode rollback recommendations (mark them correct or a false alarm for the trust ramp), services ready for automatic rollback, stalled runner jobs, and tuning proposals waiting for an admin. Snooze hides an item on this device for a day; dismiss hides it until it changes."
       tipAlign="end"
       aside={
         hiddenCount > 0 ? (

@@ -18,6 +18,7 @@ import {
   DID_AUDIT_ACTIONS,
   impact as computeImpact,
   incidentInbox,
+  tuningInbox,
   INBOX_HORIZON_MS,
   isAutomaticOutcome,
   isManualRollback,
@@ -38,7 +39,7 @@ import { listApiKeys } from "@/lib/server/auth/api-keys";
 import { isAdminRole } from "@/lib/server/context";
 import { listAuditActions } from "@/lib/server/data/audit";
 import { listJobs } from "@/lib/server/data/jobs";
-import { gateImpact, manualRollbackIds, openIncidents } from "@/lib/server/data/oversight";
+import { gateImpact, manualRollbackIds, openIncidents, tuningProposalsReady } from "@/lib/server/data/oversight";
 import { enabledTargets } from "@/lib/server/data/plugins";
 import { getPolicy } from "@/lib/server/data/policy";
 import { loadTrustRamp, shadowFeedbackFor } from "@/lib/server/data/trust-ramp";
@@ -64,7 +65,7 @@ export default async function OversightPage({ searchParams }: PageProps<"/app">)
   const admin = isAdminRole(session.role);
   const wall = requestTime();
 
-  const [all, config, envs, env, openJobs, failedJobs, decisions, repos, audit, keys, policy, targets, incidents] = await Promise.all([
+  const [all, config, envs, env, openJobs, failedJobs, decisions, repos, audit, keys, policy, targets, incidents, proposals] = await Promise.all([
     listDeployments(),
     readProjectConfig(),
     environments(),
@@ -79,6 +80,7 @@ export default async function OversightPage({ searchParams }: PageProps<"/app">)
     getPolicy(ctx),
     admin ? enabledTargets(ctx) : Promise.resolve(undefined),
     openIncidents(ctx),
+    admin ? tuningProposalsReady(ctx) : Promise.resolve([]),
   ]);
 
   const deps = env ? all.filter((d) => (d.environment ?? "production") === env) : all;
@@ -114,6 +116,7 @@ export default async function OversightPage({ searchParams }: PageProps<"/app">)
     ...pullInbox(decisions, wall),
     ...releaseInbox(inboxDeps, events, limits, now, judged),
     ...jobInbox(openJobs, failedJobs, all, wall),
+    ...tuningInbox(proposals),
     ...incidentInbox(env ? incidents.filter((i) => !i.environment || i.environment === env) : incidents),
     ...rampInbox(ramp.services),
   ]).slice(0, 40);
