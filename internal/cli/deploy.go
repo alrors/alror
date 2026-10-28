@@ -188,7 +188,11 @@ func runDeploy(o deployOpts) error {
 
 	if g.json {
 		events, _ := st.Events(d.ID)
-		if err := printJSON(map[string]any{"deployment": d, "events": events, "risk_source": src}); err != nil {
+		out := map[string]any{"deployment": d, "events": events, "risk_source": src}
+		if u := ws.consoleURL(d.ID); u != "" {
+			out["console_url"] = u
+		}
+		if err := printJSON(out); err != nil {
 			return err
 		}
 		return deployOutcome(d, runErr)
@@ -197,7 +201,16 @@ func runDeploy(o deployOpts) error {
 	ui.Reveal(ui.Receipt(d, obs.lastVerdict, time.Since(start)), 45*time.Millisecond) // "printing"
 	fmt.Println()
 	fmt.Println(ui.Hint("alror status "+d.ID, "full event log"))
+	printConsoleHint(d.ID)
 	return deployOutcome(d, runErr)
+}
+
+// printConsoleHint prints the release's console page in connected mode,
+// as the last line, so it is easy to find and click.
+func printConsoleHint(id string) {
+	if u := ws.consoleURL(id); u != "" {
+		fmt.Println(ui.Hint(u, "open in console"))
+	}
 }
 
 // errRolledBack makes the process exit with code 2, so CI can tell

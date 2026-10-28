@@ -47,6 +47,7 @@ When a server and a key resolve, every command runs connected: `risk`, `deploy`,
 
 - `alror.yaml` is optional when connected. If present, its `services[].paths` are used for git path mapping; the workspace wins on everything else.
 - The deploy header shows where state lives: `state: acme workspace (http://localhost:3000) · env production` or `state: .alror/`.
+- `alror deploy`, `alror rollback` and `alror status <id>` end with the release's console page (`<server>/app/deployments/<id>`), and their `--json` output includes it as `console_url`. Slack messages link to the same page.
 - `alror deploy --env staging` records the target environment (default `production`), and each deployment records its source: `cli`, `ci` (when `CI` or `GITHUB_ACTIONS` is set), `console` or `runner`. Local `.alror/` files do not store either.
 - The workspace owns `updated_at`; the CLI takes the timestamps the server returns.
 - `alror doctor` prints `connected to acme at http://localhost:3000`, checks that the key is valid and lists its scopes.

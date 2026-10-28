@@ -36,9 +36,14 @@ func statusCmd() *cobra.Command {
 					return err
 				}
 				if g.json {
-					return printJSON(map[string]any{"deployment": d, "events": events})
+					out := map[string]any{"deployment": d, "events": events}
+					if u := ws.consoleURL(d.ID); u != "" {
+						out["console_url"] = u
+					}
+					return printJSON(out)
 				}
 				ui.Reveal(renderDeployment(d, events), 12*time.Millisecond)
+				printConsoleHint(d.ID)
 				return nil
 			}
 
@@ -147,7 +152,11 @@ func rollbackCmd() *cobra.Command {
 				return err
 			}
 			if g.json {
-				return printJSON(d)
+				// The deployment's fields stay at the top level; console_url is added in connected mode.
+				return printJSON(struct {
+					*domain.Deployment
+					ConsoleURL string `json:"console_url,omitempty"`
+				}{d, ws.consoleURL(d.ID)})
 			}
 			if d.Recovery == domain.RecoverySimulated {
 				fmt.Println(ui.OK(fmt.Sprintf("Rolled back %s %s (simulated)", ui.Bold.Render(d.Service), ui.Dim.Render(d.ID))))
@@ -155,6 +164,7 @@ func rollbackCmd() *cobra.Command {
 				fmt.Println(ui.OK(fmt.Sprintf("Rollback command accepted for %s %s", ui.Bold.Render(d.Service), ui.Dim.Render(d.ID))))
 				fmt.Println(ui.WarnLine("the restored traffic split was not observed; confirm it on the target"))
 			}
+			printConsoleHint(d.ID)
 			return nil
 		},
 	}
