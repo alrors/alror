@@ -160,3 +160,22 @@ func TestRemoteConfigOverlaysLocalPaths(t *testing.T) {
 		t.Fatalf("dir/server = %q %q", remote.Dir, remote.Server)
 	}
 }
+
+func TestRemoteConfigKeepsLocalReleaseDetection(t *testing.T) {
+	g = globals{dir: t.TempDir()}
+	remote := config.Default("acme")
+	local := &config.Config{Dir: g.dir, Watch: config.Watch{Enabled: true, Interval: time.Minute},
+		Services: []config.Service{{Name: "checkout-api", Detect: true}}}
+	if err := mergeWorkspaceConfig(remote, local, "http://x"); err != nil {
+		t.Fatal(err)
+	}
+	if s, _ := remote.Service("checkout-api"); !s.Detect {
+		t.Fatalf("detect is runner-side and comes from alror.yaml: %+v", s)
+	}
+	if s, _ := remote.Service("web-frontend"); s.Detect {
+		t.Fatalf("only enrolled services detect: %+v", s)
+	}
+	if !remote.Watch.Enabled || remote.Watch.Interval != time.Minute {
+		t.Fatalf("watch = %+v", remote.Watch)
+	}
+}

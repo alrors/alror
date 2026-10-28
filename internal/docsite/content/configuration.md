@@ -45,3 +45,10 @@ notify:
 | `policy.alpha` | Significance level for the Mann-Whitney test. |
 | `policy.auto_rollback` | `false` is shadow mode: recommend, never act. |
 | `policy.bake_scale` | Multiplies every bake time. `init` sets 0.003 for simulated demos. |
+| `services[].detect` | Experimental: `alror runner --watch` starts a release when this service's Argo Rollout changes image outside Alror. `kubernetes` target only. See [Release detection](/connected#release-detection-experimental). |
+| `watch.enabled` | Turn release detection on without `--watch`. |
+| `watch.interval` | Poll interval per Rollout, e.g. `30s` (default `15s`). |
+| `watch.environment` | Environment recorded on detected releases in connected mode (default `production`). |
+| `watch.state` | File that remembers handled image changes across restarts (default `.alror/watch.json`). |
+
+`services[].detect` and `watch:` are read by the runner from the local `alror.yaml`, also in connected mode; they are not stored in the workspace.

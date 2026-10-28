@@ -91,6 +91,9 @@ func (s *Simulated) Rollback(ctx context.Context, svc config.Service) error {
 // Rollout at its first canary step; each later SetWeight advances one paused
 // step. The weights Argo applies come from the Rollout spec, not from Alror's
 // plan, and are not read back: they are requests, not observations.
+// Before Prepare, the engine calls Mark, which annotates the Rollout with
+// the controlling deployment (alror.dev/controlled-by, alror.dev/image) so
+// release detection can tell Alror's image changes from external ones.
 type Kubernetes struct {
 	// Run executes kubectl; nil uses the real binary. Tests replace it.
 	Run func(ctx context.Context, args ...string) error
@@ -122,23 +125,45 @@ func (k *Kubernetes) Rollback(ctx context.Context, svc config.Service) error {
 }
 
 func (k *Kubernetes) kubectl(ctx context.Context, svc config.Service, args ...string) error {
+	args = scope(svc, args)
+	if k.Run != nil {
+		return k.Run(ctx, args...)
+	}
+	_, err := runKubectl(ctx, args, false)
+	return err
+}
+
+// scope appends the service's kube context and namespace to kubectl args.
+func scope(svc config.Service, args []string) []string {
 	if svc.Cluster != "" {
 		args = append(args, "--context", svc.Cluster)
 	}
 	if svc.Namespace != "" {
 		args = append(args, "-n", svc.Namespace)
 	}
-	if k.Run != nil {
-		return k.Run(ctx, args...)
-	}
+	return args
+}
+
+// runKubectl runs the real kubectl binary, returning stdout when asked.
+func runKubectl(ctx context.Context, args []string, capture bool) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, "kubectl", args...)
-	var errb bytes.Buffer
+	var out, errb bytes.Buffer
+	if capture {
+		cmd.Stdout = &out
+	}
 	cmd.Stderr = &errb
 	if err := cmd.Run(); err != nil {
-		if msg := strings.TrimSpace(errb.String()); msg != "" {
-			return fmt.Errorf("kubectl %s: %v: %s", strings.Join(args, " "), err, msg)
+		if msg := lastLine(errb.String()); msg != "" {
+			return nil, fmt.Errorf("kubectl %s: %v: %s", strings.Join(args, " "), err, msg)
 		}
-		return fmt.Errorf("kubectl %s: %v", strings.Join(args, " "), err)
+		return nil, fmt.Errorf("kubectl %s: %v", strings.Join(args, " "), err)
 	}
-	return nil
+	return out.Bytes(), nil
+}
+
+// lastLine keeps kubectl's final stderr line (its summary, e.g. "Unable to
+// connect to the server: …"), dropping client-go's repeated retry noise.
+func lastLine(s string) string {
+	lines := strings.Split(strings.TrimSpace(s), "\n")
+	return strings.TrimSpace(lines[len(lines)-1])
 }

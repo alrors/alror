@@ -43,6 +43,14 @@ func TestMatrixIsHonest(t *testing.T) {
 	if k8s.Maturity(OpObserve) != Unsupported || k8s.Overall() != Experimental {
 		t.Fatalf("kubernetes cannot observe traffic and is experimental: %+v", k8s)
 	}
+	if k8s.Maturity(OpDetect) != Experimental {
+		t.Fatalf("release detection on kubernetes is experimental: %+v", k8s)
+	}
+	for _, name := range []string{"simulated", "ecs"} {
+		if tgt, _ := TargetFor(name); !errors.Is(tgt.Check(OpDetect), ErrUnsupported) {
+			t.Fatalf("%s cannot detect releases: %+v", name, tgt)
+		}
+	}
 	if sim, _ := TargetFor(""); sim.Name != "simulated" || sim.Overall() != Simulated {
 		t.Fatalf("empty target is simulated: %+v", sim)
 	}

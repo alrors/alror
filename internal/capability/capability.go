@@ -36,10 +36,11 @@ const (
 	OpPromote  Operation = "promote"         // send all traffic to the new version
 	OpRollback Operation = "rollback"        // return traffic to the stable version
 	OpObserve  Operation = "observe_traffic" // read back the traffic split actually applied
+	OpDetect   Operation = "detect_release"  // notice an image change made outside Alror (`alror runner --watch`)
 )
 
 // Operations lists every operation in display order.
-var Operations = []Operation{OpPrepare, OpShift, OpPromote, OpRollback, OpObserve}
+var Operations = []Operation{OpPrepare, OpShift, OpPromote, OpRollback, OpObserve, OpDetect}
 
 // Target describes one deployment target.
 type Target struct {
@@ -57,12 +58,12 @@ type Provider struct {
 
 // Targets is the target matrix.
 var Targets = []Target{
-	{Name: "simulated", Notes: "Records weights in memory. For demos and tests; nothing is deployed.",
-		Ops: map[Operation]Maturity{OpPrepare: Simulated, OpShift: Simulated, OpPromote: Simulated, OpRollback: Simulated, OpObserve: Simulated}},
-	{Name: "kubernetes", Notes: "Argo Rollouts via `kubectl argo rollouts`: set image once, then promote/abort. The Rollout's own steps decide the real weights; Alror's step weights are requests and are not read back.",
-		Ops: map[Operation]Maturity{OpPrepare: Experimental, OpShift: Experimental, OpPromote: Experimental, OpRollback: Experimental, OpObserve: Unsupported}},
-	{Name: "ecs", Notes: "Not implemented. Deploys and rollbacks to an ecs target are refused.",
-		Ops: map[Operation]Maturity{OpPrepare: Unsupported, OpShift: Unsupported, OpPromote: Unsupported, OpRollback: Unsupported, OpObserve: Unsupported}},
+	{Name: "simulated", Notes: "Records weights in memory. For demos and tests; nothing is deployed, so there is no release to detect.",
+		Ops: map[Operation]Maturity{OpPrepare: Simulated, OpShift: Simulated, OpPromote: Simulated, OpRollback: Simulated, OpObserve: Simulated, OpDetect: Unsupported}},
+	{Name: "kubernetes", Notes: "Argo Rollouts via `kubectl argo rollouts`: set image once, then promote/abort. The Rollout's own steps decide the real weights; Alror's step weights are requests and are not read back. Release detection polls the Rollout's pod template image with `kubectl get`.",
+		Ops: map[Operation]Maturity{OpPrepare: Experimental, OpShift: Experimental, OpPromote: Experimental, OpRollback: Experimental, OpObserve: Unsupported, OpDetect: Experimental}},
+	{Name: "ecs", Notes: "Not implemented. Deploys, rollbacks and release detection on an ecs target are refused.",
+		Ops: map[Operation]Maturity{OpPrepare: Unsupported, OpShift: Unsupported, OpPromote: Unsupported, OpRollback: Unsupported, OpObserve: Unsupported, OpDetect: Unsupported}},
 }
 
 // Providers is the metrics provider matrix.
@@ -118,7 +119,7 @@ func (t Target) Check(op Operation) error {
 }
 
 // Overall is the least mature of the operations a rollout needs
-// (prepare, shift, promote, rollback); observe is reported separately.
+// (prepare, shift, promote, rollback); observe and detect are reported separately.
 func (t Target) Overall() Maturity {
 	rank := map[Maturity]int{Verified: 3, Experimental: 2, Simulated: 1, Unsupported: 0}
 	out := Verified
@@ -133,8 +134,8 @@ func (t Target) Overall() Maturity {
 // Markdown renders the matrix as the tables embedded in the docs.
 func Markdown() string {
 	var b strings.Builder
-	b.WriteString("| Target | Prepare image | Shift traffic | Promote | Rollback | Observe traffic | Notes |\n")
-	b.WriteString("| --- | --- | --- | --- | --- | --- | --- |\n")
+	b.WriteString("| Target | Prepare image | Shift traffic | Promote | Rollback | Observe traffic | Detect release | Notes |\n")
+	b.WriteString("| --- | --- | --- | --- | --- | --- | --- | --- |\n")
 	for _, t := range Targets {
 		fmt.Fprintf(&b, "| `%s` |", t.Name)
 		for _, op := range Operations {
