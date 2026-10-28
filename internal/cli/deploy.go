@@ -67,6 +67,9 @@ func runDeploy(o deployOpts) error {
 	if !ok {
 		return fmt.Errorf("unknown service %q (check %s)", o.service, ws.configSource())
 	}
+	// A per-service override (accepted tuning proposals) replaces the org
+	// thresholds and bake scale for this service; --fast and --shadow still win.
+	cfg.UseServicePolicy(svc.Name)
 	if o.fast {
 		cfg.Policy.BakeScale = 0.003
 	}

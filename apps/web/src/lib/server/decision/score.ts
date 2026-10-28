@@ -48,6 +48,44 @@ for (const level of ["low", "medium", "high"] as const) {
   if (!steps?.length || steps[steps.length - 1].weight !== 100) throw new Error(`Shared risk rules: plan ${level} must end at 100%.`);
 }
 
+/** Keys of the factors in rules.json; per-org learned weights are keyed by these (Go: config.Risk.Weights). */
+export const FACTOR_KEYS = [
+  "docs_only", "diff_size", "many_files", "blast_radius", "critical_service",
+  "sensitive_paths", "no_tests", "well_tested", "ai_authored", "recent_rollbacks",
+] as const;
+export type FactorKey = (typeof FACTOR_KEYS)[number];
+/** Multipliers on a factor's rule points. Missing keys weigh 1; values are clamped to [0, MAX_RISK_WEIGHT]. */
+export type RiskWeights = Partial<Record<FactorKey, number>>;
+export const MAX_RISK_WEIGHT = 4;
+
+const FACTOR_BY_NAME: Map<string, FactorKey> = (() => {
+  const f = rules.factors;
+  const m = new Map<string, FactorKey>();
+  for (const t of f.diff_size.tiers) m.set(t.name, "diff_size");
+  for (const k of FACTOR_KEYS) if (k !== "diff_size") m.set((f[k] as { name: string }).name, k);
+  return m;
+})();
+
+/** The rules.json key for a factor's display name ("Large diff" → diff_size), or undefined for manual/default scores. */
+export const factorKeyFor = (name: string): FactorKey | undefined => FACTOR_BY_NAME.get(name);
+/** The display name of a factor key (diff_size uses its tier names, so it reads "Diff size"). */
+export function factorLabel(key: FactorKey): string {
+  return key === "diff_size" ? "Diff size" : (rules.factors[key] as { name: string }).name;
+}
+
+/** The multiplier for a factor: 1 when unset or not a finite number. */
+export function weightFor(weights: RiskWeights | undefined, key: FactorKey): number {
+  const w = weights?.[key];
+  return typeof w === "number" && Number.isFinite(w) ? Math.max(0, Math.min(w, MAX_RISK_WEIGHT)) : 1;
+}
+
+/** Rule points times a weight, rounded half away from zero exactly like Go's math.Round (risk.Weigh). */
+export function weigh(points: number, weight: number): number {
+  if (weight === 1) return points;
+  const x = points * weight;
+  return Math.sign(x) * Math.round(Math.abs(x)) + 0; // + 0 turns -0 into 0
+}
+
 export const isTestFile = (path: string) => testFile.test(path);
 export const isDocFile = (path: string) => docFile.test(path);
 export const isAIAuthored = (authors: string[], message: string) => aiTrailer.test(message) || authors.some((a) => aiAuthor.test(a));
@@ -80,11 +118,17 @@ export function servicesForPath(services: ServiceRule[], file: string): ServiceR
 const fill = (template: string, vars: Record<string, string | number>) => template.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m));
 const sortedNames = (m: Map<string, ServiceRule>) => [...m.keys()].sort();
 
-/** Port of Go's risk.Score: every point comes from a named factor in the shared rules. */
-export function scoreChange(services: ServiceRule[], change: Change): RiskReport {
+/**
+ * Port of Go's risk.Score: every point comes from a named factor in the shared rules. `weights` are the org's
+ * accepted learned weights (tuning); without them the score is exactly the shared rules'.
+ */
+export function scoreChange(services: ServiceRule[], change: Change, weights?: RiskWeights): RiskReport {
   const f = rules.factors;
   const factors: RiskFactor[] = [];
-  const add = (name: string, detail: string, points: number) => { if (points !== 0) factors.push({ name, detail, points }); };
+  const add = (key: FactorKey, name: string, detail: string, rulePoints: number) => {
+    const points = weigh(rulePoints, weightFor(weights, key));
+    if (points !== 0) factors.push({ name, detail, points });
+  };
 
   let lines = 0, code = 0, tests = 0, docs = 0;
   const hits = new Set<string>();
@@ -100,37 +144,38 @@ export function scoreChange(services: ServiceRule[], change: Change): RiskReport
   }
 
   if (change.files.length > 0 && docs === change.files.length) {
-    return finish([{ name: f.docs_only.name, detail: fill(f.docs_only.detail, { docs }), points: f.docs_only.points }], touched, false);
+    add("docs_only", f.docs_only.name, fill(f.docs_only.detail, { docs }), f.docs_only.points);
+    return finish(factors, touched, false);
   }
 
   const size = f.diff_size.tiers.find((t) => lines >= t.min_lines);
-  if (size) add(size.name, fill(f.diff_size.detail, { lines }), size.points);
+  if (size) add("diff_size", size.name, fill(f.diff_size.detail, { lines }), size.points);
   const many = f.many_files.tiers.find((t) => change.files.length >= t.min_files);
-  if (many) add(f.many_files.name, fill(f.many_files.detail, { files: change.files.length }), many.points);
+  if (many) add("many_files", f.many_files.name, fill(f.many_files.detail, { files: change.files.length }), many.points);
 
   if (touched.size > 1) {
     const b = f.blast_radius;
-    add(b.name, fill(b.detail, { count: touched.size, services: sortedNames(touched).join(", ") }), Math.min(b.points_per_extra_service * (touched.size - 1), b.max_points));
+    add("blast_radius", b.name, fill(b.detail, { count: touched.size, services: sortedNames(touched).join(", ") }), Math.min(b.points_per_extra_service * (touched.size - 1), b.max_points));
   }
   const critical = sortedNames(touched).find((n) => touched.get(n)!.critical);
-  if (critical) add(f.critical_service.name, fill(f.critical_service.detail, { service: critical }), f.critical_service.points);
+  if (critical) add("critical_service", f.critical_service.name, fill(f.critical_service.detail, { service: critical }), f.critical_service.points);
 
   if (hits.size > 0) {
     const s = f.sensitive_paths;
-    add(s.name, fill(s.detail, { areas: [...hits].sort().join(", ") }), Math.min(s.points_per_area * hits.size, s.max_points));
+    add("sensitive_paths", s.name, fill(s.detail, { areas: [...hits].sort().join(", ") }), Math.min(s.points_per_area * hits.size, s.max_points));
   }
 
-  if (code > 0 && tests === 0) add(f.no_tests.name, fill(f.no_tests.detail, { code, tests }), f.no_tests.points);
-  else if (code > 0 && tests >= f.well_tested.min_tests_per_code_file * code) add(f.well_tested.name, fill(f.well_tested.detail, { code, tests }), f.well_tested.points);
+  if (code > 0 && tests === 0) add("no_tests", f.no_tests.name, fill(f.no_tests.detail, { code, tests }), f.no_tests.points);
+  else if (code > 0 && tests >= f.well_tested.min_tests_per_code_file * code) add("well_tested", f.well_tested.name, fill(f.well_tested.detail, { code, tests }), f.well_tested.points);
 
   const ai = isAIAuthored(change.authors, change.message);
-  if (ai) add(f.ai_authored.name, f.ai_authored.detail, f.ai_authored.points);
+  if (ai) add("ai_authored", f.ai_authored.name, f.ai_authored.detail, f.ai_authored.points);
 
   let rollbacks = 0;
   for (const name of touched.keys()) rollbacks += change.recentRollbacks[name] ?? 0;
   if (rollbacks > 0) {
     const r = f.recent_rollbacks;
-    add(r.name, fill(r.detail, { rollbacks, days: r.window_days }), Math.min(r.points_per_rollback * rollbacks, r.max_points));
+    add("recent_rollbacks", r.name, fill(r.detail, { rollbacks, days: r.window_days }), Math.min(r.points_per_rollback * rollbacks, r.max_points));
   }
   return finish(factors, touched, ai);
 }

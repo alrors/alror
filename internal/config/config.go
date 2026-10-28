@@ -4,6 +4,8 @@ package config
 import (
 	"errors"
 	"fmt"
+	"maps"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -24,6 +26,10 @@ type Config struct {
 	Policy   Policy    `yaml:"policy" json:"policy"`
 	Notify   Notify    `yaml:"notify" json:"notify"`
 	Watch    Watch     `yaml:"watch,omitempty" json:"-"`
+	// Risk holds optional per-organisation adjustments to the shared risk
+	// rules. The portal serves learned weights here once an admin accepts a
+	// tuning proposal; nil (the default) scores with the shared rules as is.
+	Risk *Risk `yaml:"risk,omitempty" json:"risk,omitempty"`
 
 	// Dir is the directory that holds alror.yaml (not serialised).
 	Dir string `yaml:"-" json:"-"`
@@ -44,6 +50,41 @@ type Service struct {
 	// rolls back without a human, "shadow" only recommends. Empty follows the
 	// policy. The portal's trust ramp sets it per service.
 	RollbackMode string `yaml:"rollback_mode,omitempty" json:"rollback_mode,omitempty"`
+	// Policy overrides the organisation policy for this service only (set by
+	// accepted tuning proposals in the portal). Nil means the org policy.
+	Policy *ServicePolicy `yaml:"policy,omitempty" json:"policy,omitempty"`
+}
+
+// ServicePolicy is a per-service override of Policy. Metrics listed in
+// MaxRegression or MaxIncrease replace the org value for that metric only;
+// a positive BakeScale multiplies the org bake scale.
+type ServicePolicy struct {
+	MaxRegression map[string]float64 `yaml:"max_regression,omitempty" json:"max_regression,omitempty"`
+	MaxIncrease   map[string]float64 `yaml:"max_increase,omitempty" json:"max_increase,omitempty"`
+	BakeScale     float64            `yaml:"bake_scale,omitempty" json:"bake_scale,omitempty"`
+}
+
+// Risk adjusts the shared risk rules for one organisation.
+type Risk struct {
+	// Weights multiplies the points of a shared-rules factor, keyed by the
+	// factor's key in rules.json (no_tests, ai_authored, ...). Missing keys
+	// keep the rule's points; values are clamped to [0, MaxRiskWeight].
+	Weights map[string]float64 `yaml:"weights,omitempty" json:"weights,omitempty"`
+}
+
+// MaxRiskWeight caps a factor weight, whatever the source says.
+const MaxRiskWeight = 4.0
+
+// Weight returns the multiplier for a factor key: 1 when unset or invalid.
+func (r *Risk) Weight(key string) float64 {
+	if r == nil {
+		return 1
+	}
+	w, ok := r.Weights[key]
+	if !ok || math.IsNaN(w) || math.IsInf(w, 0) {
+		return 1
+	}
+	return max(0, min(w, MaxRiskWeight))
 }
 
 // Watch configures release detection in `alror runner` (experimental). It
@@ -224,6 +265,27 @@ func (c *Config) Validate() error {
 		default:
 			return fmt.Errorf("alror.yaml: service %q: rollback_mode must be auto or shadow, got %q", s.Name, s.RollbackMode)
 		}
+		if err := s.Policy.validate(); err != nil {
+			return fmt.Errorf("alror.yaml: service %q: policy.%w", s.Name, err)
+		}
+	}
+	return nil
+}
+
+func (p *ServicePolicy) validate() error {
+	if p == nil {
+		return nil
+	}
+	bad := func(v float64) bool { return v < 0 || math.IsNaN(v) || math.IsInf(v, 0) }
+	for name, m := range map[string]map[string]float64{"max_regression": p.MaxRegression, "max_increase": p.MaxIncrease} {
+		for k, v := range m {
+			if bad(v) {
+				return fmt.Errorf("%s.%s must be a non-negative number, got %v", name, k, v)
+			}
+		}
+	}
+	if bad(p.BakeScale) {
+		return fmt.Errorf("bake_scale must be a non-negative number, got %v", p.BakeScale)
 	}
 	return nil
 }
@@ -260,6 +322,46 @@ func (c *Config) ServicesForPath(file string) []Service {
 				out = append(out, s)
 				break
 			}
+		}
+	}
+	return out
+}
+
+// PolicyFor returns the effective policy for a service: the org policy with
+// the service's override merged in. Without an override it is the org policy.
+func (c *Config) PolicyFor(service string) Policy {
+	p := c.Policy
+	s, ok := c.Service(service)
+	if !ok || s.Policy == nil {
+		return p
+	}
+	o := s.Policy
+	if len(o.MaxRegression) > 0 {
+		p.MaxRegression = merged(p.MaxRegression, o.MaxRegression)
+	}
+	if len(o.MaxIncrease) > 0 {
+		p.MaxIncrease = merged(p.MaxIncrease, o.MaxIncrease)
+	}
+	if o.BakeScale > 0 && !math.IsInf(o.BakeScale, 0) {
+		base := p.BakeScale
+		if base == 0 {
+			base = 1
+		}
+		p.BakeScale = base * o.BakeScale
+	}
+	return p
+}
+
+// UseServicePolicy replaces the org policy with the effective policy for a
+// service, so everything downstream (verifier, bake times) honours it.
+func (c *Config) UseServicePolicy(service string) { c.Policy = c.PolicyFor(service) }
+
+func merged(base, over map[string]float64) map[string]float64 {
+	out := make(map[string]float64, len(base)+len(over))
+	maps.Copy(out, base)
+	for k, v := range over {
+		if v >= 0 && !math.IsNaN(v) && !math.IsInf(v, 0) {
+			out[k] = v
 		}
 	}
 	return out

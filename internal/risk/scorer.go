@@ -10,6 +10,7 @@
 package risk
 
 import (
+	"math"
 	"path"
 	"sort"
 	"strings"
@@ -48,8 +49,8 @@ func PlanFor(r domain.RiskReport) domain.Plan { return defaultRules.PlanFor(r.Le
 func (r *Rules) Score(cfg *config.Config, c Change) domain.RiskReport {
 	f := r.Factors
 	var factors []domain.Factor
-	add := func(name, detail string, pts int) {
-		if pts != 0 {
+	add := func(key, name, detail string, pts int) {
+		if pts = Weigh(pts, cfg.Risk.Weight(key)); pts != 0 {
 			factors = append(factors, domain.Factor{Name: name, Detail: detail, Points: pts})
 		}
 	}
@@ -78,19 +79,20 @@ func (r *Rules) Score(cfg *config.Config, c Change) domain.RiskReport {
 	// Docs-only changes are near-free.
 	if len(c.Files) > 0 && docs == len(c.Files) {
 		d := f.DocsOnly
-		return r.finish([]domain.Factor{{Name: d.Name, Detail: fill(d.Detail, map[string]any{"docs": docs}), Points: d.Points}}, services, false)
+		add("docs_only", d.Name, fill(d.Detail, map[string]any{"docs": docs}), d.Points)
+		return r.finish(factors, services, false)
 	}
 
 	// 1. Size of the change.
 	for _, t := range f.DiffSize.Tiers {
 		if lines >= t.MinLines {
-			add(t.Name, fill(f.DiffSize.Detail, map[string]any{"lines": lines}), t.Points)
+			add("diff_size", t.Name, fill(f.DiffSize.Detail, map[string]any{"lines": lines}), t.Points)
 			break
 		}
 	}
 	for _, t := range f.ManyFiles.Tiers {
 		if n := len(c.Files); n >= t.MinFiles {
-			add(f.ManyFiles.Name, fill(f.ManyFiles.Detail, map[string]any{"files": n}), t.Points)
+			add("many_files", f.ManyFiles.Name, fill(f.ManyFiles.Detail, map[string]any{"files": n}), t.Points)
 			break
 		}
 	}
@@ -98,12 +100,12 @@ func (r *Rules) Score(cfg *config.Config, c Change) domain.RiskReport {
 	// 2. Blast radius across services.
 	if n := len(services); n > 1 {
 		b := f.BlastRadius
-		add(b.Name, fill(b.Detail, map[string]any{"count": n, "services": strings.Join(names(services), ", ")}), min(b.PointsPerExtraService*(n-1), b.MaxPoints))
+		add("blast_radius", b.Name, fill(b.Detail, map[string]any{"count": n, "services": strings.Join(names(services), ", ")}), min(b.PointsPerExtraService*(n-1), b.MaxPoints))
 	}
 	for _, name := range names(services) {
 		if services[name].Critical {
 			cs := f.CriticalService
-			add(cs.Name, fill(cs.Detail, map[string]any{"service": name}), cs.Points)
+			add("critical_service", cs.Name, fill(cs.Detail, map[string]any{"service": name}), cs.Points)
 			break
 		}
 	}
@@ -111,21 +113,21 @@ func (r *Rules) Score(cfg *config.Config, c Change) domain.RiskReport {
 	// 3. Sensitive areas of the codebase.
 	if n := len(sensitiveHits); n > 0 {
 		s := f.SensitivePaths
-		add(s.Name, fill(s.Detail, map[string]any{"areas": strings.Join(keys(sensitiveHits), ", ")}), min(s.PointsPerArea*n, s.MaxPoints))
+		add("sensitive_paths", s.Name, fill(s.Detail, map[string]any{"areas": strings.Join(keys(sensitiveHits), ", ")}), min(s.PointsPerArea*n, s.MaxPoints))
 	}
 
 	// 4. Test coverage of the change.
 	vars := map[string]any{"code": code, "tests": tests}
 	if code > 0 && tests == 0 {
-		add(f.NoTests.Name, fill(f.NoTests.Detail, vars), f.NoTests.Points)
+		add("no_tests", f.NoTests.Name, fill(f.NoTests.Detail, vars), f.NoTests.Points)
 	} else if code > 0 && float64(tests) >= f.WellTested.MinTestsPerCodeFile*float64(code) {
-		add(f.WellTested.Name, fill(f.WellTested.Detail, vars), f.WellTested.Points)
+		add("well_tested", f.WellTested.Name, fill(f.WellTested.Detail, vars), f.WellTested.Points)
 	}
 
 	// 5. Who (or what) wrote it. One input, never a block on its own.
 	ai := r.IsAIAuthored(c.Authors, c.Message)
 	if ai {
-		add(f.AIAuthored.Name, f.AIAuthored.Detail, f.AIAuthored.Points)
+		add("ai_authored", f.AIAuthored.Name, f.AIAuthored.Detail, f.AIAuthored.Points)
 	}
 
 	// 6. Recent history of the services involved.
@@ -135,10 +137,19 @@ func (r *Rules) Score(cfg *config.Config, c Change) domain.RiskReport {
 	}
 	if rollbacks > 0 {
 		rb := f.RecentRollbacks
-		add(rb.Name, fill(rb.Detail, map[string]any{"rollbacks": rollbacks, "days": rb.WindowDays}), min(rb.PointsPerRollback*rollbacks, rb.MaxPoints))
+		add("recent_rollbacks", rb.Name, fill(rb.Detail, map[string]any{"rollbacks": rollbacks, "days": rb.WindowDays}), min(rb.PointsPerRollback*rollbacks, rb.MaxPoints))
 	}
 
 	return r.finish(factors, services, ai)
+}
+
+// Weigh applies a factor weight to rule points, rounding half away from zero
+// (the portal's scorer rounds the same way). A weight of 1 changes nothing.
+func Weigh(points int, weight float64) int {
+	if weight == 1 {
+		return points
+	}
+	return int(math.Round(float64(points) * weight))
 }
 
 // IsAIAuthored reports whether commit authors or message trailers indicate a coding agent.
