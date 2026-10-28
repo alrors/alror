@@ -54,7 +54,7 @@ func scoreChange(cfg *config.Config, st store.Store, base string) (domain.RiskRe
 	if err != nil {
 		return domain.RiskReport{}, 0, err
 	}
-	change.RecentRollbacks, _ = st.RecentRollbacks(time.Now().AddDate(0, 0, -30))
+	change.RecentRollbacks, _ = st.RecentRollbacks(time.Now().Add(-risk.DefaultRules().RollbackWindow()))
 	return risk.Score(cfg, change), len(change.Files), nil
 }
 

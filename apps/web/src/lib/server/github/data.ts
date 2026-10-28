@@ -18,7 +18,7 @@ export async function listDecisions(ctx: OrgCtx, opts: { limit?: number } = {}):
   const rows = await db.select({ d: githubDecisions, repository: githubRepositories.fullName }).from(githubDecisions)
     .innerJoin(githubRepositories, eq(githubRepositories.id, githubDecisions.repositoryId))
     .where(eq(githubDecisions.orgId, ctx.orgId)).orderBy(desc(githubDecisions.updatedAt)).limit(Math.min(200, Math.max(1, opts.limit ?? 50)));
-  return rows.map(({ d, repository }) => ({ id: d.id, repositoryId: d.repositoryId, repository, pullNumber: d.pullNumber, title: d.title, url: d.url, headSha: d.headSha, outcome: d.outcome, score: d.score, reasons: d.reasons, mode: d.mode, updatedAt: d.updatedAt.toISOString() }));
+  return rows.map(({ d, repository }) => ({ id: d.id, repositoryId: d.repositoryId, repository, pullNumber: d.pullNumber, title: d.title, url: d.url, headSha: d.headSha, outcome: d.outcome, score: d.score, reasons: d.reasons, mode: d.mode, level: d.risk?.level ?? null, updatedAt: d.updatedAt.toISOString() }));
 }
 
 /** Resolve both repository and decision history within the active workspace. */

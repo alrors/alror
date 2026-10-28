@@ -3,12 +3,14 @@
 // Scoring is deliberately rule-based: every point comes from a named factor,
 // so a reviewer can always see (and argue with) the reasons. Language models
 // never decide the score; they may only summarise it.
+//
+// Every rule (points, thresholds, path patterns, level thresholds and rollout
+// plans) lives in rules.json, which is embedded here and shared byte for byte
+// with the portal's TypeScript decision module.
 package risk
 
 import (
-	"fmt"
 	"path"
-	"regexp"
 	"sort"
 	"strings"
 
@@ -32,16 +34,19 @@ type Change struct {
 	RecentRollbacks map[string]int
 }
 
-var (
-	sensitive = regexp.MustCompile(`(?i)(auth|security|crypto|secret|payment|billing|ledger|migration|schema|terraform|helm|iam|rbac)`)
-	testFile  = regexp.MustCompile(`(?i)(_test\.go$|\.test\.[jt]sx?$|\.spec\.[jt]sx?$|(^|/)tests?/|test_.*\.py$)`)
-	docFile   = regexp.MustCompile(`(?i)(\.md$|\.mdx$|\.txt$|(^|/)docs?/)`)
-	aiAuthor  = regexp.MustCompile(`(?i)(\[bot\]|copilot|claude|devin|codex|cursor|agent|gpt)`)
-	aiTrailer = regexp.MustCompile(`(?i)(co-authored-by:.*(claude|copilot|codex|cursor|devin|gpt|agent)|generated[- ]by:|ai-assisted:\s*true)`)
-)
+// Score computes the risk report for a change with the shared rules.
+func Score(cfg *config.Config, c Change) domain.RiskReport { return defaultRules.Score(cfg, c) }
+
+// LevelFor maps a score to a level with the shared rules.
+func LevelFor(score int) domain.Level { return defaultRules.LevelFor(score) }
+
+// PlanFor returns the shared rollout plan for a risk report.
+func PlanFor(r domain.RiskReport) domain.Plan { return defaultRules.PlanFor(r.Level) }
 
 // Score computes the risk report for a change against a configuration.
-func Score(cfg *config.Config, c Change) domain.RiskReport {
+// Every rule (points, thresholds, patterns) comes from the rules file.
+func (r *Rules) Score(cfg *config.Config, c Change) domain.RiskReport {
+	f := r.Factors
 	var factors []domain.Factor
 	add := func(name, detail string, pts int) {
 		if pts != 0 {
@@ -52,78 +57,75 @@ func Score(cfg *config.Config, c Change) domain.RiskReport {
 	lines, code, tests, docs := 0, 0, 0, 0
 	sensitiveHits := map[string]bool{}
 	services := map[string]config.Service{}
-	for _, f := range c.Files {
-		lines += f.Added + f.Deleted
+	for _, fc := range c.Files {
+		lines += fc.Added + fc.Deleted
 		switch {
-		case testFile.MatchString(f.Path):
+		case r.IsTestFile(fc.Path):
 			tests++
-		case docFile.MatchString(f.Path):
+		case r.IsDocFile(fc.Path):
 			docs++
 		default:
 			code++
 		}
-		if m := sensitive.FindString(f.Path); m != "" {
-			sensitiveHits[strings.ToLower(m)] = true
+		if area := r.SensitiveArea(fc.Path); area != "" {
+			sensitiveHits[area] = true
 		}
-		for _, s := range cfg.ServicesForPath(f.Path) {
+		for _, s := range cfg.ServicesForPath(fc.Path) {
 			services[s.Name] = s
 		}
 	}
 
 	// Docs-only changes are near-free.
 	if len(c.Files) > 0 && docs == len(c.Files) {
-		return finish([]domain.Factor{{Name: "Docs only", Detail: fmt.Sprintf("%d documentation files", docs), Points: 2}}, services, false)
+		d := f.DocsOnly
+		return r.finish([]domain.Factor{{Name: d.Name, Detail: fill(d.Detail, map[string]any{"docs": docs}), Points: d.Points}}, services, false)
 	}
 
 	// 1. Size of the change.
-	switch {
-	case lines >= 1000:
-		add("Large diff", fmt.Sprintf("%d lines changed", lines), 30)
-	case lines >= 500:
-		add("Large diff", fmt.Sprintf("%d lines changed", lines), 22)
-	case lines >= 200:
-		add("Medium diff", fmt.Sprintf("%d lines changed", lines), 15)
-	case lines >= 50:
-		add("Small diff", fmt.Sprintf("%d lines changed", lines), 8)
+	for _, t := range f.DiffSize.Tiers {
+		if lines >= t.MinLines {
+			add(t.Name, fill(f.DiffSize.Detail, map[string]any{"lines": lines}), t.Points)
+			break
+		}
 	}
-	if n := len(c.Files); n > 50 {
-		add("Many files", fmt.Sprintf("%d files touched", n), 12)
-	} else if n > 20 {
-		add("Many files", fmt.Sprintf("%d files touched", n), 8)
+	for _, t := range f.ManyFiles.Tiers {
+		if n := len(c.Files); n >= t.MinFiles {
+			add(f.ManyFiles.Name, fill(f.ManyFiles.Detail, map[string]any{"files": n}), t.Points)
+			break
+		}
 	}
 
 	// 2. Blast radius across services.
 	if n := len(services); n > 1 {
-		add("Blast radius", fmt.Sprintf("touches %d services: %s", n, strings.Join(names(services), ", ")), min(8*(n-1), 20))
+		b := f.BlastRadius
+		add(b.Name, fill(b.Detail, map[string]any{"count": n, "services": strings.Join(names(services), ", ")}), min(b.PointsPerExtraService*(n-1), b.MaxPoints))
 	}
-	for _, s := range services {
-		if s.Critical {
-			add("Critical service", s.Name+" is marked critical", 12)
+	for _, name := range names(services) {
+		if services[name].Critical {
+			cs := f.CriticalService
+			add(cs.Name, fill(cs.Detail, map[string]any{"service": name}), cs.Points)
 			break
 		}
 	}
 
 	// 3. Sensitive areas of the codebase.
 	if n := len(sensitiveHits); n > 0 {
-		add("Sensitive paths", "changes in "+strings.Join(keys(sensitiveHits), ", "), min(10*n, 20))
+		s := f.SensitivePaths
+		add(s.Name, fill(s.Detail, map[string]any{"areas": strings.Join(keys(sensitiveHits), ", ")}), min(s.PointsPerArea*n, s.MaxPoints))
 	}
 
 	// 4. Test coverage of the change.
+	vars := map[string]any{"code": code, "tests": tests}
 	if code > 0 && tests == 0 {
-		add("No tests changed", fmt.Sprintf("%d code files, 0 test files", code), 10)
-	} else if code > 0 && tests*2 >= code {
-		add("Well tested", fmt.Sprintf("%d test files for %d code files", tests, code), -5)
+		add(f.NoTests.Name, fill(f.NoTests.Detail, vars), f.NoTests.Points)
+	} else if code > 0 && float64(tests) >= f.WellTested.MinTestsPerCodeFile*float64(code) {
+		add(f.WellTested.Name, fill(f.WellTested.Detail, vars), f.WellTested.Points)
 	}
 
 	// 5. Who (or what) wrote it. One input, never a block on its own.
-	ai := aiTrailer.MatchString(c.Message)
-	for _, a := range c.Authors {
-		if aiAuthor.MatchString(a) {
-			ai = true
-		}
-	}
+	ai := r.IsAIAuthored(c.Authors, c.Message)
 	if ai {
-		add("AI-authored", "commit authors or trailers indicate a coding agent", 10)
+		add(f.AIAuthored.Name, f.AIAuthored.Detail, f.AIAuthored.Points)
 	}
 
 	// 6. Recent history of the services involved.
@@ -132,32 +134,34 @@ func Score(cfg *config.Config, c Change) domain.RiskReport {
 		rollbacks += c.RecentRollbacks[name]
 	}
 	if rollbacks > 0 {
-		add("Recent rollbacks", fmt.Sprintf("%d rollbacks on these services in 30 days", rollbacks), min(6*rollbacks, 18))
+		rb := f.RecentRollbacks
+		add(rb.Name, fill(rb.Detail, map[string]any{"rollbacks": rollbacks, "days": rb.WindowDays}), min(rb.PointsPerRollback*rollbacks, rb.MaxPoints))
 	}
 
-	return finish(factors, services, ai)
+	return r.finish(factors, services, ai)
 }
 
-func finish(factors []domain.Factor, services map[string]config.Service, ai bool) domain.RiskReport {
+// IsAIAuthored reports whether commit authors or message trailers indicate a coding agent.
+func (r *Rules) IsAIAuthored(authors []string, message string) bool {
+	if r.aiTrailer.MatchString(message) {
+		return true
+	}
+	for _, a := range authors {
+		if r.aiAuthor.MatchString(a) {
+			return true
+		}
+	}
+	return false
+}
+
+func (r *Rules) finish(factors []domain.Factor, services map[string]config.Service, ai bool) domain.RiskReport {
 	score := 0
 	for _, f := range factors {
 		score += f.Points
 	}
-	score = max(0, min(score, 100))
+	score = max(0, min(score, r.MaxScore))
 	sort.SliceStable(factors, func(i, j int) bool { return factors[i].Points > factors[j].Points })
-	return domain.RiskReport{Score: score, Level: LevelFor(score), Factors: factors, Services: names(services), AI: ai}
-}
-
-// LevelFor maps a score to a level.
-func LevelFor(score int) domain.Level {
-	switch {
-	case score >= 70:
-		return domain.LevelHigh
-	case score >= 35:
-		return domain.LevelMedium
-	default:
-		return domain.LevelLow
-	}
+	return domain.RiskReport{Score: score, Level: r.LevelFor(score), Factors: factors, Services: names(services), AI: ai}
 }
 
 func names(m map[string]config.Service) []string {

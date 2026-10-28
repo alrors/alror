@@ -1,5 +1,6 @@
 // Pure formatting helpers, safe on server and client.
 
+import { levelFor } from "@/lib/server/decision/score";
 import type { Level, Status } from "./types";
 
 export const statusLabel: Record<Status, string> = {
@@ -32,7 +33,7 @@ export function levelTone(l: Level | undefined): Tone {
 }
 
 export function riskTone(score: number): Tone {
-  return score >= 70 ? "bad" : score >= 35 ? "warn" : "good";
+  return levelTone(levelFor(score));
 }
 
 /** Go time.Duration (nanoseconds) to a short label, e.g. "15m", "1h30m". */

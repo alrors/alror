@@ -1,0 +1,87 @@
+{
+  "$comment": "Canonical Alror risk rules, shared by the Go CLI/runner (internal/risk, embedded) and the portal (apps/web/src/lib/server/decision/rules.json is a byte-for-byte copy: run `node scripts/sync-rules.mjs` after editing). Patterns use the common subset of RE2 and ECMAScript regular expressions and always match case-insensitively. Details use {placeholders}.",
+  "version": 1,
+  "max_score": 100,
+  "levels": { "medium": 35, "high": 70 },
+  "patterns": {
+    "test_file": "_test\\.go$|\\.test\\.[jt]sx?$|\\.spec\\.[jt]sx?$|(^|/)tests?/|test_.*\\.py$",
+    "doc_file": "\\.md$|\\.mdx$|\\.txt$|(^|/)docs?/",
+    "ai_author": "\\[bot\\]|copilot|claude|devin|codex|cursor|agent|gpt",
+    "ai_trailer": "co-authored-by:.*(claude|copilot|codex|cursor|devin|gpt|agent)|generated[- ]by:|ai-assisted:\\s*true"
+  },
+  "sensitive_paths": [
+    { "name": "auth", "pattern": "auth" },
+    { "name": "security", "pattern": "security" },
+    { "name": "crypto", "pattern": "crypto" },
+    { "name": "secret", "pattern": "secret" },
+    { "name": "payment", "pattern": "payment" },
+    { "name": "billing", "pattern": "billing" },
+    { "name": "ledger", "pattern": "ledger" },
+    { "name": "migration", "pattern": "migration" },
+    { "name": "schema", "pattern": "schema" },
+    { "name": "terraform", "pattern": "terraform" },
+    { "name": "helm", "pattern": "helm" },
+    { "name": "iam", "pattern": "iam" },
+    { "name": "rbac", "pattern": "rbac" },
+    { "name": "infra", "pattern": "infra" },
+    { "name": "ci-config", "pattern": "(^|/)\\.github/" },
+    { "name": "alror-config", "pattern": "(^|/)\\.alror/" },
+    { "name": "env-file", "pattern": "(^|/)\\.env(\\.|$)" },
+    { "name": "key-material", "pattern": "\\.(pem|key|p12|pfx)$" }
+  ],
+  "factors": {
+    "docs_only": { "name": "Docs only", "detail": "{docs} documentation files", "points": 2 },
+    "diff_size": {
+      "detail": "{lines} lines changed",
+      "tiers": [
+        { "min_lines": 1000, "name": "Large diff", "points": 30 },
+        { "min_lines": 500, "name": "Large diff", "points": 22 },
+        { "min_lines": 200, "name": "Medium diff", "points": 15 },
+        { "min_lines": 50, "name": "Small diff", "points": 8 }
+      ]
+    },
+    "many_files": {
+      "name": "Many files",
+      "detail": "{files} files touched",
+      "tiers": [
+        { "min_files": 51, "points": 12 },
+        { "min_files": 21, "points": 8 }
+      ]
+    },
+    "blast_radius": { "name": "Blast radius", "detail": "touches {count} services: {services}", "points_per_extra_service": 8, "max_points": 20 },
+    "critical_service": { "name": "Critical service", "detail": "{service} is marked critical", "points": 12 },
+    "sensitive_paths": { "name": "Sensitive paths", "detail": "changes in {areas}", "points_per_area": 10, "max_points": 20 },
+    "no_tests": { "name": "No tests changed", "detail": "{code} code files, 0 test files", "points": 10 },
+    "well_tested": { "name": "Well tested", "detail": "{tests} test files for {code} code files", "points": -5, "min_tests_per_code_file": 0.5 },
+    "ai_authored": { "name": "AI-authored", "detail": "commit authors or trailers indicate a coding agent", "points": 10 },
+    "recent_rollbacks": { "name": "Recent rollbacks", "detail": "{rollbacks} rollbacks on these services in {days} days", "points_per_rollback": 6, "max_points": 18, "window_days": 30 }
+  },
+  "plans": {
+    "low": {
+      "strategy": "canary",
+      "steps": [
+        { "weight": 25, "bake_seconds": 300 },
+        { "weight": 100, "bake_seconds": 0 }
+      ]
+    },
+    "medium": {
+      "strategy": "canary",
+      "steps": [
+        { "weight": 5, "bake_seconds": 600 },
+        { "weight": 25, "bake_seconds": 600 },
+        { "weight": 50, "bake_seconds": 600 },
+        { "weight": 100, "bake_seconds": 0 }
+      ]
+    },
+    "high": {
+      "strategy": "canary",
+      "steps": [
+        { "weight": 1, "bake_seconds": 900 },
+        { "weight": 5, "bake_seconds": 900 },
+        { "weight": 25, "bake_seconds": 900 },
+        { "weight": 50, "bake_seconds": 900 },
+        { "weight": 100, "bake_seconds": 0 }
+      ]
+    }
+  }
+}

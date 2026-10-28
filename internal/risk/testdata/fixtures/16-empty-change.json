@@ -1,0 +1,74 @@
+{
+  "name": "16-empty-change",
+  "description": "No changed files scores zero.",
+  "services": [
+    {
+      "name": "checkout-api",
+      "paths": [
+        "services/checkout/"
+      ],
+      "critical": true
+    },
+    {
+      "name": "web",
+      "paths": [
+        "web/"
+      ],
+      "critical": false
+    },
+    {
+      "name": "billing-worker",
+      "paths": [
+        "services/billing/"
+      ],
+      "critical": false
+    },
+    {
+      "name": "search",
+      "paths": [
+        "services/search/"
+      ],
+      "critical": false
+    },
+    {
+      "name": "inventory",
+      "paths": [
+        "services/inventory/"
+      ],
+      "critical": false
+    },
+    {
+      "name": "notifications",
+      "paths": [
+        "services/notifications/"
+      ],
+      "critical": false
+    }
+  ],
+  "change": {
+    "files": [],
+    "authors": [],
+    "message": "",
+    "recent_rollbacks": {}
+  },
+  "expected": {
+    "score": 0,
+    "level": "low",
+    "factors": [],
+    "services": [],
+    "ai_authored": false,
+    "plan": {
+      "strategy": "canary",
+      "steps": [
+        {
+          "weight": 25,
+          "bake_seconds": 300
+        },
+        {
+          "weight": 100,
+          "bake_seconds": 0
+        }
+      ]
+    }
+  }
+}

@@ -9,6 +9,8 @@ import { env } from "../env";
 import { publish } from "../redis";
 import { clearInstallationTokens, GitHubError, installationClient, repoPath } from "./client";
 import { appConfig, configStatus } from "./config";
+import { loadDecisionContext } from "../decision/context";
+import { storedDecision } from "../decision/stored";
 import { evaluatePull } from "./evaluate";
 import { decisionPath } from "./report";
 import { normalizePolicy } from "./policy";
@@ -61,17 +63,26 @@ export async function processDelivery(delivery: Delivery): Promise<void> {
       appId: Number(appId), appSlug: configStatus().appSlug, detailsUrl: `${env.publicUrl().replace(/\/$/, "")}${decisionPath(repository.id, pullNumber)}` }, {
       beforeEffect,
       audit: (action, meta) => writeAudit(ctx, action, `${repository.fullName}#${pullNumber}`, meta),
-      save: async ({ pull, result, checkId, commentId }) => {
+      decisionContext: () => loadDecisionContext(repository.orgId),
+      save: async ({ pull, result, checkId, commentId, decision }) => {
         await beforeEffect();
+        const outcome = pull.merged || result.reasons.some((r) => r.startsWith("Merged evaluated commit")) ? "merged" : result.outcome;
         const values = { orgId: repository.orgId, repositoryId: repository.id, pullNumber, title: pull.title.slice(0, 500), url: pull.html_url,
           headSha: pull.head.sha, baseSha: pull.base.sha, policyVersion: repository.policyVersion, mode: policy.mode,
-          outcome: pull.merged || result.reasons.some((r) => r.startsWith("Merged evaluated commit")) ? "merged" : result.outcome,
-          score: result.score, reasons: result.reasons, ...(checkId ? { checkId } : {}), ...(commentId ? { commentId } : {}), updatedAt: new Date() };
+          outcome, score: result.score, reasons: result.reasons, ...(checkId ? { checkId } : {}), ...(commentId ? { commentId } : {}),
+          ...(decision ? storedDecision(decision) : {}), updatedAt: new Date() };
         await db.insert(githubDecisions).values(values).onConflictDoUpdate({ target: [githubDecisions.repositoryId, githubDecisions.pullNumber, githubDecisions.headSha, githubDecisions.baseSha, githubDecisions.policyVersion], set: values });
+        // Open PRs carry a test-merge SHA in merge_commit_sha; only a merged PR's SHA is the commit that ships.
+        if (outcome === "merged" && pull.merge_commit_sha) {
+          await db.update(githubDecisions).set({ mergeSha: pull.merge_commit_sha })
+            .where(and(eq(githubDecisions.repositoryId, repository.id), eq(githubDecisions.pullNumber, pullNumber), eq(githubDecisions.headSha, pull.head.sha)));
+        }
         await publish(repository.orgId, { type: "github.decision.updated", repository_id: repository.id, pull_number: pullNumber });
       },
     });
-    await writeAudit(ctx, "github.pull_evaluated", `${repository.fullName}#${pullNumber}`, { head_sha: evaluation.pull.head.sha, policy_version: repository.policyVersion, outcome: evaluation.result.outcome, score: evaluation.result.score });
+    if (evaluation.decisionError) console.error(`[alror:github] risk decision failed for ${repository.fullName}#${pullNumber}: ${evaluation.decisionError}`);
+    await writeAudit(ctx, "github.pull_evaluated", `${repository.fullName}#${pullNumber}`, { head_sha: evaluation.pull.head.sha, policy_version: repository.policyVersion, outcome: evaluation.result.outcome, score: evaluation.result.score,
+      risk_level: evaluation.decision?.risk.level ?? null, rules_version: evaluation.decision?.rulesVersion ?? null, ...(evaluation.decisionError ? { decision_error: evaluation.decisionError.slice(0, 300) } : {}) });
     // GitHub mergeability settles asynchronously without a guaranteed follow-up event.
     const poll = Number(delivery.payload.poll || 0);
     if (evaluation.result.outcome === "waiting" && poll < 5) await db.insert(githubDeliveries).values({ id: `poll:${randomUUID()}`, event: "evaluate", installationId, repositoryId: repository.id, payload: { pullNumber, poll: poll + 1 }, availableAt: new Date(Date.now() + 30_000) });

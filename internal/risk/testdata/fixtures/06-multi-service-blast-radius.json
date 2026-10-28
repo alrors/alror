@@ -1,0 +1,124 @@
+{
+  "name": "06-multi-service-blast-radius",
+  "description": "One change touching four services; blast radius is capped.",
+  "services": [
+    {
+      "name": "checkout-api",
+      "paths": [
+        "services/checkout/"
+      ],
+      "critical": true
+    },
+    {
+      "name": "web",
+      "paths": [
+        "web/"
+      ],
+      "critical": false
+    },
+    {
+      "name": "billing-worker",
+      "paths": [
+        "services/billing/"
+      ],
+      "critical": false
+    },
+    {
+      "name": "search",
+      "paths": [
+        "services/search/"
+      ],
+      "critical": false
+    },
+    {
+      "name": "inventory",
+      "paths": [
+        "services/inventory/"
+      ],
+      "critical": false
+    },
+    {
+      "name": "notifications",
+      "paths": [
+        "services/notifications/"
+      ],
+      "critical": false
+    }
+  ],
+  "change": {
+    "files": [
+      {
+        "path": "services/search/index.go",
+        "added": 30,
+        "deleted": 0
+      },
+      {
+        "path": "web/app.tsx",
+        "added": 30,
+        "deleted": 0
+      },
+      {
+        "path": "services/inventory/stock.go",
+        "added": 20,
+        "deleted": 0
+      },
+      {
+        "path": "services/notifications/send.go",
+        "added": 10,
+        "deleted": 0
+      }
+    ],
+    "authors": [],
+    "message": "",
+    "recent_rollbacks": {}
+  },
+  "expected": {
+    "score": 38,
+    "level": "medium",
+    "factors": [
+      {
+        "name": "Blast radius",
+        "detail": "touches 4 services: inventory, notifications, search, web",
+        "points": 20
+      },
+      {
+        "name": "No tests changed",
+        "detail": "4 code files, 0 test files",
+        "points": 10
+      },
+      {
+        "name": "Small diff",
+        "detail": "90 lines changed",
+        "points": 8
+      }
+    ],
+    "services": [
+      "inventory",
+      "notifications",
+      "search",
+      "web"
+    ],
+    "ai_authored": false,
+    "plan": {
+      "strategy": "canary",
+      "steps": [
+        {
+          "weight": 5,
+          "bake_seconds": 600
+        },
+        {
+          "weight": 25,
+          "bake_seconds": 600
+        },
+        {
+          "weight": 50,
+          "bake_seconds": 600
+        },
+        {
+          "weight": 100,
+          "bake_seconds": 0
+        }
+      ]
+    }
+  }
+}

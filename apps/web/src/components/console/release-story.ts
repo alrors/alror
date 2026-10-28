@@ -3,18 +3,19 @@
 
 import { DEFAULT_PLANS, type PlanStep, type Plans } from "@/lib/console/policy-rules";
 import { duration, metricLabel, metricUnitValue, span } from "@/lib/console/format";
+import { levelFor as sharedLevelFor, rules as riskRules } from "@/lib/server/decision/score";
 import type { RolloutTree } from "@/lib/console/rollout-tree";
 import type { DeployEvent, Deployment, Level, MetricResult } from "@/lib/console/types";
 
-/** Mirrors alror/internal/risk/scorer.go LevelFor. */
+/** LevelFor from the shared risk rules (the CLI embeds the same rules.json). */
 export function levelFor(score: number): Level {
-  return score >= 70 ? "high" : score >= 35 ? "medium" : "low";
+  return sharedLevelFor(score);
 }
 
 export const LEVEL_BANDS: { level: Level; from: number; to: number; meaning: string }[] = [
-  { level: "low", from: 0, to: 34, meaning: "Big first step, short bake: the change is small and well understood." },
-  { level: "medium", from: 35, to: 69, meaning: "A small canary first, then wider stages, each verified before moving on." },
-  { level: "high", from: 70, to: 100, meaning: "Starts at a sliver of traffic with the longest bakes, so a regression reaches as few users as possible." },
+  { level: "low", from: 0, to: riskRules.levels.medium - 1, meaning: "Big first step, short bake: the change is small and well understood." },
+  { level: "medium", from: riskRules.levels.medium, to: riskRules.levels.high - 1, meaning: "A small canary first, then wider stages, each verified before moving on." },
+  { level: "high", from: riskRules.levels.high, to: riskRules.max_score, meaning: "Starts at a sliver of traffic with the longest bakes, so a regression reaches as few users as possible." },
 ];
 
 export function planFor(level: Level, plans: Plans = DEFAULT_PLANS): PlanStep[] {

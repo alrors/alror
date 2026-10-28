@@ -7,6 +7,7 @@ import { requireCtx } from "@/lib/server/auth/session";
 import { getPullDecision } from "@/lib/server/github/data";
 import { byHeadSha, GATE_MODE, GATE_OUTCOME, gateFindings, gateWhy, requiredCheckStates, type CheckState } from "@/lib/console/oversight";
 import type { Tone } from "@/lib/console/format";
+import { rules as riskRules } from "@/lib/server/decision/score";
 import { DecisionRefresh } from "./refresh";
 
 export const metadata: Metadata = { title: "Pull request decision" };
@@ -88,7 +89,7 @@ export default async function PullDecisionPage({ params }: PageProps<"/app/githu
             <p className="text-[12px] text-con-fg3">Rule-based risk</p>
             <p className="mt-1 font-mono text-3xl tracking-tight">
               {latest.score}
-              <span className="text-base text-con-fg3"> / 100</span>
+              <span className="text-base text-con-fg3"> / 100{latest.risk ? ` · ${latest.risk.level}` : ""}</span>
             </p>
           </div>
           <div>
@@ -111,6 +112,32 @@ export default async function PullDecisionPage({ params }: PageProps<"/app/githu
           <p className="mt-1.5 text-[13px] leading-relaxed text-con-fg2">{nextStep}</p>
         </div>
       </section>
+
+      {latest.risk ? (
+        <Card
+          title="Risk factors"
+          description={`Scored with shared risk rules v${latest.risk.rules_version}, the same rules the Alror CLI uses.${latest.plan ? ` Rollout plan: ${latest.plan.strategy} ${latest.plan.steps.map((s) => `${s.weight}%`).join(" → ")}.` : ""}`}
+        >
+          {latest.risk.factors.length ? (
+            <ul className="space-y-2 text-[13px]">
+              {latest.risk.factors.map((factor, index) => (
+                <li key={index} className="flex gap-3">
+                  <span className="w-10 shrink-0 text-right font-mono text-con-fg3">
+                    {factor.points > 0 ? "+" : ""}
+                    {factor.points}
+                  </span>
+                  <span className="min-w-0 break-words">
+                    <span className="font-medium">{factor.name}</span>
+                    <span className="text-con-fg3"> · {factor.detail}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-[13px] text-con-fg3">No risk factors found.</p>
+          )}
+        </Card>
+      ) : null}
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card title="Every reason" description="Recorded for this commit and policy version, in the order the gate reported them.">
@@ -162,7 +189,7 @@ export default async function PullDecisionPage({ params }: PageProps<"/app/githu
             </div>
           )}
           <p className="mt-5 break-words text-[12px] leading-relaxed text-con-fg3">
-            Protected patterns: <span className="font-mono">{repository.policy.protectedPaths.join(", ") || "none"}</span>, plus built-in sensitive paths (auth, payments, migrations, infrastructure, secrets).
+            Protected patterns: <span className="font-mono">{repository.policy.protectedPaths.join(", ") || "none"}</span>, plus the shared sensitive areas ({riskRules.sensitive_paths.map((a) => a.name).join(", ")}).
           </p>
         </Card>
       </div>

@@ -7,6 +7,7 @@ import Link from "next/link";
 import { cn } from "@/lib/site";
 import { BarPlot, DotsPlot, LinePlot, type LegendEntry } from "./charts/plots";
 import { areaPath, hashId, linePath, makeTicks, niceScale } from "./charts/scale";
+import { rules as riskRules } from "@/lib/server/decision/score";
 
 export { niceScale };
 
@@ -283,6 +284,7 @@ export function DotPlot({
 
 export function RiskGauge({ score, color }: { score: number; color: string }) {
   const s = Math.max(0, Math.min(100, score));
+  const { medium, high } = riskRules.levels;
   // Semicircle from 180deg to 0deg, radius 80, centre (100, 100).
   const arc = (from: number, to: number) => {
     const a0 = Math.PI * (1 - from / 100);
@@ -292,12 +294,12 @@ export function RiskGauge({ score, color }: { score: number; color: string }) {
   };
   return (
     <svg viewBox="0 0 200 112" className="w-full max-w-[240px]" role="img" aria-label={`Risk ${score} of 100`}>
-      {/* Zones: low < 35, medium < 70, high */}
-      <path d={arc(0, 34.4)} stroke="#262626" strokeWidth={14} fill="none" />
-      <path d={arc(35.6, 69.4)} stroke="#262626" strokeWidth={14} fill="none" />
-      <path d={arc(70.6, 100)} stroke="#262626" strokeWidth={14} fill="none" />
+      {/* Zones from the shared risk rules: low, medium, high */}
+      <path d={arc(0, medium - 0.6)} stroke="#262626" strokeWidth={14} fill="none" />
+      <path d={arc(medium + 0.6, high - 0.6)} stroke="#262626" strokeWidth={14} fill="none" />
+      <path d={arc(high + 0.6, 100)} stroke="#262626" strokeWidth={14} fill="none" />
       {s > 0 && <path d={arc(0, s)} stroke={color} strokeWidth={14} fill="none" pathLength={1} className="con-draw" />}
-      {[35, 70].map((t) => {
+      {[medium, high].map((t) => {
         const a = Math.PI * (1 - t / 100);
         return (
           <line

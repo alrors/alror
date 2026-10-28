@@ -423,8 +423,21 @@ export const githubDecisions = pgTable("github_decisions", {
   reasons: jsonb("reasons").$type<string[]>().notNull(),
   checkId: text("check_id"),
   commentId: text("comment_id"),
+  /** Shared-rules risk for head_sha (Go domain.RiskReport shape plus rules_version); null when it could not be computed. */
+  risk: jsonb("risk").$type<StoredRisk | null>(),
+  /** Rollout plan for the risk level, Go domain.Plan shape (bake in nanoseconds). */
+  plan: jsonb("plan").$type<StoredPlan | null>(),
+  /** The commit GitHub created when the PR merged, so deploys of that commit find this decision. */
+  mergeSha: text("merge_sha"),
   updatedAt: ts("updated_at").notNull().defaultNow(),
-}, (t) => [uniqueIndex("github_decisions_revision_key").on(t.repositoryId, t.pullNumber, t.headSha, t.baseSha, t.policyVersion), index("github_decisions_org_updated_idx").on(t.orgId, t.updatedAt.desc())]);
+}, (t) => [
+  uniqueIndex("github_decisions_revision_key").on(t.repositoryId, t.pullNumber, t.headSha, t.baseSha, t.policyVersion),
+  index("github_decisions_org_updated_idx").on(t.orgId, t.updatedAt.desc()),
+  index("github_decisions_org_head_idx").on(t.orgId, t.headSha),
+  index("github_decisions_org_merge_idx").on(t.orgId, t.mergeSha),
+]);
+export type StoredRisk = { score: number; level: "low" | "medium" | "high"; factors: { name: string; detail: string; points: number }[]; services: string[]; ai_authored: boolean; rules_version: number };
+export type StoredPlan = { strategy: string; steps: { weight: number; bake: number }[] };
 
 // ---------------------------------------------------------------------------
 // Learn: courses of YouTube lectures on /learn, managed by platform admins in /admin/learn.

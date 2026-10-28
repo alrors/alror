@@ -20,7 +20,11 @@ import { searchConsole } from "@/lib/server/data/search";
 import { archiveService, createService, updateService } from "@/lib/server/data/services";
 import type { OrgCtx } from "@/lib/server/context";
 import { closeDb, db } from "@/lib/server/db";
-import { orgs, users } from "@/lib/server/db/schema";
+import { githubDecisions, githubRepositories, orgs, users } from "@/lib/server/db/schema";
+import { loadDecisionContext } from "@/lib/server/decision/context";
+import { decidePull } from "@/lib/server/decision/decide";
+import { storedDecision } from "@/lib/server/decision/stored";
+import { DEFAULT_POLICY } from "@/lib/server/github/types";
 import { closeRedis } from "@/lib/server/redis";
 import { ApiError, classifyError, ServiceUnavailableError } from "@/lib/server/errors";
 import { kindOf, previewDigest } from "@/lib/error-kind";
@@ -356,6 +360,47 @@ describe("deployments", () => {
     assert.equal(r.status, 200);
     assert.deepEqual(r.body, { api: 1 });
     assert.equal((await keyA.get("/api/v1/rollbacks/recent?since=garbage")).status, 422);
+  });
+});
+
+describe("decisions (v1.4)", () => {
+  const head = randomBytes(20).toString("hex"), merge = randomBytes(20).toString("hex");
+  const repositoryId = String(900_000_000 + Math.floor(Math.random() * 1e8));
+
+  test("the decision context uses the org's services and rollbacks; GET /decisions/{sha} returns the stored decision", async () => {
+    const context = await loadDecisionContext(ctxA.orgId);
+    assert.deepEqual(context.services.find((s) => s.name === "api"), { name: "api", paths: ["services/api/"], critical: true });
+    assert.equal(context.recentRollbacks.api, 1);
+    const decision = decidePull([{ filename: "services/api/payment.go", status: "modified", additions: 40, deletions: 20 }],
+      [{ commit: { message: "Retry payments", author: { name: "dev", email: "dev@example.com" } }, author: null }], context);
+    // 8 small diff + 12 critical + 10 payment + 10 no tests + 6 one rollback
+    assert.equal(decision.risk.score, 46);
+    await db.insert(githubRepositories).values({ id: repositoryId, orgId: ctxA.orgId, installationId: "1", fullName: "acme/shop", policy: DEFAULT_POLICY, enrolledBy: "test" });
+    await db.insert(githubDecisions).values({ orgId: ctxA.orgId, repositoryId, pullNumber: 42, title: "Retry payments", url: "https://github.com/acme/shop/pull/42",
+      headSha: head, baseSha: "b".repeat(40), policyVersion: 1, mode: "review", outcome: "merged", score: decision.risk.score, reasons: ["Protected changes need review."],
+      ...storedDecision(decision), mergeSha: merge });
+
+    const r = await readA.get(`/api/v1/decisions/${head}`);
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    assert.equal(r.body.sha, head);
+    assert.equal(r.body.matched, "head");
+    assert.equal(r.body.pull_number, 42);
+    assert.equal(r.body.repository, "acme/shop");
+    assert.equal(r.body.rules_version, decision.rulesVersion);
+    assert.deepEqual(r.body.risk, decision.risk);
+    assert.deepEqual(r.body.plan, { strategy: "canary", steps: decision.plan.steps.map((s) => ({ weight: s.weight, bake: s.bake_seconds * 1e9 })) });
+
+    const byMerge = await keyA.get(`/api/v1/decisions/${merge.slice(0, 10)}`);
+    assert.equal(byMerge.status, 200);
+    assert.equal(byMerge.body.matched, "merge");
+    assert.equal(byMerge.body.sha, merge);
+  });
+
+  test("decisions are scoped to the org and validate the sha", async () => {
+    assert.equal((await keyB.get(`/api/v1/decisions/${head}`)).status, 404);
+    assert.equal((await keyA.get(`/api/v1/decisions/${"0".repeat(40)}`)).status, 404);
+    assert.equal((await keyA.get("/api/v1/decisions/xyz")).status, 422);
+    assert.equal((await anon.get(`/api/v1/decisions/${head}`)).status, 401);
   });
 });
 

@@ -1,0 +1,393 @@
+{
+  "name": "05-many-files",
+  "description": "Sixty small files in one service.",
+  "services": [
+    {
+      "name": "checkout-api",
+      "paths": [
+        "services/checkout/"
+      ],
+      "critical": true
+    },
+    {
+      "name": "web",
+      "paths": [
+        "web/"
+      ],
+      "critical": false
+    },
+    {
+      "name": "billing-worker",
+      "paths": [
+        "services/billing/"
+      ],
+      "critical": false
+    },
+    {
+      "name": "search",
+      "paths": [
+        "services/search/"
+      ],
+      "critical": false
+    },
+    {
+      "name": "inventory",
+      "paths": [
+        "services/inventory/"
+      ],
+      "critical": false
+    },
+    {
+      "name": "notifications",
+      "paths": [
+        "services/notifications/"
+      ],
+      "critical": false
+    }
+  ],
+  "change": {
+    "files": [
+      {
+        "path": "web/pages/page00.tsx",
+        "added": 3,
+        "deleted": 0
+      },
+      {
+        "path": "web/pages/page01.tsx",
+        "added": 3,
+        "deleted": 0
+      },
+      {
+        "path": "web/pages/page02.tsx",
+        "added": 3,
+        "deleted": 0
+      },
+      {
+        "path": "web/pages/page03.tsx",
+        "added": 3,
+        "deleted": 0
+      },
+      {
+        "path": "web/pages/page04.tsx",
+        "added": 3,
+        "deleted": 0
+      },
+      {
+        "path": "web/pages/page05.tsx",
+        "added": 3,
+        "deleted": 0
+      },
+      {
+        "path": "web/pages/page06.tsx",
+        "added": 3,
+        "deleted": 0
+      },
+      {
+        "path": "web/pages/page07.tsx",
+        "added": 3,
+        "deleted": 0
+      },
+      {
+        "path": "web/pages/page08.tsx",
+        "added": 3,
+        "deleted": 0
+      },
+      {
+        "path": "web/pages/page09.tsx",
+        "added": 3,
+        "deleted": 0
+      },
+      {
+        "path": "web/pages/page10.tsx",
+        "added": 3,
+        "deleted": 0
+      },
+      {
+        "path": "web/pages/page11.tsx",
+        "added": 3,
+        "deleted": 0
+      },
+      {
+        "path": "web/pages/page12.tsx",
+        "added": 3,
+        "deleted": 0
+      },
+      {
+        "path": "web/pages/page13.tsx",
+        "added": 3,
+        "deleted": 0
+      },
+      {
+        "path": "web/pages/page14.tsx",
+        "added": 3,
+        "deleted": 0
+      },
+      {
+        "path": "web/pages/page15.tsx",
+        "added": 3,
+        "deleted": 0
+      },
+      {
+        "path": "web/pages/page16.tsx",
+        "added": 3,
+        "deleted": 0
+      },
+      {
+        "path": "web/pages/page17.tsx",
+        "added": 3,
+        "deleted": 0
+      },
+      {
+        "path": "web/pages/page18.tsx",
+        "added": 3,
+        "deleted": 0
+      },
+      {
+        "path": "web/pages/page19.tsx",
+        "added": 3,
+        "deleted": 0
+      },
+      {
+        "path": "web/pages/page20.tsx",
+        "added": 3,
+        "deleted": 0
+      },
+      {
+        "path": "web/pages/page21.tsx",
+        "added": 3,
+        "deleted": 0
+      },
+      {
+        "path": "web/pages/page22.tsx",
+        "added": 3,
+        "deleted": 0
+      },
+      {
+        "path": "web/pages/page23.tsx",
+        "added": 3,
+        "deleted": 0
+      },
+      {
+        "path": "web/pages/page24.tsx",
+        "added": 3,
+        "deleted": 0
+      },
+      {
+        "path": "web/pages/page25.tsx",
+        "added": 3,
+        "deleted": 0
+      },
+      {
+        "path": "web/pages/page26.tsx",
+        "added": 3,
+        "deleted": 0
+      },
+      {
+        "path": "web/pages/page27.tsx",
+        "added": 3,
+        "deleted": 0
+      },
+      {
+        "path": "web/pages/page28.tsx",
+        "added": 3,
+        "deleted": 0
+      },
+      {
+        "path": "web/pages/page29.tsx",
+        "added": 3,
+        "deleted": 0
+      },
+      {
+        "path": "web/pages/page30.tsx",
+        "added": 3,
+        "deleted": 0
+      },
+      {
+        "path": "web/pages/page31.tsx",
+        "added": 3,
+        "deleted": 0
+      },
+      {
+        "path": "web/pages/page32.tsx",
+        "added": 3,
+        "deleted": 0
+      },
+      {
+        "path": "web/pages/page33.tsx",
+        "added": 3,
+        "deleted": 0
+      },
+      {
+        "path": "web/pages/page34.tsx",
+        "added": 3,
+        "deleted": 0
+      },
+      {
+        "path": "web/pages/page35.tsx",
+        "added": 3,
+        "deleted": 0
+      },
+      {
+        "path": "web/pages/page36.tsx",
+        "added": 3,
+        "deleted": 0
+      },
+      {
+        "path": "web/pages/page37.tsx",
+        "added": 3,
+        "deleted": 0
+      },
+      {
+        "path": "web/pages/page38.tsx",
+        "added": 3,
+        "deleted": 0
+      },
+      {
+        "path": "web/pages/page39.tsx",
+        "added": 3,
+        "deleted": 0
+      },
+      {
+        "path": "web/pages/page40.tsx",
+        "added": 3,
+        "deleted": 0
+      },
+      {
+        "path": "web/pages/page41.tsx",
+        "added": 3,
+        "deleted": 0
+      },
+      {
+        "path": "web/pages/page42.tsx",
+        "added": 3,
+        "deleted": 0
+      },
+      {
+        "path": "web/pages/page43.tsx",
+        "added": 3,
+        "deleted": 0
+      },
+      {
+        "path": "web/pages/page44.tsx",
+        "added": 3,
+        "deleted": 0
+      },
+      {
+        "path": "web/pages/page45.tsx",
+        "added": 3,
+        "deleted": 0
+      },
+      {
+        "path": "web/pages/page46.tsx",
+        "added": 3,
+        "deleted": 0
+      },
+      {
+        "path": "web/pages/page47.tsx",
+        "added": 3,
+        "deleted": 0
+      },
+      {
+        "path": "web/pages/page48.tsx",
+        "added": 3,
+        "deleted": 0
+      },
+      {
+        "path": "web/pages/page49.tsx",
+        "added": 3,
+        "deleted": 0
+      },
+      {
+        "path": "web/pages/page50.tsx",
+        "added": 3,
+        "deleted": 0
+      },
+      {
+        "path": "web/pages/page51.tsx",
+        "added": 3,
+        "deleted": 0
+      },
+      {
+        "path": "web/pages/page52.tsx",
+        "added": 3,
+        "deleted": 0
+      },
+      {
+        "path": "web/pages/page53.tsx",
+        "added": 3,
+        "deleted": 0
+      },
+      {
+        "path": "web/pages/page54.tsx",
+        "added": 3,
+        "deleted": 0
+      },
+      {
+        "path": "web/pages/page55.tsx",
+        "added": 3,
+        "deleted": 0
+      },
+      {
+        "path": "web/pages/page56.tsx",
+        "added": 3,
+        "deleted": 0
+      },
+      {
+        "path": "web/pages/page57.tsx",
+        "added": 3,
+        "deleted": 0
+      },
+      {
+        "path": "web/pages/page58.tsx",
+        "added": 3,
+        "deleted": 0
+      },
+      {
+        "path": "web/pages/page59.tsx",
+        "added": 3,
+        "deleted": 0
+      }
+    ],
+    "authors": [],
+    "message": "",
+    "recent_rollbacks": {}
+  },
+  "expected": {
+    "score": 30,
+    "level": "low",
+    "factors": [
+      {
+        "name": "Many files",
+        "detail": "60 files touched",
+        "points": 12
+      },
+      {
+        "name": "No tests changed",
+        "detail": "60 code files, 0 test files",
+        "points": 10
+      },
+      {
+        "name": "Small diff",
+        "detail": "180 lines changed",
+        "points": 8
+      }
+    ],
+    "services": [
+      "web"
+    ],
+    "ai_authored": false,
+    "plan": {
+      "strategy": "canary",
+      "steps": [
+        {
+          "weight": 25,
+          "bake_seconds": 300
+        },
+        {
+          "weight": 100,
+          "bake_seconds": 0
+        }
+      ]
+    }
+  }
+}

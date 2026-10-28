@@ -61,6 +61,7 @@ import { OVERVIEW_DENSITY_COOKIE } from "@/lib/console/prefs";
 import type { Deployment } from "@/lib/console/types";
 import { ctxFor } from "@/lib/server/auth/accounts";
 import { listApiKeys } from "@/lib/server/auth/api-keys";
+import { levelFor } from "@/lib/server/decision/score";
 import { isAdminRole } from "@/lib/server/context";
 import { usage as usageFor } from "@/lib/server/data/analytics";
 import { listAuditActions, type AuditEntry } from "@/lib/server/data/audit";
@@ -322,7 +323,7 @@ export default async function LivePage({
         action: { label: "View release", href: `/app/deployments/${d.id}` },
         rollback: { id: d.id, service: d.service },
       });
-    } else if ((d.risk?.score ?? 0) >= 70) {
+    } else if (levelFor(d.risk?.score ?? 0) === "high") {
       attention.push({
         key: `risk-${d.id}`,
         severity: "high",

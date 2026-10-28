@@ -44,6 +44,12 @@ func FromGit(dir, base string) (Change, error) {
 	return c, nil
 }
 
+// HeadCommit returns the full SHA of HEAD in repo dir.
+func HeadCommit(dir string) (string, error) {
+	out, err := git(dir, "rev-parse", "HEAD")
+	return strings.TrimSpace(out), err
+}
+
 func defaultBase(dir string) string {
 	for _, b := range []string{"origin/main", "main", "origin/master", "master"} {
 		if _, err := git(dir, "rev-parse", "--verify", "--quiet", b); err == nil {

@@ -336,6 +336,17 @@ func (c *Client) RecentRollbacks(ctx context.Context, since time.Time) (map[stri
 	return out, err
 }
 
+// Decision loads the pull request decision stored for a commit (a PR head SHA
+// or the merge commit, full or a prefix of at least 7 hex characters).
+// errors.Is(err, ErrNotFound) when the workspace has no decision for it.
+func (c *Client) Decision(ctx context.Context, sha string) (*Decision, error) {
+	var d Decision
+	if _, err := c.do(ctx, http.MethodGet, "/decisions/"+url.PathEscape(sha), nil, nil, &d, idem); err != nil {
+		return nil, err
+	}
+	return &d, nil
+}
+
 // EnqueueDeploy creates a deploy job for a runner to execute.
 func (c *Client) EnqueueDeploy(ctx context.Context, p DeployPayload) (*Job, error) {
 	return c.enqueue(ctx, EnqueueRequest{Kind: JobDeploy, Payload: p})

@@ -1,6 +1,7 @@
 // Pure policy helpers shared by the policy editor (client) and the server action
 // that saves it. Keep this module free of server-only imports.
 
+import sharedRules from "../server/decision/rules.json";
 import type { Level } from "./types";
 
 export const LEVELS: Level[] = ["low", "medium", "high"];
@@ -8,26 +9,9 @@ export const LEVELS: Level[] = ["low", "medium", "high"];
 export type PlanStep = { weight: number; bakeMin: number };
 export type Plans = Record<Level, PlanStep[]>;
 
-/** Mirrors alror/internal/rollout/planner.go: the plans used when the org has not customised them. */
-export const DEFAULT_PLANS: Plans = {
-  low: [
-    { weight: 25, bakeMin: 5 },
-    { weight: 100, bakeMin: 0 },
-  ],
-  medium: [
-    { weight: 5, bakeMin: 10 },
-    { weight: 25, bakeMin: 10 },
-    { weight: 50, bakeMin: 10 },
-    { weight: 100, bakeMin: 0 },
-  ],
-  high: [
-    { weight: 1, bakeMin: 15 },
-    { weight: 5, bakeMin: 15 },
-    { weight: 25, bakeMin: 15 },
-    { weight: 50, bakeMin: 15 },
-    { weight: 100, bakeMin: 0 },
-  ],
-};
+/** The plans used when the org has not customised them: the shared rules file the Go planner embeds. */
+export const DEFAULT_PLANS: Plans = Object.fromEntries(LEVELS.map((l) => [l,
+  sharedRules.plans[l].steps.map((s) => ({ weight: s.weight, bakeMin: s.bake_seconds / 60 }))])) as Plans;
 
 const NS_PER_MIN = 60_000_000_000;
 
