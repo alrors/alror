@@ -27,13 +27,16 @@ export function Kpi({
   const body = (
     <>
       <p className="text-[12px] font-medium uppercase tracking-wide text-con-fg3">{label}</p>
-      <p className={cn("mt-2 text-[26px] font-semibold leading-none tracking-[-0.02em] text-con-fg", tone === "warn" && "text-con-warn", tone === "bad" && "text-con-bad")}>
+      <p className={cn("mt-2 text-[26px] font-semibold leading-none tracking-[-0.02em] text-con-fg", tone === "warn" && "text-con-warn-text", tone === "bad" && "text-con-bad-text")}>
         <CountUp value={value} decimals={decimals} suffix={suffix} />
       </p>
       {hint && <p className="mt-2 truncate text-[12px] text-con-fg3">{hint}</p>}
     </>
   );
-  const cls = "block min-w-0 rounded-lg border border-con-line bg-con-panel px-4 py-3.5";
+  const cls = cn(
+    "con-surface block min-w-0 rounded-lg border bg-con-panel px-4 py-3.5",
+    tone === "bad" ? "con-accent-top border-con-line [--con-accent:var(--color-con-bad)]" : tone === "warn" ? "con-accent-top border-con-line [--con-accent:var(--color-con-warn)]" : "border-con-line",
+  );
   return href ? (
     <Link href={href} className={cn(cls, "con-lift hover:border-con-line-hover")}>
       {body}

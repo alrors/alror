@@ -5,10 +5,10 @@ import { login, type LoginState } from "@/app/login/actions";
 import { Spinner } from "@/components/console/loader";
 
 export const authInput =
-  "h-9 w-full rounded-md border border-con-line bg-con-bg px-3 text-[14px] text-con-fg outline-none transition-colors duration-150 placeholder:text-con-fg3 hover:border-con-line-hover focus:border-con-fg3";
+  "h-9 w-full rounded-md border border-con-line bg-con-bg px-3 text-[14px] text-con-fg outline-none transition-colors duration-150 placeholder:text-con-fg3 hover:border-con-line-hover focus:border-con-brand/70 focus-visible:ring-2 focus-visible:ring-con-brand/25";
 
 export const authButton =
-  "inline-flex h-9 w-full items-center justify-center gap-2 rounded-md bg-con-fg text-[14px] font-medium text-black transition-colors duration-150 hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-con-fg3 disabled:opacity-70";
+  "inline-flex h-9 w-full items-center justify-center gap-2 rounded-md bg-con-brand text-[14px] font-semibold text-con-brand-ink transition-colors duration-150 hover:bg-con-brand-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-con-brand/60 disabled:opacity-70";
 
 export function LoginForm({ next }: { next?: string }) {
   const [state, action, pending] = useActionState<LoginState, FormData>(login, undefined);

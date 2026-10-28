@@ -16,7 +16,7 @@ export function RollbackButton({ id, service }: { id: string; service: string })
     <form action={action} className="flex flex-col gap-2">
       <input type="hidden" name="id" value={id} />
       {confirming && !pending ? (
-        <div className="rounded-md border border-con-bad/30 p-3">
+        <div className="rounded-md border border-con-bad-edge bg-con-bad-soft p-3">
           <p className="text-[13px] text-con-fg">
             Roll back <span className="font-medium">{service}</span>? Traffic returns to the stable version.
           </p>
@@ -27,7 +27,7 @@ export function RollbackButton({ id, service }: { id: string; service: string })
             <button
               type="submit"
               onClick={() => setTimeout(() => setConfirming(false), 0)}
-              className="inline-flex h-8 flex-1 items-center justify-center gap-2 rounded-md bg-con-bad px-3 text-[13px] font-medium text-black transition-colors duration-150 hover:bg-[#f46a6e]"
+              className="inline-flex h-8 flex-1 items-center justify-center gap-2 rounded-md bg-con-bad px-3 text-[13px] font-semibold text-black transition-colors duration-150 hover:bg-con-bad-text"
             >
               <RotateCcw size={14} />
               Confirm

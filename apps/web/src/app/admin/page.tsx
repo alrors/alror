@@ -48,7 +48,7 @@ export default async function AdminOverview() {
           description="Deployments per day across all organizations, last 30 days (UTC)."
           aside={
             <span className="flex flex-wrap gap-3">
-              <LegendItem color={COLORS.neutralLight} label="Promoted" />
+              <LegendItem color={COLORS.promoted} label="Promoted" />
               <LegendItem color={COLORS.bad} label="Rolled back or failed" />
               <LegendItem color={COLORS.info} label="In flight" />
             </span>
@@ -62,7 +62,7 @@ export default async function AdminOverview() {
               label: dayLabel(d.day),
               header: weekdayLabel(d.day),
               segments: [
-                { name: "Promoted", value: d.promoted, color: COLORS.neutralLight },
+                { name: "Promoted", value: d.promoted, color: COLORS.promoted },
                 { name: "Rolled back or failed", value: d.bad, color: COLORS.bad },
                 { name: "In flight", value: d.other, color: COLORS.info },
               ],

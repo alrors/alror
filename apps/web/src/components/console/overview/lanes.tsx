@@ -30,7 +30,7 @@ function StageTrack({ lane, states, now }: { lane: Lane; states: ReturnType<type
                   <span
                     className={cn(
                       "con-grow-x absolute inset-y-0 left-0 rounded-full transition-[width] duration-700 ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-reduce:transition-none",
-                      s === "pass" && "bg-con-fg3",
+                      s === "pass" && "bg-con-good/70",
                       s === "active" && "bg-con-info",
                       s === "fail" && "bg-con-bad",
                     )}
@@ -64,7 +64,7 @@ function VerdictChips({ lane }: { lane: Lane }) {
           title={v.reason ? `${metricLabel(v.metric)}: ${v.reason}` : `${metricLabel(v.metric)}: ${v.pass ? "no regression" : "regression"}`}
           className={cn(
             "inline-flex h-[22px] items-center gap-1 rounded-full border px-2 text-[11.5px]",
-            v.pass ? "border-con-line text-con-fg2" : "border-con-bad/40 bg-con-bad/[0.07] text-con-bad",
+            v.pass ? "border-con-line text-con-fg2" : "border-con-bad-edge bg-con-bad-soft text-con-bad-text",
           )}
         >
           {v.pass ? <Check size={11} strokeWidth={2.5} className="text-con-fg3" /> : <X size={11} strokeWidth={2.5} />}
@@ -146,7 +146,7 @@ export function LiveLanes({ lanes, events, now, canRollBack }: { lanes: Lane[]; 
       title={
         <h2 className="flex items-center gap-2 text-[14px] font-semibold tracking-[-0.01em] text-con-fg">
           Live rollouts
-          <Count className={lanes.length ? "bg-con-info/15 text-con-info" : undefined}>{lanes.length}</Count>
+          <Count className={lanes.length ? "bg-con-info-soft text-con-info-text" : undefined}>{lanes.length}</Count>
         </h2>
       }
       tip="Releases taking a share of traffic right now. Each stage bakes, then the canary is compared with the stable version per metric before more traffic moves. Updates live."

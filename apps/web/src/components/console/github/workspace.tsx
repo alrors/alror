@@ -27,7 +27,7 @@ export function GitHubWorkspace({ repositories, decisions, admin }: { repositori
       const next = event.key === "Home" ? "repositories" : event.key === "End" ? "decisions" : tab === "repositories" ? "decisions" : "repositories";
       setTab(next); tabs.current?.querySelector<HTMLButtonElement>(`#github-tab-${next}`)?.focus();
     }}>
-      {(["repositories", "decisions"] as const).map((value) => <button key={value} id={`github-tab-${value}`} role="tab" aria-selected={tab === value} aria-controls={`github-panel-${value}`} tabIndex={tab === value ? 0 : -1} onClick={() => setTab(value)} className={cn("flex items-center gap-2 border-b-2 px-1 pb-3 text-[13px] transition-colors", tab === value ? "border-con-fg text-con-fg" : "border-transparent text-con-fg3 hover:text-con-fg")}>
+      {(["repositories", "decisions"] as const).map((value) => <button key={value} id={`github-tab-${value}`} role="tab" aria-selected={tab === value} aria-controls={`github-panel-${value}`} tabIndex={tab === value ? 0 : -1} onClick={() => setTab(value)} className={cn("flex items-center gap-2 border-b-2 px-1 pb-3 text-[13px] transition-colors", tab === value ? "border-con-brand text-con-fg" : "border-transparent text-con-fg3 hover:text-con-fg")}>
         {value === "repositories" ? <GitFork size={15} /> : <GitPullRequest size={15} />}{value === "repositories" ? "Repositories" : "Decisions"}<span className="rounded bg-con-row px-1.5 text-[11px] tabular-nums text-con-fg2">{value === "repositories" ? repositories.length : decisions.length}</span>
       </button>)}
     </div>

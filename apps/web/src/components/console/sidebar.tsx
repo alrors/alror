@@ -98,7 +98,7 @@ function useActiveIndicator(deps: unknown[]) {
     <span
       ref={bar}
       aria-hidden
-      className="pointer-events-none absolute inset-x-0 top-0 rounded-md bg-con-row opacity-0 transition-[transform,opacity] duration-200 ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-reduce:transition-none"
+      className="pointer-events-none absolute inset-x-0 top-0 rounded-md bg-con-brand-soft opacity-0 shadow-[inset_2px_0_0_var(--color-con-brand)] transition-[transform,opacity] duration-200 ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-reduce:transition-none"
     />
   );
   return { box, indicator };
@@ -115,7 +115,7 @@ function NavItem({ item, expanded, active, rolling, onNavigate }: { item: Item; 
   const body = (
     <>
       <span className="relative shrink-0">
-        <Icon size={20} strokeWidth={1.6} />
+        <Icon size={20} strokeWidth={1.6} className={cn("transition-colors duration-150", active && "text-con-brand")} />
         {!!rolling && (
           <span
             className={cn("absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-con-info ring-2 ring-con-bg transition-opacity duration-200", expanded ? "opacity-0" : "opacity-100")}
@@ -134,7 +134,7 @@ function NavItem({ item, expanded, active, rolling, onNavigate }: { item: Item; 
         <span className="min-w-0 flex-1 truncate">{label}</span>
         {external && <ArrowUpRight size={14} className="shrink-0 text-con-fg3" />}
         {!!rolling && (
-          <span className="inline-flex h-5 shrink-0 items-center gap-1.5 rounded-full bg-con-bg px-1.5 text-[12px] tabular-nums text-con-fg2">
+          <span className="inline-flex h-5 shrink-0 items-center gap-1.5 rounded-full border border-con-info-edge bg-con-info-soft px-1.5 text-[12px] tabular-nums text-con-info-text">
             <span className="h-1.5 w-1.5 rounded-full bg-con-info" aria-hidden />
             {rolling}
           </span>

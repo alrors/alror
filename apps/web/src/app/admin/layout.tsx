@@ -23,7 +23,7 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
     // Height comes from h-dvh max-h-dvh alone (no flex-1 on the frame).
     <div className="flex h-dvh max-h-dvh min-h-0 flex-col overflow-hidden bg-con-bg text-con-fg">
       <ShellToaster />
-      <header className="flex h-12 shrink-0 items-center gap-3 border-b border-con-line bg-con-bg px-3 sm:px-4">
+      <header className="flex h-12 shrink-0 items-center gap-3 border-b border-con-line bg-con-panel px-3 sm:px-4">
         <Link href="/admin" className="flex items-center gap-2 rounded-md px-1 text-[14px] font-semibold tracking-[-0.02em] text-con-fg">
           <LogoMark className="h-5 w-5" />
           <span className="hidden sm:inline">Alror</span>

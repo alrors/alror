@@ -139,7 +139,8 @@ const EMPTY: ToastItem[] = [];
 const serverSnapshot = () => EMPTY;
 
 const ICON = { success: CircleCheck, error: CircleAlert, info: Info } as const;
-const ICON_TONE = { success: "text-con-fg", error: "text-con-bad", info: "text-con-fg2" } as const;
+const ICON_TONE = { success: "text-con-good", error: "text-con-bad", info: "text-con-info" } as const;
+const EDGE = { success: "border-con-good-edge", error: "border-con-bad-edge", info: "border-con-info-edge" } as const;
 
 function ToastCard({ t }: { t: ToastItem }) {
   const Icon = ICON[t.tone];
@@ -162,7 +163,7 @@ function ToastCard({ t }: { t: ToastItem }) {
       role={t.tone === "error" ? "alert" : "status"}
       onMouseEnter={stop}
       onMouseLeave={start}
-      className="con-fade-up pointer-events-auto flex w-full items-start gap-3 rounded-lg border border-con-line bg-con-panel px-3.5 py-3 shadow-[0_16px_40px_-12px_rgb(0_0_0/0.7)]"
+      className={cn("con-fade-up con-surface pointer-events-auto flex w-full items-start gap-3 rounded-lg border bg-con-raised px-3.5 py-3 shadow-[0_16px_40px_-12px_rgb(0_0_0/0.7)]", EDGE[t.tone])}
     >
       <Icon size={16} className={cn("mt-px shrink-0", ICON_TONE[t.tone])} />
       <div className="min-w-0 flex-1">

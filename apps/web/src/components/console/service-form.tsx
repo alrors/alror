@@ -180,7 +180,7 @@ function ServiceDialog({ mode, initial, targets, onClose }: { mode: "create" | "
           </FormField>
         </div>
         <label className="flex items-start gap-2.5 text-[13px] text-con-fg2">
-          <input type="checkbox" name="critical" defaultChecked={initial.critical} className="mt-0.5 h-3.5 w-3.5 accent-[#ededed]" />
+          <input type="checkbox" name="critical" defaultChecked={initial.critical} className="mt-0.5 h-3.5 w-3.5 accent-con-brand" />
           <span>
             Critical service
             <span className="block text-[12px] text-con-fg3">Changes touching it score higher risk and get slower rollouts.</span>

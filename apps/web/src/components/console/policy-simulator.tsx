@@ -86,7 +86,7 @@ export function PolicySimulator({ form }: { form: PolicyForm }) {
             step={1}
             value={score}
             onChange={(e) => setScore(Number(e.target.value))}
-            className="mt-2 w-full accent-[#a1a1a1]"
+            className="mt-2 w-full accent-con-brand"
           />
           <div className="relative mt-1 h-1 overflow-hidden rounded-full" aria-hidden>
             <span className="absolute inset-y-0 left-0 w-[35%] bg-con-good/40" />

@@ -217,7 +217,7 @@ export function ServiceRiskTrend({ deps }: { deps: Deployment[] }) {
       {xs.length >= 2 ? (
         <LineChart
           height={150}
-          series={[{ name: "risk", values: scores, color: COLORS.neutralLight, area: true }]}
+          series={[{ name: "risk", values: scores, color: COLORS.sky, area: true }]}
           threshold={{ value: 70, label: "high risk" }}
           yFormat={(v) => String(Math.round(v))}
           xLabels={[
@@ -227,7 +227,7 @@ export function ServiceRiskTrend({ deps }: { deps: Deployment[] }) {
           title="Risk score per release, oldest to newest"
           legend={
             <>
-              <LegendItem color={COLORS.neutralLight} label="Risk score (0 to 100)" />
+              <LegendItem color={COLORS.sky} label="Risk score (0 to 100)" />
               <span className="text-[12px] text-con-fg3">35+ medium, 70+ high: higher scores get slower, smaller rollouts.</span>
             </>
           }

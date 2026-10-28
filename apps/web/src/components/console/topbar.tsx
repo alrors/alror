@@ -201,7 +201,7 @@ function EnvSwitcher({ environments, environment }: Pick<TopbarProps, "environme
         <>
           <span className={cn("truncate", !current && "text-con-fg2")}>{current ? current.name : "All environments"}</span>
           {current?.protected && (
-            <span className="hidden rounded border border-con-warn/40 bg-con-warn/10 px-1.5 py-px text-[10px] font-medium uppercase tracking-[0.06em] text-con-warn lg:inline">
+            <span className="hidden rounded border border-con-warn-edge bg-con-warn-soft px-1.5 py-px text-[10px] font-medium uppercase tracking-[0.06em] text-con-warn-text lg:inline">
               Protected
             </span>
           )}
@@ -293,7 +293,7 @@ function Notifications({ items, unread }: { items: TopbarNotification[]; unread:
         <>
           <Bell size={15} />
           {count > 0 && (
-            <span className="absolute -right-1.5 -top-1.5 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-con-fg px-1 text-[10px] font-semibold tabular-nums text-black ring-2 ring-con-bg">
+            <span className="absolute -right-1.5 -top-1.5 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-con-brand px-1 text-[10px] font-semibold tabular-nums text-con-brand-ink ring-2 ring-con-panel">
               {count > 99 ? "99+" : count}
             </span>
           )}
@@ -338,7 +338,7 @@ function Notifications({ items, unread }: { items: TopbarNotification[]; unread:
                                 <span className={cn("min-w-0 truncate text-[13px]", read ? "text-con-fg2" : "font-medium text-con-fg")}>{n.title}</span>
                                 <span className="flex shrink-0 items-center gap-2 text-[12px] text-con-fg3">
                                   {ago(n.created_at)}
-                                  {!read && <span className="h-1.5 w-1.5 rounded-full bg-con-fg" aria-label="Unread" />}
+                                  {!read && <span className="h-1.5 w-1.5 rounded-full bg-con-brand" aria-label="Unread" />}
                                 </span>
                               </span>
                               {n.body && <span className="mt-1 line-clamp-2 block font-mono text-[12px] text-con-fg3">{n.body}</span>}
@@ -364,10 +364,10 @@ function Notifications({ items, unread }: { items: TopbarNotification[]; unread:
 }
 
 function kindOf(kind: string) {
-  if (kind.endsWith("failed")) return { icon: CircleAlert, tone: "text-con-bad" };
-  if (kind.endsWith("rolled_back")) return { icon: RotateCcw, tone: "text-con-warn" };
-  if (kind.startsWith("deployment")) return { icon: Rocket, tone: "text-con-fg2" };
-  return { icon: Bell, tone: "text-con-fg2" };
+  if (kind.endsWith("failed")) return { icon: CircleAlert, tone: "border-con-bad-edge bg-con-bad-soft text-con-bad-text" };
+  if (kind.endsWith("rolled_back")) return { icon: RotateCcw, tone: "border-con-warn-edge bg-con-warn-soft text-con-warn-text" };
+  if (kind.startsWith("deployment")) return { icon: Rocket, tone: "border-con-info-edge bg-con-info-soft text-con-info-text" };
+  return { icon: Bell, tone: "bg-con-raised text-con-fg2" };
 }
 
 /** Today / Yesterday / Earlier, in the viewer's local time. */
