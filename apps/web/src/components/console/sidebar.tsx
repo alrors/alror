@@ -20,6 +20,7 @@ import {
   ListChecks,
   Settings,
   Settings2,
+  Siren,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -44,6 +45,7 @@ const groups: { label: string; items: Item[] }[] = [
     items: [
       { href: "/app/deployments", label: "Deployments", icon: Rocket, match: (p) => p.startsWith("/app/deployments") },
       { href: "/app/jobs", label: "Jobs", icon: ListChecks, match: (p) => p.startsWith("/app/jobs") },
+      { href: "/app/incidents", label: "Incidents", icon: Siren, match: (p) => p.startsWith("/app/incidents") },
       { href: "/app/insights", label: "Insights", icon: ChartColumn, match: (p) => p.startsWith("/app/insights") },
     ],
   },
